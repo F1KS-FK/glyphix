@@ -1,59 +1,59 @@
 {
   "schema": 1,
   "app_min_version": "2.0.0",
-  "updated": "2026-11-17T11:30:58Z",
+  "updated": "2026-11-17T13:09:31Z",
   "packs": [
     {
       "id": "shadow",
       "name": "Shadow",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "author": "F1KS",
       "description": "Чёрные иконки с сине-фиолетовой аурой",
-      "icon_count": 126,
+      "icon_count": 127,
       "path": "packs/shadow/",
       "manifest": "packs/shadow/pack.json",
-      "manifest_sha256": "ddd6b5d4105fce52c34f0f2ca32c50327236f5e8b108e17eeb56d2d5e4375ef3",
+      "manifest_sha256": "5bd9e29b84e6d0a9bd4e9770e501929f8beff64e4130057b00ac8810b5556785",
       "preview": "packs/shadow/preview.png",
-      "preview_sha256": "faae97ea3e3c6b926b25ce13d337cfe03f9caf58a5b540eef931689bae8de5ae"
+      "preview_sha256": "55c07f85e99237dcd053c1a56022b59050d5755a00a71eeeca0eb0b4d92e7e23"
     },
     {
       "id": "azure",
       "name": "Azure",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "author": "F1KS",
       "description": "Голубые светящиеся иконки",
-      "icon_count": 126,
+      "icon_count": 127,
       "path": "packs/azure/",
       "manifest": "packs/azure/pack.json",
-      "manifest_sha256": "b24c11c1a29ac750a015b6f852a79a1430f638fe1bfbe8270ca37f40998a538c",
+      "manifest_sha256": "300c27908678b81b6a49abdb8139f52567176e886bf4a07c41455345f3dbde9f",
       "preview": "packs/azure/preview.png",
-      "preview_sha256": "c82e2594d36208041950549a5752e40024a6e514732d4fa0fe2a4e8022c9ab1e"
+      "preview_sha256": "6ea5ab8f4bd53d283f5d703fc419254004bc7cd12e05771303d9e2c49564c614"
     },
     {
       "id": "white",
       "name": "White",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "author": "F1KS",
       "description": "Белые минималистичные иконки",
-      "icon_count": 126,
+      "icon_count": 127,
       "path": "packs/white/",
       "manifest": "packs/white/pack.json",
-      "manifest_sha256": "cf2a6771f8345b9c4e70affce604ac0a62f6b195f18b7b3c83f9fd03054d074a",
+      "manifest_sha256": "b6e57cc523abb79b3aeee2c568239d5738db5153ccdfadc825a199a65e1dbf23",
       "preview": "packs/white/preview.png",
-      "preview_sha256": "addf807a51669796767d96cbc2d5d41a18ecde1c3b2995a23d8cfd2f814af2c1"
+      "preview_sha256": "6ba4e5bea90a28faa21a0bae2bd2447e47ed3d97f9ce9e1e013f63cac5adf823"
     },
     {
       "id": "black",
       "name": "Black",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "author": "F1KS",
       "description": "Чёрные иконки с серебряной кромкой",
-      "icon_count": 126,
+      "icon_count": 127,
       "path": "packs/black/",
       "manifest": "packs/black/pack.json",
-      "manifest_sha256": "44583869a70d8517fb2b9c4e1d14b0cec277c1bcff416dd0b8f8374d8424144f",
+      "manifest_sha256": "5bc69679ee5a9b22314cb1ef65a16393da5c53e021004d404b5da3781c7ed0ff",
       "preview": "packs/black/preview.png",
-      "preview_sha256": "6cfeb004afa796d40b3f8bc162ac39aa6cc31fafd8f32a43e9168b41fe45d3c4"
+      "preview_sha256": "ac9b99e720ed6cfe242e9aca226613facced254cc9eb8534bf66d89686a79e57"
     }
   ]
 }

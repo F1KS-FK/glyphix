@@ -9,6 +9,7 @@ param(
     [string]$Apply,
     [switch]$Undo,
     [switch]$Update,
+    [switch]$CheckUpdate,
     [switch]$NoRestart,
     [switch]$AllUsers,
     [switch]$NoTiles,

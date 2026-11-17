@@ -4,6 +4,7 @@
   (при «Применить» или «Скачать»). Данные прежней версии (Shadow Icons) переносятся при первом запуске.
   GUI:  powershell -STA -File Glyphix.ps1      (обычно запускается через launch.vbs)
   CLI:  Glyphix.ps1 -Cli [-Update] [-List <пак>] [-Apply <пак>] [-Undo] [-NoRestart] [-AllUsers] [-NoTiles] [-NoName] [-CommonOnly]
+  Версии:  Glyphix.ps1 -CheckUpdate   (покажет локальную версию и версию на GitHub; приложение само предлагает обновиться кнопкой в шапке)
   Плитки Start11 применяются вместе с ярлыками (если Start11 найден); -NoTiles - без плиток, -NoName - плитки без подписи.
   Прав администратора при запуске НЕ запрашивается. Общие ярлыки (-AllUsers) требуют повышения: GUI сам
   перезапускает этот скрипт в режиме CLI с UAC на одно действие.
@@ -16,6 +17,7 @@ param(
     [string]$Apply,
     [switch]$Undo,
     [switch]$Update,
+    [switch]$CheckUpdate,
     [switch]$NoRestart,
     [switch]$AllUsers,
     [switch]$NoTiles,
@@ -87,6 +89,24 @@ function Invoke-Cli {
     return $code
 }
 
+function Invoke-CheckUpdate {
+    try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+    $info = Get-AppUpdateInfo
+    Write-Host ('Локальная версия: ' + $info.Local)
+    if ($info.Reason -eq 'bad-remote') {
+        Write-Host 'Версия на GitHub: не удалось получить (нет сети или неверный ответ)'
+        return 1
+    }
+    Write-Host ('Версия на GitHub: ' + $info.Remote)
+    if ($info.Available) { Write-Host 'Доступно обновление: нажмите кнопку «Доступна версия ... - обновить приложение» в окне или выполните: irm https://raw.githubusercontent.com/F1KS-FK/glyphix/main/install.ps1 | iex' }
+    else { Write-Host 'Обновление не требуется' }
+    return 0
+}
+
+if ($CheckUpdate) {
+    $rcCheck = Invoke-CheckUpdate
+    if (-not ($Cli -or $List -or $Apply -or $Undo -or $Update)) { exit $rcCheck }
+}
 if ($Cli -or $List -or $Apply -or $Undo -or $Update) {
     $rc = Invoke-Cli
     exit $rc
@@ -115,7 +135,7 @@ public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int va
 public static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
 '@
     }
-    [void][GlyphixNative.Gui]::SetCurrentProcessExplicitAppUserModelID('Glyphix.App')
+    [void][GlyphixNative.Gui]::SetCurrentProcessExplicitAppUserModelID($script:SI_AppId)
 } catch { }
 
 # Все строки интерфейса - здесь (для будущей локализации)
@@ -128,7 +148,7 @@ $T = @{
     Undo         = 'Откатить всё'
     Open         = 'Открыть папку'
     Uninstall    = 'Удалить приложение'
-    Restart      = 'Перезапустить проводник (иконки обновятся сразу)'
+    Restart      = 'Перезапустить проводник'
     LogShow      = 'Журнал ▾'
     LogHide      = 'Журнал ▴'
     WillChange   = 'Что поменяется'
@@ -140,7 +160,7 @@ $T = @{
     NoneFound    = 'Подходящих ярлыков не найдено'
     AlreadySet   = 'уже стоит'
     AdminNote    = 'Общие ярлыки (для всех пользователей) не затрагиваются. Отметьте «Также общие ярлыки», чтобы включить их (понадобятся права администратора).'
-    AllUsers     = 'Также общие ярлыки (нужны права администратора)'
+    AllUsers     = 'Также общие ярлыки'
     ElevCancel   = 'Запрос прав администратора отклонён - ничего не изменено'
     ElevDone     = 'Готово (общие ярлыки применены с правами администратора)'
     ElevFail     = 'Действие с правами администратора завершилось с ошибками (код {0}), подробности - в журнале'
@@ -151,6 +171,13 @@ $T = @{
     NoAdmin      = 'Без прав администратора'
     Ready        = 'Готово'
     Updating     = 'Проверяю обновления паков...'
+    AppUpdate    = 'Доступна версия {0} — обновить приложение'
+    AppUpdateTip = 'Установлена {0}, на GitHub {1}. Нажмите, чтобы скачать и установить новую версию.'
+    ConfirmAppUpdate = 'Доступна версия {1} (установлена {0}).' + "`n`n" + 'Скачать установщик, проверить файлы по sha256 и обновить Glyphix? Приложение закроется и запустится заново.'
+    AppUpdating  = 'Скачиваю установщик обновления...'
+    AppUpdateStarted = 'Установщик запущен, приложение закрывается...'
+    RestartTip   = 'Иконки обновятся сразу, без выхода из системы'
+    AllUsersTip  = 'Для общих ярлыков нужны права администратора (запрос UAC на одно действие)'
     FirstRun     = 'Первый запуск: загружаю список паков с GitHub...'
     Migrating    = 'Переношу данные из Shadow Icons...'
     Download     = 'Скачать'
@@ -213,7 +240,7 @@ try {
 $script:ui = @{}
 $names = @('ImgLogo', 'TxtVersion', 'TxtAdmin', 'TxtPacksTitle', 'PackList', 'TxtEmpty', 'TxtMatchTitle', 'TxtSelectedPack', 'MatchList',
     'TxtMatchSummary', 'BtnUpdate', 'BtnUndo', 'BtnOpen', 'BtnMenu', 'ChkRestart', 'ChkAllUsers', 'ChkTiles', 'ChkNoName', 'LnkGitHub', 'PopMenu', 'BtnUninstall',
-    'PrgBusy', 'TxtStatus', 'BtnLog', 'LogPanel', 'TxtLog')
+    'PrgBusy', 'TxtStatus', 'BtnLog', 'LogPanel', 'TxtLog', 'BtnAppUpdate')
 foreach ($n in $names) {
     $script:ui[$n] = $script:Window.FindName($n)
     if ($null -eq $script:ui[$n]) { Write-Log "В XAML нет элемента $n"; [void][System.Windows.MessageBox]::Show("В MainWindow.xaml нет элемента $n", 'Glyphix', 'OK', 'Error'); exit 1 }
@@ -226,6 +253,9 @@ $script:CardButtons = @()
 $script:SelectedId = $null
 $script:PendingSelect = $null
 $script:Job = $null
+$script:Closing = $false
+$script:UpdJob = $null
+$script:UpdateInfo = $null
 $script:DataHome = $script:SI_Home
 $script:HasStart11 = $false
 try { $script:HasStart11 = [bool](Test-Start11) } catch { }
@@ -272,7 +302,7 @@ function Set-Busy {
     param([bool]$Busy)
     $script:ui.PrgBusy.IsIndeterminate = $Busy
     $script:ui.PrgBusy.Visibility = if ($Busy) { 'Visible' } else { 'Hidden' }
-    foreach ($b in @($script:ui.BtnUpdate, $script:ui.BtnUndo, $script:ui.BtnMenu)) { $b.IsEnabled = (-not $Busy) }
+    foreach ($b in @($script:ui.BtnUpdate, $script:ui.BtnUndo, $script:ui.BtnMenu, $script:ui.BtnAppUpdate)) { $b.IsEnabled = (-not $Busy) }
     foreach ($b in $script:CardButtons) { $b.IsEnabled = (-not $Busy) }
 }
 
@@ -289,7 +319,7 @@ catch { Write-Log ('ОШИБКА: ' + $_.Exception.Message); [pscustomobject]@{ 
 
 function Start-Bg {
     param([string]$Title, [string]$Body, [hashtable]$Params, [scriptblock]$OnDone)
-    if ($script:Job) { return }
+    if ($script:Job -or $script:Closing) { return }
     Set-Status $Title
     Set-Busy $true
     $q = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
@@ -324,6 +354,70 @@ function Step-Job {
     Set-Busy $false
     try { & $job.OnDone $res } catch { Show-Error $_ }
     if ($script:PendingSelect) { $p = $script:PendingSelect; $script:PendingSelect = $null; Select-Pack $p }
+}
+
+# ---- обновление самого приложения ----
+# Проверка идёт в отдельном runspace (не занимает общий $script:Job), ошибки сети молча игнорируются: кнопка просто не появляется.
+function Show-AppUpdateButton {
+    $i = $script:UpdateInfo
+    if ($i -and $i.Available) {
+        $script:ui.BtnAppUpdate.Content = ($script:T.AppUpdate -f $i.Remote)
+        $script:ui.BtnAppUpdate.ToolTip = ($script:T.AppUpdateTip -f $i.Local, $i.Remote)
+        $script:ui.BtnAppUpdate.Visibility = 'Visible'
+    } else {
+        $script:ui.BtnAppUpdate.Visibility = 'Collapsed'
+    }
+}
+
+function Step-UpdateCheck {
+    $u = $script:UpdJob
+    if (-not $u) { $script:UpdTimer.Stop(); return }
+    if (-not $u.Async.IsCompleted) { return }
+    $script:UpdTimer.Stop()
+    $info = $null
+    try {
+        $out = $u.PS.EndInvoke($u.Async)
+        if ($out -and $out.Count -gt 0) { $info = $out[$out.Count - 1] }
+    } catch { }
+    try { $u.PS.Dispose(); $u.RS.Close(); $u.RS.Dispose() } catch { }
+    $script:UpdJob = $null
+    if ($info -and $info.PSObject.Properties['Available']) { $script:UpdateInfo = $info; Show-AppUpdateButton }
+}
+
+function Start-UpdateCheck {
+    if ($script:UpdJob -or $script:Closing) { return }
+    try {
+        $rs = [runspacefactory]::CreateRunspace()
+        $rs.ApartmentState = [Threading.ApartmentState]::STA
+        $rs.ThreadOptions = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
+        $rs.Open()
+        $ps = [powershell]::Create()
+        $ps.Runspace = $rs
+        $q = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+        [void]$ps.AddScript($script:Prologue).AddArgument((Join-Path $script:Root 'Engine.ps1')).AddArgument($q).AddArgument(@{}).AddArgument('param($p) Get-AppUpdateInfo')
+        $async = $ps.BeginInvoke()
+        $script:UpdJob = @{ PS = $ps; RS = $rs; Async = $async }
+        $script:UpdTimer.Start()
+    } catch { $script:UpdJob = $null }
+}
+
+function Invoke-AppUpdate {
+    if ($script:Job) { Set-Status $script:T.Busy; return }
+    $i = $script:UpdateInfo
+    if (-not $i -or -not $i.Available) { return }
+    $ans = [System.Windows.MessageBox]::Show($script:Window, ($script:T.ConfirmAppUpdate -f $i.Local, $i.Remote), $script:T.Title, [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question)
+    if ($ans -ne [System.Windows.MessageBoxResult]::Yes) { return }
+    Start-Bg -Title $script:T.AppUpdating -Params @{} -Body @'
+param($p)
+[pscustomobject]@{ Started = $true; Installer = (Start-AppSelfUpdate) }
+'@ -OnDone {
+        param($res)
+        if (-not $res) { Show-Error 'Обновление не вернуло результат'; return }
+        if ($res.Error) { Show-Error $res.Error; return }
+        Set-Status $script:T.AppUpdateStarted
+        $script:Closing = $true
+        $script:Window.Close()
+    }
 }
 
 # ---- карточки паков ----
@@ -373,16 +467,24 @@ function Rebuild-Packs {
     $st = Read-State
     if ($st.ContainsKey('Applied') -and $st['Applied']) { $applied = [string]$st['Applied'].PackId }
     foreach ($pk in $script:Packs) {
+        # карточка = Grid с жёсткими строками: высота и положение элементов не зависят от длины текста
         $card = New-Object System.Windows.Controls.Border
         $card.Style = (Get-Res 'CardStyle')
-        $card.Width = 282
-        $card.Margin = New-Object System.Windows.Thickness(6)
+        $card.Margin = New-Object System.Windows.Thickness(6)           # размер карточки задаёт ItemWidth/ItemHeight у WrapPanel
         $card.Tag = $pk.Id
         $card.Cursor = [System.Windows.Input.Cursors]::Hand
-        $sp = New-Object System.Windows.Controls.StackPanel
+        $card.ToolTip = $pk.Name
+        $sp = New-Object System.Windows.Controls.Grid
+        foreach ($h in @(92, 34, 20, 36)) {
+            $rd = New-Object System.Windows.Controls.RowDefinition
+            $rd.Height = New-Object System.Windows.GridLength($h)
+            [void]$sp.RowDefinitions.Add($rd)
+        }
+        $rd = New-Object System.Windows.Controls.RowDefinition
+        $rd.Height = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Star)
+        [void]$sp.RowDefinitions.Add($rd)
 
         $pv = New-Object System.Windows.Controls.Border
-        $pv.Height = 92
         $pv.CornerRadius = New-Object System.Windows.CornerRadius(10)
         $img = New-Img $pk.Preview 600
         if ($img) {
@@ -390,6 +492,7 @@ function Rebuild-Packs {
             $ib.Stretch = [System.Windows.Media.Stretch]::UniformToFill
             $pv.Background = $ib
         } else { $pv.Background = (Get-Res 'RowBrush') }
+        [System.Windows.Controls.Grid]::SetRow($pv, 0)
         [void]$sp.Children.Add($pv)
 
         # название + состояние (применён / скачан / не скачан)
@@ -397,31 +500,44 @@ function Rebuild-Packs {
         $h1 = New-Object System.Windows.Controls.ColumnDefinition; $h1.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Star)
         $h2 = New-Object System.Windows.Controls.ColumnDefinition; $h2.Width = [System.Windows.GridLength]::Auto
         [void]$head.ColumnDefinitions.Add($h1); [void]$head.ColumnDefinitions.Add($h2)
-        $head.Margin = New-Object System.Windows.Thickness(2, 10, 0, 0)
+        $head.Margin = New-Object System.Windows.Thickness(2, 0, 0, 0)
         $nm = New-Text $pk.Name 16 'TextBrush' 'SemiBold'
         $nm.TextTrimming = 'CharacterEllipsis'
+        $nm.VerticalAlignment = 'Center'
+        $nm.Margin = New-Object System.Windows.Thickness(0, 0, 8, 0)
         [void]$head.Children.Add($nm)
         $isApplied = ($applied -and $applied -eq $pk.Id)
         $stateText = if ($isApplied) { $script:T.Applied } elseif ($pk.State -eq 'ready') { $script:T.StateReady } elseif ($pk.State -eq 'stale') { $script:T.StateStale } else { $script:T.StateNone }
         $pill = New-StatePill $stateText ([bool]$isApplied)
         [System.Windows.Controls.Grid]::SetColumn($pill, 1)
         [void]$head.Children.Add($pill)
+        [System.Windows.Controls.Grid]::SetRow($head, 1)
         [void]$sp.Children.Add($head)
 
         $meta = New-Text ("{0} · v{1} · {2}" -f $pk.Author, $pk.Version, ($script:T.IconsN -f $pk.IconCount)) 12 'MutedBrush'
-        $meta.Margin = New-Object System.Windows.Thickness(2, 2, 0, 0)
+        $meta.Margin = New-Object System.Windows.Thickness(2, 0, 0, 0)
+        $meta.VerticalAlignment = 'Center'
+        $meta.TextTrimming = 'CharacterEllipsis'
+        [System.Windows.Controls.Grid]::SetRow($meta, 2)
         [void]$sp.Children.Add($meta)
-        if ($pk.Description) {
+        if ($pk.Description) {                 # строка описания есть всегда (36 px), даже если текста нет
             $ds = New-Text $pk.Description 12 'MutedBrush'
             $ds.TextWrapping = 'Wrap'
             $ds.TextTrimming = 'CharacterEllipsis'
-            $ds.MaxHeight = 34
-            $ds.Margin = New-Object System.Windows.Thickness(2, 6, 0, 0)
+            $ds.VerticalAlignment = 'Top'
+            $ds.Margin = New-Object System.Windows.Thickness(2, 2, 0, 0)
+            $ds.ToolTip = [string]$pk.Description
+            [System.Windows.Controls.Grid]::SetRow($ds, 3)
             [void]$sp.Children.Add($ds)
         }
-        $row = New-Object System.Windows.Controls.StackPanel
-        $row.Orientation = 'Horizontal'
-        $row.Margin = New-Object System.Windows.Thickness(0, 12, 0, 2)
+        # кнопки: две фиксированные колонки (Применить | Скачать), всегда в одном и том же месте карточки
+        $row = New-Object System.Windows.Controls.Grid
+        $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = New-Object System.Windows.GridLength(112)
+        $c2 = New-Object System.Windows.Controls.ColumnDefinition; $c2.Width = New-Object System.Windows.GridLength(100)
+        $c3 = New-Object System.Windows.Controls.ColumnDefinition; $c3.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Star)
+        [void]$row.ColumnDefinitions.Add($c1); [void]$row.ColumnDefinitions.Add($c2); [void]$row.ColumnDefinitions.Add($c3)
+        $row.VerticalAlignment = 'Center'
+        $row.Height = 36
         $btn = New-Object System.Windows.Controls.Button
         $btn.Style = (Get-Res 'AccentButton')
         $btn.Content = $script:T.Apply
@@ -436,9 +552,11 @@ function Rebuild-Packs {
             $dl.Tag = $pk.Id
             $dl.Margin = New-Object System.Windows.Thickness(10, 0, 0, 0)
             $dl.Add_Click({ param($s, $e) try { Invoke-Download ([string]$s.Tag) } catch { Show-Error $_ } })
+            [System.Windows.Controls.Grid]::SetColumn($dl, 1)
             [void]$row.Children.Add($dl)
             $script:CardButtons += $dl
         }
+        [System.Windows.Controls.Grid]::SetRow($row, 4)
         [void]$sp.Children.Add($row)
         $card.Child = $sp
         $card.Add_MouseLeftButtonUp({ param($s, $e) try { Select-Pack ([string]$s.Tag) } catch { Show-Error $_ } })
@@ -454,8 +572,10 @@ function New-MatchRow {
     $row = New-Object System.Windows.Controls.Border
     $row.Background = (Get-Res 'RowBrush')
     $row.CornerRadius = New-Object System.Windows.CornerRadius(10)
-    $row.Padding = New-Object System.Windows.Thickness(10)
+    $row.Padding = New-Object System.Windows.Thickness(10, 0, 10, 0)
+    $row.Height = 58
     $row.Margin = New-Object System.Windows.Thickness(0, 0, 0, 6)
+    $row.SnapsToDevicePixels = $true
     $row.ToolTip = $Tip
     $g = New-Object System.Windows.Controls.Grid
     $d1 = New-Object System.Windows.Controls.ColumnDefinition; $d1.Width = [System.Windows.GridLength]::Auto
@@ -464,6 +584,7 @@ function New-MatchRow {
     [void]$g.ColumnDefinitions.Add($d1); [void]$g.ColumnDefinitions.Add($d2); [void]$g.ColumnDefinitions.Add($d3)
     $im = New-Object System.Windows.Controls.Image
     $im.Width = 34; $im.Height = 34
+    $im.VerticalAlignment = 'Center'
     $src = New-Img $ImgPath 68
     if ($src) { $im.Source = $src }
     [void]$g.Children.Add($im)
@@ -483,7 +604,9 @@ function New-MatchRow {
     $pill.CornerRadius = New-Object System.Windows.CornerRadius(8)
     $pill.Padding = New-Object System.Windows.Thickness(8, 3, 8, 3)
     $pill.VerticalAlignment = 'Center'
+    $pill.MaxWidth = 140
     $pill.Child = New-Text $Pill 11 'MutedBrush'
+    $pill.Child.TextTrimming = 'CharacterEllipsis'
     [System.Windows.Controls.Grid]::SetColumn($pill, 2)
     [void]$g.Children.Add($pill)
     $row.Child = $g
@@ -735,6 +858,8 @@ $script:ui.BtnOpen.Content = $script:T.Open
 $script:ui.BtnUninstall.Content = $script:T.Uninstall
 $script:ui.ChkRestart.Content = $script:T.Restart
 $script:ui.ChkAllUsers.Content = $script:T.AllUsers
+$script:ui.ChkAllUsers.ToolTip = $script:T.AllUsersTip
+$script:ui.ChkRestart.ToolTip = $script:T.RestartTip
 $script:ui.ChkTiles.Content = $script:T.Tiles
 $script:ui.ChkNoName.Content = $script:T.TilesNoName
 # галочки плиток видны только если Start11 найден (ключ реестра есть)
@@ -761,7 +886,12 @@ $script:Timer = New-Object System.Windows.Threading.DispatcherTimer
 $script:Timer.Interval = [TimeSpan]::FromMilliseconds(120)
 $script:Timer.Add_Tick({ try { Step-Job } catch { Show-Error $_ } })
 
-$script:ui.BtnUpdate.Add_Click({ try { Invoke-Update } catch { Show-Error $_ } })
+$script:UpdTimer = New-Object System.Windows.Threading.DispatcherTimer
+$script:UpdTimer.Interval = [TimeSpan]::FromMilliseconds(250)
+$script:UpdTimer.Add_Tick({ try { Step-UpdateCheck } catch { } })
+
+$script:ui.BtnUpdate.Add_Click({ try { Invoke-Update; Start-UpdateCheck } catch { Show-Error $_ } })
+$script:ui.BtnAppUpdate.Add_Click({ try { Invoke-AppUpdate } catch { Show-Error $_ } })
 $script:ui.BtnUndo.Add_Click({ try { Invoke-Undo } catch { Show-Error $_ } })
 $script:ui.BtnOpen.Add_Click({
     try {
@@ -798,7 +928,8 @@ $script:ui.LnkGitHub.Add_RequestNavigate({
 })
 $script:Window.Add_Closing({
     param($s, $e)
-    if ($script:Job) { $e.Cancel = $true; Set-Status $script:T.Busy }
+    if ($script:Job) { $e.Cancel = $true; Set-Status $script:T.Busy; return }
+    $script:Closing = $true
 })
 $script:Window.Add_SourceInitialized({
     try {   # тёмный заголовок окна (Windows 10 1903+/11)
@@ -827,6 +958,7 @@ function Start-Initial {
 }
 
 $script:Window.Add_ContentRendered({
+    try { Start-UpdateCheck } catch { }
     try {
         $need = ((-not $script:ElevProblem) -and -not (Get-LegacyMigrationSkipReason))
         if ($need) {

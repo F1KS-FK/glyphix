@@ -2,12 +2,28 @@
  "schema": 1,
  "id": "black",
  "name": "Black",
- "version": "2.0.1",
+ "version": "2.0.2",
  "author": "F1KS",
  "license": "CC BY-NC-SA 4.0",
  "description": "Чёрные иконки с серебряной кромкой",
  "preview": "preview.png",
  "icons": [
+  {
+   "id": "glyphix",
+   "name": "Glyphix",
+   "group": "system",
+   "ico": "icons/glyphix.ico",
+   "ico_sha256": "c21b17695ff034073ce67cbdd22c07888e5fbc08ff3713b2cb4539d5d6da655c",
+   "png": "icons/glyphix.png",
+   "png_sha256": "ecd0ac0e9a56db0b1534176b79b6dc2613f0442502bb5d38d866d03c3d221091",
+   "match": {
+    "names": [
+     "glyphix",
+     "shadowicons"
+    ],
+    "exes": []
+   }
+  },
   {
    "id": "telegram",
    "name": "Telegram",
@@ -2245,886 +2261,893 @@
  ],
  "tiles": [
   {
+   "id": "glyphix",
+   "file": "tiles/glyphix.png",
+   "sha256": "6ac0801217f090baf983a979d6d2173af80ef125f5608e06412fc0fb55eac718",
+   "file_noname": "tiles_noname/glyphix.png",
+   "sha256_noname": "98fbe2fed2b4ac44024b2a4ea8048cb069bf3832234d619e6be4f69c3209f5fb"
+  },
+  {
    "id": "telegram",
    "file": "tiles/telegram.png",
-   "sha256": "b19e347940c278baf7d40fdf6fbbc3b50a269c84540d2c799de0f26ef0046479",
+   "sha256": "cacfb9cd179c53454833ec8321f9e0e7a9fd0f15b60f740bbc874ca9a5fd72b7",
    "file_noname": "tiles_noname/telegram.png",
-   "sha256_noname": "632a439185d59f10b05ffdb978655ff0c27c92a347e03ba736506f5965e91334"
+   "sha256_noname": "ff18da7deb1d0551be21ee861ba7a5253e77e7f177572577fa0df3e913567762"
   },
   {
    "id": "discord",
    "file": "tiles/discord.png",
-   "sha256": "7d41c847f29df2b7255728804977a068fdf044515ae88e2691312ce495b2221c",
+   "sha256": "7c133278f25c055a7a3f4948ea2dd68d5a8e81b0ddb28724b764c59351050f88",
    "file_noname": "tiles_noname/discord.png",
-   "sha256_noname": "ad4389c7974dc71f59b4f9578688cfd2691328e3a8221be55c11632041dc0867"
+   "sha256_noname": "8780649e6c7e4d09831a6e2573202caeb22802deb60cde5bfa2480ed07c4b6e6"
   },
   {
    "id": "chrome",
    "file": "tiles/chrome.png",
-   "sha256": "5d90d6a075b5d078552e9f2ef67bfd84f48e3996d3b0e6d80f5e9000df611e05",
+   "sha256": "afadd72a883c4e47931ab761d1651ff9a37585d91ec5e9a4aa787a17ba5bd5d0",
    "file_noname": "tiles_noname/chrome.png",
-   "sha256_noname": "de9d508e71599b11960a60d04b6d887ee47a11690d4a4c9e7544db2262ce83c6"
+   "sha256_noname": "ce25013626ae883721c2d01ebfda59e7042cebc248765577ef5aef8afb979af4"
   },
   {
    "id": "firefox",
    "file": "tiles/firefox.png",
-   "sha256": "bbe8b0960ad0ba49c3101c6bc2270939ee1b8eb102c4725bd58ae701479e7df1",
+   "sha256": "429d70e5299af685d2c7193695dff43b74bc32a3df0624af42f672e309facbe3",
    "file_noname": "tiles_noname/firefox.png",
-   "sha256_noname": "490a800878512789cd98ee426f425c16c61722a76ea7a1bdb965c930f729bb3a"
+   "sha256_noname": "9c77ee755bbe72def9ad1321fedc7184ee22c2396b43a5a6a6529969a28e187a"
   },
   {
    "id": "edge",
    "file": "tiles/edge.png",
-   "sha256": "c04e6d541eb523661ce43390a479bfe668ab4b2fb889c3be5d509876168c44aa",
+   "sha256": "8a4d8aaec6bccad5aec77f6d33ac9885b7b827656773fb04116b8c8cc7325a8d",
    "file_noname": "tiles_noname/edge.png",
-   "sha256_noname": "c37fdd8b3050e0f366bc36d631f2c1a260fcdc8be9fc8427ab432cf0ca5c8b07"
+   "sha256_noname": "60577ffb397b9ab548028dc1f287a5f869a817984b9670dab6a463520de562d0"
   },
   {
    "id": "opera",
    "file": "tiles/opera.png",
-   "sha256": "f4e8e3a9e28e187c4d09f705ea4bbb28fcfa28ba7ef2da89137ebebec479cca9",
+   "sha256": "0ab4b1479a191c0f950a10dce6ce56f8a4435a668c8eb76a2f72284ca4c1e360",
    "file_noname": "tiles_noname/opera.png",
-   "sha256_noname": "8aa2a2b2aa5b49c012efea48611996b493af902e8855385420bd554adfaec33a"
+   "sha256_noname": "9ff7c52da14fd34f2adde492f4de1291c39f40c97d96cdc1796de6680cd3f443"
   },
   {
    "id": "operagx",
    "file": "tiles/operagx.png",
-   "sha256": "a7c51bf71e8b3cad99beed757c478382c89c532a08ca3dd4724e31fa5d0d04ca",
+   "sha256": "01e7aa0ba3da5ba35f2b0800b3b2c41dc5636bc5e98cf1295c945030409a7371",
    "file_noname": "tiles_noname/operagx.png",
-   "sha256_noname": "7c7ba0cf6e62c7b12ad5fee59a01d4fa8d26d09929b995a6a16f30d81933ef21"
+   "sha256_noname": "29d116eec75af57ce6bae72e0345ab5f8fa06f3c180a0faba6c7165e88a5e437"
   },
   {
    "id": "brave",
    "file": "tiles/brave.png",
-   "sha256": "16bc379791c055ed3ceaed8ef8072cc6b087156265e758c922678938df3d5cc5",
+   "sha256": "905e296c923bd9a654a15d69ef71976f76ca371c0a2eda4bc281609bd6d23af0",
    "file_noname": "tiles_noname/brave.png",
-   "sha256_noname": "a741ce99f6068ac350cccd50435b19d2838fa9c32935919168133a090af374c4"
+   "sha256_noname": "f4dd61ad2f3f1d4c2439f5465f66ba3a69aaddab5c62b6935a29607fcc73318f"
   },
   {
    "id": "vivaldi",
    "file": "tiles/vivaldi.png",
-   "sha256": "c16467f4da997afb80d572e805b82cdf7bf31e2f8e6c6b586daa5c33ad7feadf",
+   "sha256": "9db2e5df4b09f6d79c19b8f7654d81dd864324ce1a08b1adc14f23855e99542b",
    "file_noname": "tiles_noname/vivaldi.png",
-   "sha256_noname": "9cc27eb97b101e7e6135349267b35db41b8e0703df80a6b9badadf37ccc31337"
+   "sha256_noname": "6685cb2f7171249f43cda95b54fc6407a04d20fd172ddcf1c77be8bd63c5eb6e"
   },
   {
    "id": "torbrowser",
    "file": "tiles/torbrowser.png",
-   "sha256": "a31c34619274cced316ac83917de43f633d8c49025594d31da1432e00cd3c16c",
+   "sha256": "19fd66b3a1a7dc13c17aabdeb3daca532c3a15eda5b7b38ef7c816eebd8284bc",
    "file_noname": "tiles_noname/torbrowser.png",
-   "sha256_noname": "11e6f7eae877956f9b90c4c87a569bb7d2ccea640933eec1694602bc3a704117"
+   "sha256_noname": "64218d4a5e5b62437efff740ca54ce7e5f0559b1b52a51719c050219681f2d89"
   },
   {
    "id": "gemini",
    "file": "tiles/gemini.png",
-   "sha256": "ac7520fb99fe4297a3494da8265a13f73d1c30677de134bad9ab3a4d64e3da6d",
+   "sha256": "f732074d0c85c051a07a2bd840eb4da543d4c2e8ef875cefaad236bd330d04f9",
    "file_noname": "tiles_noname/gemini.png",
-   "sha256_noname": "1a4af6001f28e86d97fb43388a02fd694a79edb3f8e0e2146d7b06c268e1a1af"
+   "sha256_noname": "539c3f29ac27cce8e977f039f4895e124581dc17de82ef921a9bd1186fc781ee"
   },
   {
    "id": "chatgpt",
    "file": "tiles/chatgpt.png",
-   "sha256": "fa81f9a3541c44d836158a375b3c01efa8a5de7b0ab7a9675e0b435f5ec98b20",
+   "sha256": "a9c1346d6376e8796d018d42bd0e3d2282f6d30e511060029647dd95733a1f5e",
    "file_noname": "tiles_noname/chatgpt.png",
-   "sha256_noname": "ad9a181daea0a645dde375d1c6f10449d80317a92acada230b9f5004b6058302"
+   "sha256_noname": "9fd344e998584a7f311030f0f6e498f7b61ae62fdda0db398b0874ed82e46a92"
   },
   {
    "id": "claude",
    "file": "tiles/claude.png",
-   "sha256": "e6d5211938137290849c11b5d66de6fa5b306964ecb1f5e52a8bb738c5c4b5aa",
+   "sha256": "3007a63d7ded79484ea278ff34b530e63fbd78ef9d6a39907ae307eb0f6f66e8",
    "file_noname": "tiles_noname/claude.png",
-   "sha256_noname": "845f5b4ba53fa7ca38238a6787ed129a5234a955db03170961e4b2f4aa7a5fff"
+   "sha256_noname": "370249f6e3a15ffa3bb9762b2c39c221c138e89fb50325c6db66685c0af9b8cc"
   },
   {
    "id": "perplexity",
    "file": "tiles/perplexity.png",
-   "sha256": "89c0907d8e957e28e4cfba0a9c158c4c242b9b1c0516575e3da90b8823e566f5",
+   "sha256": "e70e59213a2265a293a6b405b07a3104dc52f692680231a0c1e0a1e634fdd126",
    "file_noname": "tiles_noname/perplexity.png",
-   "sha256_noname": "4ef6756b71d02bf2b79f778cfeb03f93caf03c322872ea317aca5013434331d3"
+   "sha256_noname": "f5a09ae0c8b5365d90ffa0f0c52dd7a20b02df9b8aa7cb5dc0c6237dcc833d37"
   },
   {
    "id": "deepseek",
    "file": "tiles/deepseek.png",
-   "sha256": "692962c2cdd805b274f7b2c4309f44c09a3fea469014ef2197a65eba16e504ef",
+   "sha256": "f53ba65a52013c7d54ebb83b4a25c4547e24f8259e7fed320ee25dccb2c78543",
    "file_noname": "tiles_noname/deepseek.png",
-   "sha256_noname": "9209ea1bb529aecd77666e8e7c9555f6c66d97ef8a545ec564f3d3c7d3662e34"
+   "sha256_noname": "9a0a23f50897bb153ec47ab6f7489fc325780895b4f728ea56145bf315e6f117"
   },
   {
    "id": "whatsapp",
    "file": "tiles/whatsapp.png",
-   "sha256": "f9ae65b42a6dd892a3f8e9c2f8b861eecc7ae4e8cb1b741c653a3f2d6288d4a1",
+   "sha256": "717a3d33a406837195f627779cd69370386d741e98bad005ba9c9afea4f1ae92",
    "file_noname": "tiles_noname/whatsapp.png",
-   "sha256_noname": "71c25a6bf95540b96bb63e7ef554790584ba6b23074b583255f3b063ad38e10c"
+   "sha256_noname": "43e496d7f73e1f9e588137a33cc4839c5931a2a56ea98f4f71234da832f4e500"
   },
   {
    "id": "viber",
    "file": "tiles/viber.png",
-   "sha256": "9b8beeb716f3e06602e31f9cbb365911644f6885dd63bb303e269a0fc6ed7772",
+   "sha256": "59abb16e17a354f69e50172b97d9786355de0dfd56c7ec0f2d76f4ef5f9f2b4f",
    "file_noname": "tiles_noname/viber.png",
-   "sha256_noname": "d260fb83ee062f2135136cfbe21e1eb1e5b16fdcb22bd4e3685a4638d107f30b"
+   "sha256_noname": "204d32538f7b20c8758060e2ef601d073b4c386e30d40b17e9c1c0a91146a6ee"
   },
   {
    "id": "signal",
    "file": "tiles/signal.png",
-   "sha256": "4b8d587c6dbf52b069cc14ee772acd93cede801b53e0aee9f76176dbd4abdf1e",
+   "sha256": "9f15fe94b95c8bee1e8e527bc8e8de42d7d86f6ac69f1af03d4e2bb8d268eb73",
    "file_noname": "tiles_noname/signal.png",
-   "sha256_noname": "02078dc6bdf8633552e0418a11e3ced0ffc88687ff70deb297c8e4733d783845"
+   "sha256_noname": "8981491ec1f5cc0dae498db3c1f8f4062b7af16705b8dd2779731dd98b445eac"
   },
   {
    "id": "skype",
    "file": "tiles/skype.png",
-   "sha256": "2e6b6573340ea9f7f859563efa3482ab4f0defdc515ffb9f916dc75db5e01edd",
+   "sha256": "497a02cfd2462bf71651bc732898f82353509a2ac0f851107430460f84a456b6",
    "file_noname": "tiles_noname/skype.png",
-   "sha256_noname": "dae7c423f2084e057809941b1f888dd4b1eb36f3a893fb5d2ca9197679e6cba2"
+   "sha256_noname": "ed1e2a2e48079d4d39e0e9052166f54c5cddfb4a2e1a138efcf81d92417f7daf"
   },
   {
    "id": "zoom",
    "file": "tiles/zoom.png",
-   "sha256": "ec2ac11ff029d0e654abb247901c54c65a8b7eef6c959a2da843cff5bed9eebd",
+   "sha256": "ec4a44f345379979130f9fc1780efd4722b1c23653062b552cee118152ff00d5",
    "file_noname": "tiles_noname/zoom.png",
-   "sha256_noname": "2191832f506a537a8cd1069b1d1381cd34a7de7a19322be97dfd6c0684a749c3"
+   "sha256_noname": "4eab8c61ff36746bb41c3a8bbb019c30579f9d028fef824a363ac1f7e05ad1a4"
   },
   {
    "id": "slack",
    "file": "tiles/slack.png",
-   "sha256": "cb729b67ccbad41b4656f9593c91fb116a048e8af7b47b01fdb5cf62a52655d8",
+   "sha256": "d7b4ac7b06fa78aa0b4452fb37dc6f73c5812793146931841389f4a2ff356b97",
    "file_noname": "tiles_noname/slack.png",
-   "sha256_noname": "088aa6363f233867ac6359f65e17ff8f5b199b04c863af33ca27ec77e3f3d9ce"
+   "sha256_noname": "e28b8e2a772f517c0f3e2607811011a1f2e71a554be08b306299c339f56bdf4b"
   },
   {
    "id": "vk",
    "file": "tiles/vk.png",
-   "sha256": "e4abb9b88505f47e6b81ca2c2ade6f1ac836b63e0c633eae8f2b596b71ee4c7c",
+   "sha256": "4ccca4e93630f6f0f958ff122c100ea5e0ac7a034b242ed25a9f906adda2c000",
    "file_noname": "tiles_noname/vk.png",
-   "sha256_noname": "8cfb7aab4d3bed9efb3b03e2578b80d7f08c20edfabbf09f08a6428a4171d165"
+   "sha256_noname": "df5f26b140797a7176fd4e5090866cec2040ee6199949eebe0229d3b29642441"
   },
   {
    "id": "yandexmusic",
    "file": "tiles/yandexmusic.png",
-   "sha256": "2a9a9a860ef4f00bc209caa4c2d5030ae52f99dc230ca14ddbef2732a5e98ae6",
+   "sha256": "45de1d48ef2be15252d43cd43eb745ecddc3e8d11763908e2d421ef96414365f",
    "file_noname": "tiles_noname/yandexmusic.png",
-   "sha256_noname": "04c5b88c6eed61dbd7344e86301282d8da470baa7264969924e75656e6e97cd7"
+   "sha256_noname": "3e4e97c74cd75038d5ab1ff923d23e982dffeb515e69195c132f8434df6b2cbf"
   },
   {
    "id": "pulsesync",
    "file": "tiles/pulsesync.png",
-   "sha256": "fb450f1bdacaff06acaac0efe003d8f254007c7a28e01a12c2bd6e1124e263ab",
+   "sha256": "8842b8471a21cddaf830453aa062d2e4892d110dc23c7669b2149cbf24d29dce",
    "file_noname": "tiles_noname/pulsesync.png",
-   "sha256_noname": "56a032d7f8f5724759ef0b8fe4419fd44a05474093c914a677ad3b8372ec72be"
+   "sha256_noname": "40be0df5a2387b394e4d5d5dc21592f386e38a6d951434245575e5d60e3ef3e4"
   },
   {
    "id": "spotify",
    "file": "tiles/spotify.png",
-   "sha256": "1a26912761b47c2405485cd76854d5457077fc707b15b20a36b82ccbabd1f365",
+   "sha256": "94646d8defc53f4b72bc6c2155ce6d0a21e556e52eb3c4f739b3ccb75de45459",
    "file_noname": "tiles_noname/spotify.png",
-   "sha256_noname": "b72d698f6604822272680c6350f286d19e5dfd3aa2002cfb7ce7a207b1926e39"
+   "sha256_noname": "1bba879f94f5be3b7b8cb190a99ade1e8224380c559d8ece61fa3844ecd970c1"
   },
   {
    "id": "applemusic",
    "file": "tiles/applemusic.png",
-   "sha256": "770e1f1d238214150df98c6dfb630418a6dd91d546f2888c50f41c816d5524f6",
+   "sha256": "371920811b7390d45cbb2d97f32191cf5a3f8ee0fc0ede064dcc476ddc95a4cf",
    "file_noname": "tiles_noname/applemusic.png",
-   "sha256_noname": "61ec1e522bf5b2457d5f3919c132159e6befc2bccc5324910f08f7356513acfe"
+   "sha256_noname": "4059524d822c62465d8a44f2258a14a62e9db0439eed8aa52f66aef4b7ceb6d1"
   },
   {
    "id": "youtube",
    "file": "tiles/youtube.png",
-   "sha256": "93688bddcd460a3f39206272f5be2617d1329ba3f547017d5703e7b67a5621de",
+   "sha256": "47ab044904327e432079694d61c7b2ede524df976e856b0af2185d5ad8f7248e",
    "file_noname": "tiles_noname/youtube.png",
-   "sha256_noname": "d5f0eb17883e0ca4f0473499a6f1dc14e7baa12075afc836228e4d141c48bcae"
+   "sha256_noname": "4d20c2f59634f406429aec9600d37cc546487fd1bf680a508181a531c5d8075f"
   },
   {
    "id": "youtubemusic",
    "file": "tiles/youtubemusic.png",
-   "sha256": "a31ffd1a26a98756e3eaf190abcbc741a1e5221d5294b92c0fe580e8cc7e60a8",
+   "sha256": "690dae9288da7fcd8ab82d8652dc549ada2467fb5fcab472bfbcc424a902c99a",
    "file_noname": "tiles_noname/youtubemusic.png",
-   "sha256_noname": "e906d9932893a40abbfa25e027c8f521d771a0fb226257c539b9b58f31fc8f5b"
+   "sha256_noname": "52e0f9926cb0b905f1e57f887a1e523fbee2ab274bdf5430113ba4252b601acc"
   },
   {
    "id": "twitch",
    "file": "tiles/twitch.png",
-   "sha256": "e4c3a64308e16a15f5ff40358c0146d833219f26b8f05a481edec84fc675d510",
+   "sha256": "5dac0c7635d0b122e325491529cb8c4f3246e1201f9272d77417e06f777b93f0",
    "file_noname": "tiles_noname/twitch.png",
-   "sha256_noname": "3c4d7722e4727cc3dcb69eeb0f375b7c185a3a1cc434658c4a92b8099b8428a7"
+   "sha256_noname": "b08c596a7211f5fb4884a65a34110d45a1f63a1c2458addb1e0e098c4d127cd3"
   },
   {
    "id": "netflix",
    "file": "tiles/netflix.png",
-   "sha256": "a26cd9e1757b1cac14b4021c8b0ee5e4ca1b93fe0d95388c7e899e45e59ca467",
+   "sha256": "1a0529e175acea62d7c7d3c2540ebdd26a652b538bfb375e6d6f97a6708a7b7f",
    "file_noname": "tiles_noname/netflix.png",
-   "sha256_noname": "5b8b91657846b5d9fffb259a5a4381a28b9bf13cc6799d2be279fa8aa79f1fb9"
+   "sha256_noname": "13bde005b2033dff324d7722ee389c38a71cc270bb840918fbe9a2b7862720c6"
   },
   {
    "id": "kinopoisk",
    "file": "tiles/kinopoisk.png",
-   "sha256": "2c09880aec7fac2865e10406b7c13088592fc267263249aeb739e68a1ce34ce4",
+   "sha256": "1581acf79ecc91c73ed7f453d698c5dc1451caaff256867c44bdf582c20fd1fd",
    "file_noname": "tiles_noname/kinopoisk.png",
-   "sha256_noname": "9fed6cf00e984083bf8e020bb67557bb4786a251cf89f62e165fc61d21e01a44"
+   "sha256_noname": "a7ce0fc73b457dfb400ac9eee8cf960ca655b909083bdddbc150712c1bb54741"
   },
   {
    "id": "vlc",
    "file": "tiles/vlc.png",
-   "sha256": "c04424e0d7c76600a7d4604057fa4bc47d3a170741c7d9b9b3b6997c136c45c8",
+   "sha256": "ccb96ab3a65e039689f01b3112ac6ca18c44180a03fbab7d4acc11eeb465fa06",
    "file_noname": "tiles_noname/vlc.png",
-   "sha256_noname": "3b33de8ac495280ccc7fad6b446cb86e8369a0e4094cb722498f77c5d91944c0"
+   "sha256_noname": "dbc20b4d257a6d7b26adc49c544e1eab22a008384a2fff0363b5f6fef823790e"
   },
   {
    "id": "obs",
    "file": "tiles/obs.png",
-   "sha256": "2168f9228ebde2c278683345fdfdcae8c6b782902237c55ee18f7b32f2b0dac6",
+   "sha256": "c91765801984eb83f862d27c10e5b9f9742d0fc50a260eea047cdb5dd3cfa2e9",
    "file_noname": "tiles_noname/obs.png",
-   "sha256_noname": "5255fcb44fb1836dcca70aa14fd1045fd2af3570630862dcbcee5b464177e330"
+   "sha256_noname": "589b4e0528a566d2ad6c61a21a15b39a95b86d7e63afc5b35861e3731794a52f"
   },
   {
    "id": "anilibrix",
    "file": "tiles/anilibrix.png",
-   "sha256": "6edad621c2ae29c92a69d997c2da531a17f579f207836941268c248b249d8105",
+   "sha256": "7bee922d9b109ada63f815c6adbf846ca66aa4cf0506c8a8b8fc44acc4170a72",
    "file_noname": "tiles_noname/anilibrix.png",
-   "sha256_noname": "6edad621c2ae29c92a69d997c2da531a17f579f207836941268c248b249d8105"
+   "sha256_noname": "7bee922d9b109ada63f815c6adbf846ca66aa4cf0506c8a8b8fc44acc4170a72"
   },
   {
    "id": "anilibria",
    "file": "tiles/anilibria.png",
-   "sha256": "98fea872abfccc49ad27209ef7ad4d73d37a0de077826e3c438c759e41fb7526",
+   "sha256": "6e7e5909e01445b327915047c89c8d486ef4b5fb0057e130c79c15f86e22ec33",
    "file_noname": "tiles_noname/anilibria.png",
-   "sha256_noname": "98fea872abfccc49ad27209ef7ad4d73d37a0de077826e3c438c759e41fb7526"
+   "sha256_noname": "6e7e5909e01445b327915047c89c8d486ef4b5fb0057e130c79c15f86e22ec33"
   },
   {
    "id": "taiga",
    "file": "tiles/taiga.png",
-   "sha256": "2836fdea5c8c540602ae5bc5d0c169a75daac29e8bd914c4961f309c19da1224",
+   "sha256": "beb32db86d425871585f259102a45c5a0f81ee0c486e02d6442bd7b80f4109da",
    "file_noname": "tiles_noname/taiga.png",
-   "sha256_noname": "5b87a47e46ea64a7f96b7a48f2c39ae3c80ef44bc6646cf9f3425a83601500ec"
+   "sha256_noname": "f9290c854a6c3d88362a8325605b79cc9ba452d23832e649f3b8759722584895"
   },
   {
    "id": "steam",
    "file": "tiles/steam.png",
-   "sha256": "41d8b2896ccab1e809b64214f27826adfd4bd2484f004ad4dcc7d9c0434789b7",
+   "sha256": "bf14c69190b67c7c38f9782e873ff6246719208d06fcfaea6ebaa3de577a0586",
    "file_noname": "tiles_noname/steam.png",
-   "sha256_noname": "085731cec4765901599119069b4678d1298abb25860530448deb3732e7c3d0c6"
+   "sha256_noname": "cdacd1a2f4b9c85d85a06fa824ccdff2a72251a0744b72e08f36db32eeaa6872"
   },
   {
    "id": "epicgames",
    "file": "tiles/epicgames.png",
-   "sha256": "7729439e9a602e711d2ec368477b1c2d9fa6bb95a455dcdf8945d96655f422a9",
+   "sha256": "a75acc40af1c84c1ebb4556d9338a48667b0123a57b402adf081efd0e3a8867e",
    "file_noname": "tiles_noname/epicgames.png",
-   "sha256_noname": "5e1bb5f7013a7881c50a3b508243e0ed199d4cb0a38f0961ea9ea3b3930dcad7"
+   "sha256_noname": "b21240642d2faa5a7052b244d04d77adf5e298760f37641e5a36975b1982011c"
   },
   {
    "id": "roblox",
    "file": "tiles/roblox.png",
-   "sha256": "5a5c9f698fc9c1a973fcf926097bc3c64528a5126c3a9fd19c1b6fe79c3a85f7",
+   "sha256": "39a35978fc47222dd7231f79105263f41b38bb2d90b2954d49b0dfb961788c38",
    "file_noname": "tiles_noname/roblox.png",
-   "sha256_noname": "0d2b0745a7edfb78bbf0bfbfe8e63500de64f8ebe7ddebd9038d056279ba8054"
+   "sha256_noname": "ea7b4c617afe9000e4a2bf656e24da7847d8ebd6a271eb168a13faa14c48db64"
   },
   {
    "id": "minecraft",
    "file": "tiles/minecraft.png",
-   "sha256": "170035164470ccccb47d25187bc4becf4aec40c8d782df48ddf5dd9262ecde8f",
+   "sha256": "5e5d30d7b1d0a47ee9e682347a8879b4de0429ee49346150c0233f57457bf97c",
    "file_noname": "tiles_noname/minecraft.png",
-   "sha256_noname": "333a9f44f59dcd73f4102ef7ff237a35e6c21a8cf685d26ebe66b916a9ebff49"
+   "sha256_noname": "2bb645764038b44cce24b6f61786cc62d509e17209fd9ad7b36e95930e952e6b"
   },
   {
    "id": "fortnite",
    "file": "tiles/fortnite.png",
-   "sha256": "0dffbf38cc296acd7549e52ca18f9065d267e69ee32b1b7afeaa7ff9e5c4cd6b",
+   "sha256": "e417021f18864e3d585b59dc790325e2abd7c8a15720204000b33b8dbd2784ec",
    "file_noname": "tiles_noname/fortnite.png",
-   "sha256_noname": "e2c5d68241a57708bb4ee822e6f330fdb8fc6469cdaf0b3402a578dacec3a1a2"
+   "sha256_noname": "d5c1d75c61a2b985015d009cf134f3f3c9aee9258f42c08792d1f1720f2ea9a7"
   },
   {
    "id": "valorant",
    "file": "tiles/valorant.png",
-   "sha256": "e78e2f4b4aaea869cf2f578bb47662961ca5f1925596b6dc42083c9e744830a6",
+   "sha256": "38410c6bf1716ff1d09e61210321b7371e85da447fc8f91411ba642d0214778d",
    "file_noname": "tiles_noname/valorant.png",
-   "sha256_noname": "355247d770c409b922308b1019e1a3e00a8ac8481de3b0f2d8cfff22ecbdeaba"
+   "sha256_noname": "f325c8c1f4510a55bd5bf018e66c2ca365a87a8ca325cde12635d1178a386945"
   },
   {
    "id": "lol",
    "file": "tiles/lol.png",
-   "sha256": "42fa3266511e93232cfec115e1de6734acc9519cac2c398f4bc17af60da82f7e",
+   "sha256": "e6f2e22f44bed2d6d2bc70e9a8b4e050e284b3d6a408639be48fcf53b6e270ad",
    "file_noname": "tiles_noname/lol.png",
-   "sha256_noname": "d6ea92d9f4b32a63965f1ff1995dbcb22c5cd66915e32c0f55a3f7f72ec5bb80"
+   "sha256_noname": "fcbcd879f033f8c7394f55f7e50a089cc206acf4b96ee75dbb170ca92c834d20"
   },
   {
    "id": "riot",
    "file": "tiles/riot.png",
-   "sha256": "b64c2d4d5714b56d9bd176a02c5cec9beb5b90ee0038ccaa220cba3ba7f4c047",
+   "sha256": "f644cf9707bee8d3045a00f4adccdc215d73a6fdf8211a3ec07790e6eea31e23",
    "file_noname": "tiles_noname/riot.png",
-   "sha256_noname": "3ec166b20dc896ebfe4ab18cd2bd8134ac4f0c18231ea85cb2795ad2cc96722b"
+   "sha256_noname": "9464e5b9656680d82f01af94da98aa98f9d6f319272de0965044df649a3eed39"
   },
   {
    "id": "battlenet",
    "file": "tiles/battlenet.png",
-   "sha256": "172588cef747a2b41aaa8ff8161fd3831ec47cdf94c11a841314f4fc84731244",
+   "sha256": "6ee7e3794f62ac79dd39ab9ed7611cf48128c7bd23a809d79172e75d45c36820",
    "file_noname": "tiles_noname/battlenet.png",
-   "sha256_noname": "deef1443a978ab3c694bceb0e5d204fd0ce7533157af0bf85d45861d3bc8a0e9"
+   "sha256_noname": "22d6e98d24a0f2c452b6f3014772d18734539d351d57ab313dd8395fff4be213"
   },
   {
    "id": "ea",
    "file": "tiles/ea.png",
-   "sha256": "6a3b976d7b50cb1c20893a45dd4caf811deb94ef3779e1a2aebebb4449d42710",
+   "sha256": "7561272399e1c33e7d9cf1103378243f5e8f4645c0f60753aa74a7531c4581bc",
    "file_noname": "tiles_noname/ea.png",
-   "sha256_noname": "b030a74b7d13b1d80b1f314480ec5d9b74bf4db764be5805c9b096aafc7df62a"
+   "sha256_noname": "d8c1b9ce1c81b1a4f458b866a92bb5859570bb4c30fac259e7afe1279731955f"
   },
   {
    "id": "ubisoft",
    "file": "tiles/ubisoft.png",
-   "sha256": "0584ee2df74f8fe84ce067d93d528144e71883c39f4d718e002334efed4adb58",
+   "sha256": "2825bb4d5780e9aa7f3c12d8b722408b431669d151fc4e12192368008c5c7132",
    "file_noname": "tiles_noname/ubisoft.png",
-   "sha256_noname": "262250822d9624fdc71aad2d37c10b5f3d2cb2c4486ab218e1ec5e081857740e"
+   "sha256_noname": "b59cdceb334c21967f8839960eb7461a6f78c6a4c542ad887ed7a910600a3178"
   },
   {
    "id": "gog",
    "file": "tiles/gog.png",
-   "sha256": "b04f65b23c0da02590ad493d1debbebc38b676ed64f4e3593291d8ae399b6dd2",
+   "sha256": "6c531ce5d890d0b1d4278efe68d70188f52e8fd43c71a460d6257ddb4fa053bb",
    "file_noname": "tiles_noname/gog.png",
-   "sha256_noname": "a5b40e0051e9808026835eee86f3cc24a3167257e6d517838a66cc4c5d5576d1"
+   "sha256_noname": "47b343197517c1aab1d9ea5113727f49766039f7611d3726e3c8aa07a56a4c27"
   },
   {
    "id": "rockstar",
    "file": "tiles/rockstar.png",
-   "sha256": "f96467dd10ebaab2f88baaff528047f6cf8e7de0762eea73675643e54cbfa9bb",
+   "sha256": "b501b40ddd4a04c1fd82d089fb7ed9dee4b24094d23a96636364d85df792ce65",
    "file_noname": "tiles_noname/rockstar.png",
-   "sha256_noname": "d991f77ee4ec96dcb62ed4fb1f03484ae5e4a94c6f2923efaa80f41cc42ecf9a"
+   "sha256_noname": "c78ff7271090eb93a6089ab676aed487a1e7ee9ac6d8b46c09c2fccab26ad869"
   },
   {
    "id": "cs2",
    "file": "tiles/cs2.png",
-   "sha256": "8c4c45042001de7a629b47c1c16725be3ab68287c3169c70bfc6e0f58c8959fe",
+   "sha256": "b87c30a73618202cb5db73d7bbee44920553d05b7db4e15481ecbea16f71d832",
    "file_noname": "tiles_noname/cs2.png",
-   "sha256_noname": "ab76c89d507dedce8f566d3edea23049acd7ce9b3409586e64316f623a547b20"
+   "sha256_noname": "afeb3c096a06472ff3bd6d877cd1f70a190fdc26aff1ad456d4db896f6592441"
   },
   {
    "id": "dota2",
    "file": "tiles/dota2.png",
-   "sha256": "41cfe757c31ada72c8bca3fad53fea87c0e85a6e3b46dbecbd8e433f7628b2ea",
+   "sha256": "519608e2741fe8be361a8ecfdb1efefcb51dc8ff562056186979baa796c44e24",
    "file_noname": "tiles_noname/dota2.png",
-   "sha256_noname": "0ed2e4f361acc013ec3966a223311b61172f635f683da333325c29f2b5dd488a"
+   "sha256_noname": "b2e782fbf47488e938e1d4d38f6b27331354b1fa7a24a9c4e1cb6c7641c5c60b"
   },
   {
    "id": "xbox",
    "file": "tiles/xbox.png",
-   "sha256": "82d05673dabddbe91574b9dd716dd80e57f51aaa93c432a7b2c7a4aa369e402e",
+   "sha256": "a2e0d923cb3dbf092bc413b705648aaf22a7aaf7ae10b1d4f19ff65c0766211f",
    "file_noname": "tiles_noname/xbox.png",
-   "sha256_noname": "f2bd3a9caff5b6873a4186957f0c96c4a0a1cf164a0ff6f93a7394961d543b57"
+   "sha256_noname": "6773c0f895c059513161fd34fabb0688a3027895f1cc6927df0ff006fdc806a6"
   },
   {
    "id": "playstation",
    "file": "tiles/playstation.png",
-   "sha256": "32a89ca5f74bc34aec5517028da1dce6d937395f1b483029af31a412e184763a",
+   "sha256": "22340c7771c9baac329acefd972df80d7f5572ee97af9970d8c605117393033f",
    "file_noname": "tiles_noname/playstation.png",
-   "sha256_noname": "e5f9d1ce55060717665b3f13d372f9c401af3625fb706be9e57f27bd670cb24e"
+   "sha256_noname": "5923533435b05bdada0dcd27bdeab314cd56ab0ab56236fbd1ec6479572ace56"
   },
   {
    "id": "worldoftanks",
    "file": "tiles/worldoftanks.png",
-   "sha256": "dc16a22d4c6fc23ca06d5b3df230803ee70ca4dd1694caff6f03946d7cc26bc7",
+   "sha256": "a4c62e50ca922b865552f01ee4a7ee73c984994913a5157d75c6247db7f14de3",
    "file_noname": "tiles_noname/worldoftanks.png",
-   "sha256_noname": "a75c7b1403c2f768dffaf4eae1a8d9378d6eb8aa527385581e2e6d0982bf26f6"
+   "sha256_noname": "39a3754b2174b7f953004d31b2f74693c78f9e55add8c1e5d94e36fb4ed36b3e"
   },
   {
    "id": "faceit",
    "file": "tiles/faceit.png",
-   "sha256": "f5296868d41f261241a0f3f7097e6d5d12d4d0895c010395b6c9fb28e48c1b3e",
+   "sha256": "ccde280defde4fe17d47ad902f1d7501a88e323ddb579ddc77acd25317e3f1ee",
    "file_noname": "tiles_noname/faceit.png",
-   "sha256_noname": "90c7f468723ea393b395ba5ff91498b522ba02c081648a4d53a5056ec302ced1"
+   "sha256_noname": "2b1fa86bb94155b30f618244184806b0019a939c264adb7b63fe4a2411d311bc"
   },
   {
    "id": "curseforge",
    "file": "tiles/curseforge.png",
-   "sha256": "55432a7e081aaa09237f00a594cf74e05c14e2d318f2ad297e9df0e0a6acc422",
+   "sha256": "0a84bed049afa29a977ca57de395fa8e2fe991e9737af6fc1f3990e2fe00bad3",
    "file_noname": "tiles_noname/curseforge.png",
-   "sha256_noname": "1de848ef156245e38bfb0c811580bb4e11ba3d6944c15cf9549f4bd4ad791e02"
+   "sha256_noname": "c4a834005fbcbfec464c52d6280e6ff4373aa1c3527ec28527364cd44684fd01"
   },
   {
    "id": "modrinth",
    "file": "tiles/modrinth.png",
-   "sha256": "a140d0b1cf84a3d51b6d86064f87d0195ecf8c2331836cc991a1924f7112c2f6",
+   "sha256": "881b235b3714cdbe4271c55b14c9440ed9319d222cfeb4e6af6bf970da9aedc6",
    "file_noname": "tiles_noname/modrinth.png",
-   "sha256_noname": "cdf618afdabb129298b9e0e648b88fb12b46f0fac9e20e79e234854ea1d517d9"
+   "sha256_noname": "0641256ecd8d84fc0eb804bd0cc70a07fcbf0c10c8190e107f3169f10e1a01d3"
   },
   {
    "id": "r2modman",
    "file": "tiles/r2modman.png",
-   "sha256": "0087f7e1a5575bec1f9fa6b80376636df0ea84347b6fc7ef9b16fdb42fe6f28f",
+   "sha256": "e2e80fd2e45dae579873de61daabc99ba358eb7f0da3ae84a44ea6b0f6a78e42",
    "file_noname": "tiles_noname/r2modman.png",
-   "sha256_noname": "31c4967d05e172f377744cf6d387ee4f7d6dcaf1e714b784ec67859429afca5c"
+   "sha256_noname": "7cdd9e55373e273b75b059f5a6de11105fa264cc250b92c4563371e649fc994d"
   },
   {
    "id": "wemod",
    "file": "tiles/wemod.png",
-   "sha256": "3b0905ec6551ff2561f612cc4b8028fbd704209846d2303fb115ce00b07ae5b6",
+   "sha256": "2bed2fe47a9b1ded7eeb6f87c6171235354979f3396a5fc9c9e29a0fd38a15a7",
    "file_noname": "tiles_noname/wemod.png",
-   "sha256_noname": "d87d76122f539e5995a13e84c0a6a66e589432b8efecc9809cc166f1a9727b66"
+   "sha256_noname": "bc8eb0ebf00ffcfeb8627454a2a882807e951fda01a62aa5a3a84edccce2e6b8"
   },
   {
    "id": "gearup",
    "file": "tiles/gearup.png",
-   "sha256": "802fda4445a2c7e7a6bbe28afdf2ede616623257f8992a144eadc7ef9d2b4b5e",
+   "sha256": "1a7251ba9a6d35464334ded78e59124a2850b8260f4c0256635d7a4cefbd7a69",
    "file_noname": "tiles_noname/gearup.png",
-   "sha256_noname": "532f4c813baacdb49dcd6e82f8604639d3e712f2ff1f340b4a3e3fe8c31984e0"
+   "sha256_noname": "08593b761b8802617f295ae4664b7c3db3ee2a543c2445f968f0dd0ac406210d"
   },
   {
    "id": "nucleus",
    "file": "tiles/nucleus.png",
-   "sha256": "ec3432bb8241b6b746d777b3e3f08f6132bc8c1a46b18cbb49b893e2a6b75c18",
+   "sha256": "558420a7a2caca72030d14c24b76f43d9d78d73f0753b0b6655ed88bb0061d7c",
    "file_noname": "tiles_noname/nucleus.png",
-   "sha256_noname": "e365a150353242f65f4c3b0612605073a22787740d289825c28deed89d1031a7"
+   "sha256_noname": "a41af18c5bda7e3c015859ed68dbfe284f15d54adc252627d9ee401f92e56329"
   },
   {
    "id": "ds4windows",
    "file": "tiles/ds4windows.png",
-   "sha256": "8e656d2ab5595eda32cbf61deca19f1a297346717576d4f1a09645f7f5421cd6",
+   "sha256": "be0c28bcbf9d5f09720fe5749e88345d373263d38a66b1f8ce685523ffaf5645",
    "file_noname": "tiles_noname/ds4windows.png",
-   "sha256_noname": "ff6f5185c9893cdc5dd14a9b61f03635a8b13b829972728b80330b8d2b7587c0"
+   "sha256_noname": "a775b6e1164ace064465e1a773788d850e9716cfb4a43b53f87688a4da5e4afb"
   },
   {
    "id": "nvidia",
    "file": "tiles/nvidia.png",
-   "sha256": "454cb31b47152fb9a21533d6e39bd6178e4d5cd7fa28861395172d102db9a7c3",
+   "sha256": "0f4f31cf2f37dd9c145fe5ef59675f981bbe6598c7654b357fcad21830fe1a98",
    "file_noname": "tiles_noname/nvidia.png",
-   "sha256_noname": "2da2cfc6b19678bb4d2b2dff7c2ed82fc3b6afb4983dabdc229b8cd5eae86e22"
+   "sha256_noname": "d28953a296d9f9d6fe9b2e95a476ef5c4a0a4a45116fa6c65f911b5b9322c09a"
   },
   {
    "id": "amd",
    "file": "tiles/amd.png",
-   "sha256": "182c4318e016a339752a94c2088d8c931ce67959d308fe56db06091e513ee134",
+   "sha256": "ef5bd0707a98972102d809a24a59174e6454f0f0048e745b39fd7d9dd4cc1fe3",
    "file_noname": "tiles_noname/amd.png",
-   "sha256_noname": "862dcafdf236921cf321f117e61aebf7bf4b84c9394b8b5a75d791ec0bda3c1b"
+   "sha256_noname": "596bee6e24c3a5c54f6630edbead67f9582ecbdf09ea220a8ddf440dc7aabe84"
   },
   {
    "id": "msicenter",
    "file": "tiles/msicenter.png",
-   "sha256": "1b9cdc489e25af7bb6b91f55e995d74e38ff5eed85b13a78b7f7d8a941126bca",
+   "sha256": "46b89c0c25cb2f06354a642e62c3e6a85c7d4bdde734eb55aa65a5786e7f9d69",
    "file_noname": "tiles_noname/msicenter.png",
-   "sha256_noname": "7e9e9522ed8e9388ee585f721be1cf634fddada376364f6cbc22f429ef5d3b8e"
+   "sha256_noname": "4710f79445d79f5b4f4926c446ead73d5db2b01ae2011252fd19f794644f46b7"
   },
   {
    "id": "afterburner",
    "file": "tiles/afterburner.png",
-   "sha256": "fdb2bcb87886f5d5335a815c0ab0a8cbc6a1f10fa6b25668d5934fd4d5408bb7",
+   "sha256": "88106ae61f3544e4bff3f9e1fb30d5bb495a481cfa56e1c577c1133d63b329dd",
    "file_noname": "tiles_noname/afterburner.png",
-   "sha256_noname": "0105f1763f16d214d11b880224c5ad303b8ea817e4fec7ddf0b7846cb651d193"
+   "sha256_noname": "a99175586aca10fb7dad03fb103fcb588a334451384d03a7b4876949d8d9b770"
   },
   {
    "id": "steelseries",
    "file": "tiles/steelseries.png",
-   "sha256": "9aa360f22baba28a748f6e7536d736bf5e258b620b46b2945a2e29b4d92e56c7",
+   "sha256": "9ca44461d40e9f1a6a63cb5c7bb48bb9d8db11177de416e116cd5802d1f86f98",
    "file_noname": "tiles_noname/steelseries.png",
-   "sha256_noname": "8a5d3f0d4294a0cfb3759563e525d90b3ed9caefb439f0c81d30b263c28a2eb3"
+   "sha256_noname": "823fd947d47d3bda0c4c06fde7afd793c92e1a9226ec5896a6ec4b53b7d413b5"
   },
   {
    "id": "logitech",
    "file": "tiles/logitech.png",
-   "sha256": "806dcfd8750cd118267122f085874a44d3581b084344d2a3d060a93e1a00b2ab",
+   "sha256": "a88ee1536c0320a50e7b06eb05402a0c8f4e31c6e19bf3e4664c3ed5b895461d",
    "file_noname": "tiles_noname/logitech.png",
-   "sha256_noname": "bd3b9eb868ff59c4ab4ec78379d803cf9c74df1f26af377e382e19a780913df4"
+   "sha256_noname": "9605c6865d13f76f04e1a60c16a80e4aad75dd4cb8d0cd7f6a90f7c65148a370"
   },
   {
    "id": "logicapture",
    "file": "tiles/logicapture.png",
-   "sha256": "26a0127f3fccfaa6fff8394be615d1c0420a2bbed5f576dc914268eee8d9f646",
+   "sha256": "66067731c2817e582b10cc1770e80302ef2c7e804f02f096520cb1aeb51a0865",
    "file_noname": "tiles_noname/logicapture.png",
-   "sha256_noname": "d0a506c7c7805d8f4cd31b3326df93e4e2eee7dd7edc102b024108df3b2ef8aa"
+   "sha256_noname": "6a1cb04a2392d4223879949db228edaa1012262650f27e220f1847014409f049"
   },
   {
    "id": "razer",
    "file": "tiles/razer.png",
-   "sha256": "43a91d7984345b6618fece52f3480c9d2cab38201255ad4123c45c307b8145aa",
+   "sha256": "933ed49b970743834cab084f79467127c02649daa7724ecdef625b66e77e4a97",
    "file_noname": "tiles_noname/razer.png",
-   "sha256_noname": "64891242e4c812009fc1f27de1e15e02199f06cff495ebb4d974b53920c28f67"
+   "sha256_noname": "05199205cb637a1c5467bcf9342e63f8496fb7c6b77a68aa9fa220f49d05c901"
   },
   {
    "id": "asus",
    "file": "tiles/asus.png",
-   "sha256": "edd91261e5e5914d70b2ed3dc62fb5eb99ada56f6f002d0971395c28a1dd53b6",
+   "sha256": "999dd4c57a653d15ae8e6b845db6780ece49c7d9458751474668050c045a81dc",
    "file_noname": "tiles_noname/asus.png",
-   "sha256_noname": "b77fcee6ff50435ae63c57dc0ccf9d785d0d03c523f484a85ce5eb245835271c"
+   "sha256_noname": "a3ee4eb704b0db1a4f1876b3dfe3d956f2992986fb54b139bb7bf8f33c35fe05"
   },
   {
    "id": "redragon",
    "file": "tiles/redragon.png",
-   "sha256": "ce06e52683bb47078c113bde7d13b17700db21e269a5fcb368049d6619a55ef7",
+   "sha256": "ff4527b217b2cca2e358bcb314a11bd799e18c7dc4188f41fbd8a83909bd5ccc",
    "file_noname": "tiles_noname/redragon.png",
-   "sha256_noname": "45c2bf4bc23540aa1a60017074856d47cda84afe3a349fedfb9769673c13e182"
+   "sha256_noname": "819b172681799a0c261cf7e11bba613f9e88338134d9a037e1544c75cb21a569"
   },
   {
    "id": "taskmgr",
    "file": "tiles/taskmgr.png",
-   "sha256": "8902eab2448a2c5f65de27e908a5c88332d983108a762a0d722a048fb90ab8fe",
+   "sha256": "aaa409519ed9123472fc129b11b3eadf821d6d3ce4f7e368f57ad8df156f7308",
    "file_noname": "tiles_noname/taskmgr.png",
-   "sha256_noname": "a44c05ce12905195803f534f2ff3a69334bef6d0dcae4d2bab5c0cf71fd47973"
+   "sha256_noname": "062abd83eb2791d50738daa7324bcb24443361e64397f5bec9494d18f333ecb5"
   },
   {
    "id": "explorer",
    "file": "tiles/explorer.png",
-   "sha256": "42549db92eda9b412788afe3fd6dc1bb377286da844cea671b96f854d60ca8c0",
+   "sha256": "362ab43bfe131be8b6b00e4a2584f9afe4b30b10b48005b7fcfc1641ac7414c0",
    "file_noname": "tiles_noname/explorer.png",
-   "sha256_noname": "d994e377e19d899566dcfb9b19eb7406831eb0841d30a89a0871b2dbf8c44340"
+   "sha256_noname": "1f331251cbb4b1740d17fdb8e02f87aba9cfdf86c6d66a0dc854ab07de377074"
   },
   {
    "id": "files",
    "file": "tiles/files.png",
-   "sha256": "909d5014dceb747710b66199d1b02c2c0c14ce0371dca70a81a81321a485e295",
+   "sha256": "d2bbc723b17726653aca53360e71669858ed9117cce340a28bb54a103a8b860c",
    "file_noname": "tiles_noname/files.png",
-   "sha256_noname": "b109b197206b4d09422e75bf73180969c0235a7519f9c8f86542486cae52a133"
+   "sha256_noname": "e0b1daeca235aaab2bbfebc868611af6b78dfbf94ae82a9411a4689818a416ae"
   },
   {
    "id": "calculator",
    "file": "tiles/calculator.png",
-   "sha256": "03cc3db1f22f0e27f0c83cc304ea4e09908f6a4d529a1e1db944854d021e8fb8",
+   "sha256": "7759c4f7b4d8cba8d32f6c13c5edfbdb89f556def2e83d828de4faad8c809c04",
    "file_noname": "tiles_noname/calculator.png",
-   "sha256_noname": "1dc286b62f7bd450d9472e9e611880e4f904a351e209fad4f4de9d3f12c4b9eb"
+   "sha256_noname": "7e9fda1b1621fbe5cc938a1ba8cb07922789bec8e89850fff745ad8ca2435ead"
   },
   {
    "id": "store",
    "file": "tiles/store.png",
-   "sha256": "0ed019d988e9b99b87a4614347186fabf90dddd6ed7051e03b0e3cdece6575f6",
+   "sha256": "315ee07a9eece94a811024e35f5b5e402a60498a9a0b83648514c71f45917eac",
    "file_noname": "tiles_noname/store.png",
-   "sha256_noname": "b56662227da566122726e278f0953c255c09d3774b0416a9df9940e3806bf543"
+   "sha256_noname": "c6d95ff4163323673445ce51e337cdec47c1fec0570f7e433362a97945b7f350"
   },
   {
    "id": "todo",
    "file": "tiles/todo.png",
-   "sha256": "a824efb32751332e38e669f1775a0bd69e5b4ea1985a2389e0682f113a09d211",
+   "sha256": "2c0d116fdf15a9b9a6eac05084eabca1cb0ff0e926c315dcbb78d96d054eacd5",
    "file_noname": "tiles_noname/todo.png",
-   "sha256_noname": "c93969fcdc13a7794040e1ef06618d4c1446caee1f59300d63d08488cf85cd97"
+   "sha256_noname": "46f0238fe707d4c4376734ae134098433741f5ebbe434fe7e47a3bf05acfbd2d"
   },
   {
    "id": "alarms",
    "file": "tiles/alarms.png",
-   "sha256": "fc9dd25cbaecd304a529a44b8ecc6079f41dd62f11f452b3e149fe5ddde94e79",
+   "sha256": "d12a952ae0f5aecef877b05295e9e8140e4dd9db99c17f61b142f78b0392c750",
    "file_noname": "tiles_noname/alarms.png",
-   "sha256_noname": "8ab3aa049c63aed349684b37d7d9b8aa1e06c9fbb785d72ff08672270eb802e8"
+   "sha256_noname": "b4f922ac60bca34265dd4d31dedeb5915d452740de4bd1c4772c2b145b35f7e5"
   },
   {
    "id": "shutdown",
    "file": "tiles/shutdown.png",
-   "sha256": "7f90f9309a17fd5ff747a09f44123b14702a86115a264f5edc2d26d52f36d53e",
+   "sha256": "07ecce8e5bddb8f29489f1738274e18d8150e9c0b61eb1f1c8fdd5fef8c02336",
    "file_noname": "tiles_noname/shutdown.png",
-   "sha256_noname": "89988dd94458bb2f75520241a43a1280256e0ec7e74ad26badfc4820d6dfb72c"
+   "sha256_noname": "f665dd85289355bd9e0479e7b8627a627bc2472eb793d28707e99007392e84a8"
   },
   {
    "id": "uninstall",
    "file": "tiles/uninstall.png",
-   "sha256": "6abf99769e4610ba0e7c958efa007d39320d657130de4d67c6958341a6c5e1ca",
+   "sha256": "ac7b03fb1dd201a5ae25a5094a25f7ba3a23f10a1f8c45c4678739c50f1e305f",
    "file_noname": "tiles_noname/uninstall.png",
-   "sha256_noname": "b63dd0f797c66fb742ff12254b3eded3bbba1f5d0706a21d3bdbc7ad2299f40c"
+   "sha256_noname": "32c3829e4c60546679d1b916a3f9d72c9bdc12769c87667b6133dda5d52e3742"
   },
   {
    "id": "wintoys",
    "file": "tiles/wintoys.png",
-   "sha256": "af18fbbd06cfbbd371f37cc96218a31bc493e2a122bb62a008f993a162551aa3",
+   "sha256": "efb5903aed4d02d4fb2525cbf3e1d3f0b497723a434d842375d1796f1da819a9",
    "file_noname": "tiles_noname/wintoys.png",
-   "sha256_noname": "c7323b72f06fd4cf70c80c104c59550502db218ab0a4987855eaaae0bb6eaa37"
+   "sha256_noname": "ff63f73da67591cd937d443ee5b1ab4a6e12a9877e1fe0b723a049c10b4ecfd3"
   },
   {
    "id": "eartrumpet",
    "file": "tiles/eartrumpet.png",
-   "sha256": "161a871372dec355ed525385c9ff15eb573f18fe0d84c6ae9596ec9e803db3e0",
+   "sha256": "dde10bae2536873267a403787a089d78e64da946bfa996ea8fadde5f12047441",
    "file_noname": "tiles_noname/eartrumpet.png",
-   "sha256_noname": "574df3aa6aa71705967eb224b2439da22a7fe7ca74fa7448fb82edef1119c0a5"
+   "sha256_noname": "dd4a47c1aa2339ce33120da0f63b72f63b5773d0a5df82f2ec7f3509f58654b0"
   },
   {
    "id": "start11",
    "file": "tiles/start11.png",
-   "sha256": "ef1f2ec0edfd7f6db26273a0a111778d61c5eb63e020411f46934722db103c66",
+   "sha256": "eb0e29f99b82ebca5e641280ff44697c9e947059d77be95abb9d683a82f19f6d",
    "file_noname": "tiles_noname/start11.png",
-   "sha256_noname": "5ee8fafd5e05462fa7f1e272c2d3e5edf59a4b7507c9c37ae90daffd3b20582b"
+   "sha256_noname": "16fe577c519a6df18aeda2fa44e3d670676339d7f4cd64a8fa8e4ed4dfed1953"
   },
   {
    "id": "forcedeleter",
    "file": "tiles/forcedeleter.png",
-   "sha256": "20d1627a63e4593b25aa43d9eff7f2050736c4236dcd7b6d3b26ae794bea02c5",
+   "sha256": "d24c0666394f5995b3eb2c703dfe8d9e298124c027ab5deeafa4d728e7e0c84b",
    "file_noname": "tiles_noname/forcedeleter.png",
-   "sha256_noname": "c72474d6df160522425d5a3e25b0bc02728ad42a274e2c71ac5da7d0b4addb1d"
+   "sha256_noname": "423dc9ad731d79f72f47577ba9f4fa71daa51e5c65aa179fa5b0225b646a98aa"
   },
   {
    "id": "speedtest",
    "file": "tiles/speedtest.png",
-   "sha256": "b75eb8638c725f0f79e4ff3533381a85d1c0509e6466b07ff9646d1f0faaea9b",
+   "sha256": "9e028dc23644611391d988841c847bfa4af8ee27f9c75bd3f60f039d8b3bd669",
    "file_noname": "tiles_noname/speedtest.png",
-   "sha256_noname": "dc92ae8e0856be16d5e911b0c83b6cbfc76cb686d493bd91a422252e4e101e49"
+   "sha256_noname": "a20f95453de86d06f3372d5f09a9371df44f90562071e039890c43bd89c225dc"
   },
   {
    "id": "spacedesk",
    "file": "tiles/spacedesk.png",
-   "sha256": "7aebec6f2d09457e0d0bce38fe5e3533bd4aebd7ffb02c074149505ea8533c92",
+   "sha256": "96491219c1155c83b9b12cf8f70d94abf986015dedb2890ee80d25064995c8e4",
    "file_noname": "tiles_noname/spacedesk.png",
-   "sha256_noname": "c4a17d122fc86b77cf46d61449c0928ad9c583680ec4093a4e4a6657cb48ac74"
+   "sha256_noname": "c6cf691e3714814db66dc55ec86bfc65e9a6d794f0dfa0427346dd073cf08841"
   },
   {
    "id": "kdeconnect",
    "file": "tiles/kdeconnect.png",
-   "sha256": "5ca7e834c67d1e35e153fb3d32b792912cc0b98bcc3b2d9439f4df9e3365bf5a",
+   "sha256": "947f75bebe54ee639f13465c1ec8aec778b5d43a7427bcfab9f59c17f63d06d1",
    "file_noname": "tiles_noname/kdeconnect.png",
-   "sha256_noname": "f38914110edab207fd6fb7dbf1324a78f4605973d86fd89323a7adb69df58495"
+   "sha256_noname": "f78014a6972798963f9c9b11836c2e6ccb01c70cd80efe2ce18f6c47ec3c7d4a"
   },
   {
    "id": "localsend",
    "file": "tiles/localsend.png",
-   "sha256": "581cd8a9a152a9162f24ddc7e0a02db9d78dd9fe3e32d7574080faf9dec4fb5b",
+   "sha256": "86fa4907e137da04e8f8e8c90a4938adebe0c8b3b4e41ecad0708b40feba5914",
    "file_noname": "tiles_noname/localsend.png",
-   "sha256_noname": "116747783fe7941441af95f4e4923cf42c398e579e4a79ee384423b4a735aef7"
+   "sha256_noname": "45b26da4ff43ea9b9c79c38747aab2857b52ff278cf90538be408c5f600afcbc"
   },
   {
    "id": "adb",
    "file": "tiles/adb.png",
-   "sha256": "a7f47090b9c15d1b943e6a5fae06cd0cffea44f58991db713b2af543b8862b30",
+   "sha256": "4fcdb986e0c63b6fc48d011bc4feee9b4d4c2fd64b0ecfc2058ae66883b52727",
    "file_noname": "tiles_noname/adb.png",
-   "sha256_noname": "c33974ae45d3847a136cf2b9ccddecd3624dc357bafa144c0cafa9e5997359da"
+   "sha256_noname": "8fd415cad18b2335a43964c8d077fe6ddd623ba9aa8fdd9fa244d50add2bc41e"
   },
   {
    "id": "anydesk",
    "file": "tiles/anydesk.png",
-   "sha256": "a062738ba1162d10d919956068d6c8e975316d2ed8bfc2a94b7de42d377c0d0b",
+   "sha256": "b3f34283b2d2db5b2a929a358e203ffc8183612aa7036b6f3414a7b83cc68499",
    "file_noname": "tiles_noname/anydesk.png",
-   "sha256_noname": "3a7bbe8a026b4e6c9693f88d6ac090dc9f1a421d34e8140111b2f4a709e0f9cc"
+   "sha256_noname": "2a6e9a89ce053f24506140518fa52a20237f5c7147f62cda7ea70721c02a8a6a"
   },
   {
    "id": "teamviewer",
    "file": "tiles/teamviewer.png",
-   "sha256": "a36c50d61d9f1d502aad85c870749bddc8a51ec9298131d419358b1b4aae5974",
+   "sha256": "4c72c8b2f06331966b3fcdc739a514bac4ee2a93a660a6eb42a5031c05c274cf",
    "file_noname": "tiles_noname/teamviewer.png",
-   "sha256_noname": "929cf20a2e96b199eccccbce8860b902021af6a8d2c53632a61ae011ab8715ce"
+   "sha256_noname": "6e5821f429a67454d72d5e0f6369cf8e25cad2d5a2498a2fb1cded1ddfedc2a6"
   },
   {
    "id": "qbittorrent",
    "file": "tiles/qbittorrent.png",
-   "sha256": "637d7ddeef38ab37f890780203322072f72b3e249cddcc1f971fbac222920aaa",
+   "sha256": "d53622aad533bc09066aaa0371ba584d90f230a23a32fa77ceaffc46220ecd1d",
    "file_noname": "tiles_noname/qbittorrent.png",
-   "sha256_noname": "4f5588b8ed78a221131cbaf3b6f723016310e348e3bf96d7dbc7a8848bdfd51f"
+   "sha256_noname": "8610ce7f36cb348404a05122d106755842ebfecdaaaa5ae3ba7c4eecda7fa19e"
   },
   {
    "id": "zapret",
    "file": "tiles/zapret.png",
-   "sha256": "3983bc7f0578c43f1dc8d0017835d6219c8c6496cd6ffc7345c5ffbf8c8b803c",
+   "sha256": "35551a0e834a32f05a36338dfdaa2c585d553c720431617c6c69ebdbaa5d645e",
    "file_noname": "tiles_noname/zapret.png",
-   "sha256_noname": "09e8340635d0ae728e65fed4469a884be3aae2ee4b1e15148267e2819b2d93bb"
+   "sha256_noname": "26285402403ec38be0f03b1bab9154912d1a7fc27c6ce5d9924fd3ae1b7527cd"
   },
   {
    "id": "nekobox",
    "file": "tiles/nekobox.png",
-   "sha256": "a7664db43f9e41fc3ca58a7eb417e5488e3b67a7a8b2fdbd6235b9cffe5187cb",
+   "sha256": "4b36330111eee3bff769f92e2eacdebd56a6c11e7f979e7acdc1111837b7765f",
    "file_noname": "tiles_noname/nekobox.png",
-   "sha256_noname": "fedaebc007061a4a2ee61f4cdab109bf3afe5c9a87ce1fcea22bebafa5ad3ed0"
+   "sha256_noname": "04c8e75c6a5ad2a19145c35fb9be5d3e800e759df986d226d873285e17a377fa"
   },
   {
    "id": "protonvpn",
    "file": "tiles/protonvpn.png",
-   "sha256": "ba4f728b9f52f61153453b628f5ab9a2323bb93f224643284763e9528ab97971",
+   "sha256": "6cd0a9410bf24aeb7239f18388bc375280ee9d2112c17d08b2e6c4de89cc1833",
    "file_noname": "tiles_noname/protonvpn.png",
-   "sha256_noname": "dd6c13d096e94994682877537f09a51cae0b1b695f4ce078627182e310045540"
+   "sha256_noname": "8edb2c8622cfd41bc93894afc78f074c8709b870345c9f022e886f05497c04e4"
   },
   {
    "id": "nordvpn",
    "file": "tiles/nordvpn.png",
-   "sha256": "eb908bd3257e0f658cba39c88a255fb8cc77bdf622d94bd05e6172403058d960",
+   "sha256": "abdecdf875caf84be120a01c5a90419c861130c32718e71e4d46dd77510522fd",
    "file_noname": "tiles_noname/nordvpn.png",
-   "sha256_noname": "e234618e13eeff8feb6cf3371a07d9e3267e981bf271a2a49e67515dc2c9e209"
+   "sha256_noname": "6814bc9b1aef9ab2280e90270d1312120797820e59dd68a9a7a51c35161b1479"
   },
   {
    "id": "wireguard",
    "file": "tiles/wireguard.png",
-   "sha256": "26e0556fe33bc68ea38f8f99eea984525e2d03be34cad912e2ce1e5fa804ed3e",
+   "sha256": "55e04d473958b6f9b0a4e49c4ab500d6d08caf6159b33e612428ac4637271228",
    "file_noname": "tiles_noname/wireguard.png",
-   "sha256_noname": "0023e353052daa156e0d7725b27d848b51e6d03495a9513d8e99ef0f6c9c85ab"
+   "sha256_noname": "9380023e180ad761eb1ab18e63ca8f72e158dc2583a90336d841f32901a3ed60"
   },
   {
    "id": "edrawmind",
    "file": "tiles/edrawmind.png",
-   "sha256": "87e456ab4fc912bac0a9f7f99bff6b06ced8677d06f0e89f36ca7ae4b76f7bf9",
+   "sha256": "2a5bdb15c7a6398021add83bc1bce252b256810ace462ce10d389996f14db803",
    "file_noname": "tiles_noname/edrawmind.png",
-   "sha256_noname": "ec5f72946b55e4c2f388f15055fd4d8ae754f08509eca7d6a53a98b3ab7cff47"
+   "sha256_noname": "669ca38995a70cdebcc3b78ebf5cb62fef8aebd42cc34c0176d80ffd4bd3e4a1"
   },
   {
    "id": "pionex",
    "file": "tiles/pionex.png",
-   "sha256": "c44ae5e11b1e0d22aec7673b6bb769a98f7dd818b2748857b0b5bd2b9518d153",
+   "sha256": "4cc53d887e6b74f87739375af7fee107f5ee85b5fa4eaeffaf216f6192865917",
    "file_noname": "tiles_noname/pionex.png",
-   "sha256_noname": "91702eec0ca915e3e165235c53cde8570fcd8091654a83fda4fafc86a55a2933"
+   "sha256_noname": "d13cf80d386199835bc84e224b26f18debece04a2b270978b0ffb3f3bbb4a649"
   },
   {
    "id": "notion",
    "file": "tiles/notion.png",
-   "sha256": "cbe528509c734833722f54a047294d2c8e83ee8bbecab4e97bd97c4696138eae",
+   "sha256": "57c75bab6a58d6b9068fda366bad4a077e4d40014d4132c2cffcca0538f74610",
    "file_noname": "tiles_noname/notion.png",
-   "sha256_noname": "89c7a52c1454b50c5faa3aace3f262f09eed86700c9f775b9dbacb0f06b02477"
+   "sha256_noname": "5bae77eb6d36a0615a97821f4624c9d2f8d4c0f7f21daeee332728e4ed0e7a60"
   },
   {
    "id": "obsidian",
    "file": "tiles/obsidian.png",
-   "sha256": "44e072751965498094a3b627e7b62742fd2aaa4581101522893a2630c6149f54",
+   "sha256": "611e3048b7af6241780a7ff7beec9bbdfe3b8acd24ebbadaa2151694d8abf1f7",
    "file_noname": "tiles_noname/obsidian.png",
-   "sha256_noname": "35d9c02311fe5735fa2b78e35fbbace6251ba22c630f13da711d68cce2dde492"
+   "sha256_noname": "f0ce62042dd85161070cbffd3d8c0dce64c185228791f59a42f1e9d16c3bd73a"
   },
   {
    "id": "standardnotes",
    "file": "tiles/standardnotes.png",
-   "sha256": "65efa6c9a5c4f461bc9dc82773440d72daa6ea64c81467ec1b2c7e5b0f4774a6",
+   "sha256": "4cae7d293fc3f46c3552cae8fb65bbde8b2ff3d670c2e435cc16c6dcc47aa4cb",
    "file_noname": "tiles_noname/standardnotes.png",
-   "sha256_noname": "c7425431d9b24272ecfa188f9d6208e527f0e7e8097ff4a161102c6591791008"
+   "sha256_noname": "0f3c7d2aef2862845964201fa6064d035f01c6d621a541cac78861ae1fb7d2db"
   },
   {
    "id": "simplenote",
    "file": "tiles/simplenote.png",
-   "sha256": "212eb85d298dbfa79abb0f7d31e059ce4fad872bce453096474d452c703e8eef",
+   "sha256": "3d341d215abc62cff56385d2d18268142906ca5ed4b25cff4bcef1767917636a",
    "file_noname": "tiles_noname/simplenote.png",
-   "sha256_noname": "83dc848089e8f329bec6dcf71a641c1c667c491290529d602294318d5522020a"
+   "sha256_noname": "2ef65c57f6c9a78c0608093fb2a5f368e2fb4e8db80f410544fb693db808fc26"
   },
   {
    "id": "craft",
    "file": "tiles/craft.png",
-   "sha256": "c6d821a7f3e1980231ffd8826f300af0022fe03784afac04e6cf359978242054",
+   "sha256": "2c34f3168039482b30035b82dcae107ddc8b2a209a9e1908bc2856afeb8bc86f",
    "file_noname": "tiles_noname/craft.png",
-   "sha256_noname": "48d93802dea63fa15ebcb9fa4f210c89b55c10028483ae6c2c9c3130619cf8ef"
+   "sha256_noname": "7f271706331a64a6a273be1b65a6c7cc5fe301b32939a0b289aaab25e1b1d9da"
   },
   {
    "id": "miro",
    "file": "tiles/miro.png",
-   "sha256": "2b01bd38107f6847dbcf6045d50b517b249cf99e7cbb8a8df239a09610813ab7",
+   "sha256": "fd530789c1363bd86978748e7094b995542898a38dc136155386bae6b3cc1fe5",
    "file_noname": "tiles_noname/miro.png",
-   "sha256_noname": "6c5449dc74d0c1963c220094f66480ed1704964216c9a51fd314bc8eb1b73ce6"
+   "sha256_noname": "41a71f03110c5aaffac4e2b64aee8e5cb13cf430a9fca16c7930ba5b7654be24"
   },
   {
    "id": "todoist",
    "file": "tiles/todoist.png",
-   "sha256": "723c8854b6e8d890db6e87f4e87a82e576b67ee3bfabdd71debaf71a56acfb9c",
+   "sha256": "2f064a592628ec4b0fe8dc39e31a4498aa10bcfd216bd179544d5dae0e89af96",
    "file_noname": "tiles_noname/todoist.png",
-   "sha256_noname": "2dbb0dad70c75a03dead8e1275dd3010490d4340118a72bb18e34f0f0403ef09"
+   "sha256_noname": "781783e0d845034c63137f99503e9f04d2f4de1ddd8dd6f637cd1417b797836e"
   },
   {
    "id": "ticktick",
    "file": "tiles/ticktick.png",
-   "sha256": "e5075b48579efcda4573103e1263972dfb250a16bb57861ff28dbd987a92f628",
+   "sha256": "25688ce2645484d297d02e09c5bc28ed648cb604a5c1fe54db8b14d9d8896f81",
    "file_noname": "tiles_noname/ticktick.png",
-   "sha256_noname": "f183fa7c9da7b87b4a5d07892760e4c5ff984ba998abd1032eab29a580a5da22"
+   "sha256_noname": "0c2eefb3f1de17df776ec2897e5f84a99d3b287a97246e860c7a9c67bdd41619"
   },
   {
    "id": "evernote",
    "file": "tiles/evernote.png",
-   "sha256": "5a2284329a118395b7274f2383407ceacf7a709546cc556a6721a94fb6555eb5",
+   "sha256": "f938cf93d5580bb50997966eb4c2a87309eaa59f7c90ef14a6ce2f654b347aca",
    "file_noname": "tiles_noname/evernote.png",
-   "sha256_noname": "62fb629a798297d7470be0b79f7e8333ae271fd96183cec0d0bbdea9c31cd4b5"
+   "sha256_noname": "02b49ad5ca18c8119244205c05df87d967d26b21f1306349d948f735019dea6b"
   },
   {
    "id": "dropbox",
    "file": "tiles/dropbox.png",
-   "sha256": "a5407876e09b504af246496d44e4ecc41a55c56815c940601187286e9e5aa28a",
+   "sha256": "345b363ce2e9c9d3695d208c0f0a585477f605e0f2c630c734e111b42aba11c4",
    "file_noname": "tiles_noname/dropbox.png",
-   "sha256_noname": "aba86c3d5fc2a8d12b204868263c58d46178aa8870fedfb2fef591396d6cacad"
+   "sha256_noname": "28603c155a1c3254e9669a5d06abe6f045d030d6119392fd0fe4fa6e62b3701c"
   },
   {
    "id": "googledrive",
    "file": "tiles/googledrive.png",
-   "sha256": "eab270692eff01408c0f736487b0a68d285974fe32f33dc465015ba92a96ff48",
+   "sha256": "204fee9cf6ae55911ae53b6e0e5ac90e9d83ccd15b7bc2cc0f4c808ec8dc174a",
    "file_noname": "tiles_noname/googledrive.png",
-   "sha256_noname": "d0f88e2811ec741844a38ac15552a71a22258b0581b7b2bd7693efadc566cb25"
+   "sha256_noname": "8e14e2fa7188d44ab59c1987affc4b8c2fb50fae3ee267623c8e2bfacc951169"
   },
   {
    "id": "gmail",
    "file": "tiles/gmail.png",
-   "sha256": "31abf12777c2e5e13d634cc6e4b6951ef8d4388bf0ff48174dddff49f249783a",
+   "sha256": "ff782a4ceb8093852d7750f17a5471d7959ab4ab087992635840ecb3ac18ed9b",
    "file_noname": "tiles_noname/gmail.png",
-   "sha256_noname": "f6d03333aea1a202d56186fb0665f744ad90306772f24bf61597cbd75db082f9"
+   "sha256_noname": "2ea307f50433048964b765549fe05d84a2abbfcadc76af680f75fe4d7f853904"
   },
   {
    "id": "vscode",
    "file": "tiles/vscode.png",
-   "sha256": "34c70b2ddd4af9715796c1be80143dcfa381f232153db926559274c4063f0e9e",
+   "sha256": "c9acbb30bb584a4cadc00a75f2d52e01bbd89569875ee9ac7687f447bab732a4",
    "file_noname": "tiles_noname/vscode.png",
-   "sha256_noname": "a05b7d920f3c4437719ffda04e2e469d07d826490daa7b3487de3bcbd90a78ea"
+   "sha256_noname": "6a0e45fbdd1ab54d3e8ead8b45b332ca9a76e4da90d0958c8880092276579c43"
   },
   {
    "id": "cursor",
    "file": "tiles/cursor.png",
-   "sha256": "f15c427d0fa00777f0282ce9d434ac0abda3f916cbef43fd4828abb0b1242737",
+   "sha256": "4363199a3b5d072bb7b6294d87c53e57f230d37695cda2606e2fe9f9206946ba",
    "file_noname": "tiles_noname/cursor.png",
-   "sha256_noname": "b9ee2b9120e4cf0052f2a1c9b620357e8da749bb577817efd92d57def1187cf1"
+   "sha256_noname": "94d5dd5cde67b95403a9a02fd052174a4c1e449dd2ed49886c64fac1c1e1f331"
   },
   {
    "id": "pycharm",
    "file": "tiles/pycharm.png",
-   "sha256": "738246467679c9022b07c2c6a4ca208f9069c322e84ee063dea65720a5044a86",
+   "sha256": "4664e48199a21394f8436e3712c4352efc574b2b29ccb7f34f781647895429d9",
    "file_noname": "tiles_noname/pycharm.png",
-   "sha256_noname": "1154872a09cf1c08135b706d097dc049de4e4d8e7eceb195b1c16796dd3d6c02"
+   "sha256_noname": "15d6101eae87f9afde9c2c3f5ec292caa0e84c68cb803e27fc0167dc45d2a2d2"
   },
   {
    "id": "jetbrains",
    "file": "tiles/jetbrains.png",
-   "sha256": "afaa41c810ebb6d6869db843bbc9511bed9836ffa6c84687d1c703c36f308df5",
+   "sha256": "d248e6020b8ec4ddc5fa99c388ff2151d668e6e1f9becd72b5f1e2e117cef569",
    "file_noname": "tiles_noname/jetbrains.png",
-   "sha256_noname": "569ab3ea9052fe5909c1dc57cd6b27f421eda709e55a6975d34ca5725f134c78"
+   "sha256_noname": "351c81d4dcffaa69fea196f65e684a6e7292299d100ca288cfc28a3574638f86"
   },
   {
    "id": "github",
    "file": "tiles/github.png",
-   "sha256": "4ddf4cf2405d7fc17bbe75a4aadcacbb87df069ede0b2640496fd7798c06805c",
+   "sha256": "d51c44d6cdd284336556badc8dbdb61fd782a229b322acf2b994722e7fd6ac6d",
    "file_noname": "tiles_noname/github.png",
-   "sha256_noname": "ab698f02ce312dd7dec19edf762ac7f482dfcc9e219eded53da124f872ef5773"
+   "sha256_noname": "a5f17343adae6a69670a6657b52737ce0a79bd5420cd3d5de16a906122a035ef"
   },
   {
    "id": "docker",
    "file": "tiles/docker.png",
-   "sha256": "96dfa5ec4f5a7e531cfd42e88e412a8710dd745c48f01b59dd32134139013f59",
+   "sha256": "1caccd15b280ed4d4093646f95dcfdbbca700962ff1f434793c6d872ac64f711",
    "file_noname": "tiles_noname/docker.png",
-   "sha256_noname": "08cee340913b59e27973f59c198d8bb8101e2d637f3493dc271d8593679b5fbd"
+   "sha256_noname": "3c73326c0158667d8e4fec687b397d0a0f0cbf517efd4a347e0ab15375ca9b75"
   },
   {
    "id": "termius",
    "file": "tiles/termius.png",
-   "sha256": "ae81a199e16ff153b4cef69895d01e8b1a45d86518977caee903c148230baa42",
+   "sha256": "e69554a517450d51d1ebadb0d8579cd13fbc75c920f7c9c96aa516e552368948",
    "file_noname": "tiles_noname/termius.png",
-   "sha256_noname": "19046651632458cc059284c2a59438969b80c3dc13720ac7d120e2704b4dcc28"
+   "sha256_noname": "f37bda59ebf4f4095d5188ac46c453201514e62ce637e5752003155d5e537d24"
   },
   {
    "id": "dolphinanty",
    "file": "tiles/dolphinanty.png",
-   "sha256": "1959a9ac3d68d95776599d907644b1b22b0e948a607f701f1e45e584dfa5daa6",
+   "sha256": "9cd18488c6a35462005ac334ba3bc89f9d0529ceb24cb06782dec939542888f4",
    "file_noname": "tiles_noname/dolphinanty.png",
-   "sha256_noname": "4c2719abde1056b74fd1e1e2538cabbc68fd5e612104decf97536a7610e625bb"
+   "sha256_noname": "629e7e83b9cc25d20c6330600d91eb275a0e8a2292083b33ba49e9f231e4af03"
   },
   {
    "id": "figma",
    "file": "tiles/figma.png",
-   "sha256": "d98a7c8849634abf145a61d341e1cfd60cffc3d6c721d50d96df1254639d3693",
+   "sha256": "3b4be75847d87b5e696c710afd3e6997e798d902a7248e6c8f647a66bc7bc334",
    "file_noname": "tiles_noname/figma.png",
-   "sha256_noname": "bf293df2f4bd8489b64a3d57a4a606a32dfe99b7d2375d469cf748912facb411"
+   "sha256_noname": "7475053a4dc934731b30c61ffda0bd583a5d4df3957bb8408522d99ce060a363"
   },
   {
    "id": "canva",
    "file": "tiles/canva.png",
-   "sha256": "d80f6eeb481ee254e475cf4babc8335d54b98a79a61dc7cebcfb2e69c0f98fff",
+   "sha256": "d94c3bf24068cd6ab9b68f2f40008dbb40789d17bc25831fc8e23c7dd3f7dbf3",
    "file_noname": "tiles_noname/canva.png",
-   "sha256_noname": "47a6696e11882c2912ad44b17544d834084abedf730c8ec4f3ec61e12f004692"
+   "sha256_noname": "f68f7ed47a834bc7d07ec5efc8483928c26b20ed814d6b39356d191755b709e7"
   },
   {
    "id": "blender",
    "file": "tiles/blender.png",
-   "sha256": "1236d92bdefb9d21406a27a98f8000c50b11abb26825afbdf42e9bde0bbc8e76",
+   "sha256": "9faeaf8a78d561125f2ca54ad1909bfb011e2124fceb157580819aa5fc97f182",
    "file_noname": "tiles_noname/blender.png",
-   "sha256_noname": "e27f936b8da1356e77b0cd5c79633ab084da78a76593c565cc703c13c6fdd906"
+   "sha256_noname": "97f8a66058d78ef53eb64c6aa78cdb7d5e04066e49df362eb46fc7d94595b679"
   },
   {
    "id": "photoshop",
    "file": "tiles/photoshop.png",
-   "sha256": "a21239b1c42d8714fbe9b83c21b601a5e051f45867fb46fa21b2e6c48711972e",
+   "sha256": "c764fa9c2c4b9776c105c124405dd155f44ec865effe3966d7a8163384600a06",
    "file_noname": "tiles_noname/photoshop.png",
-   "sha256_noname": "fb0b74268f40aab9367e946cece723a274eeb58db1e7085a2585f133db3c26f1"
+   "sha256_noname": "139b7e455bf4fdbf7cae409f2ba97bba1bc2425b961a229de428ca3db31a261c"
   },
   {
    "id": "premiere",
    "file": "tiles/premiere.png",
-   "sha256": "345d741ad2748e84058c66d03e243ef11e8cf178ad5178ecb727533cb7fbdf55",
+   "sha256": "787abecddcbedebfad05d7e0db042e00e666fc85558b47af75df02300281a499",
    "file_noname": "tiles_noname/premiere.png",
-   "sha256_noname": "0ab7d7dd9d9d62dd4b1acb71ffb88550839126479bcb585e3100aade53092f67"
+   "sha256_noname": "640a12e5d9dd6e2ca924df2b8a4cb39ac234a292985b32a58ec53b6a3e9e00d3"
   },
   {
    "id": "aftereffects",
    "file": "tiles/aftereffects.png",
-   "sha256": "61aa1e025dab4dd26e779c68035980e000c3108f90641f1d08272c3cc5584562",
+   "sha256": "809350207f8f2aa26fc4f9dabad53023616c4bc29324f1475b914f2e82e43240",
    "file_noname": "tiles_noname/aftereffects.png",
-   "sha256_noname": "c3d7105eed1c83ab717b693e7a5bb79b582c61445e0a6fb3af0254587cf068c2"
+   "sha256_noname": "ecc2f27241efb0d8009f2d48fb4c946b88894370bd5069468d5401bfab4ee724"
   }
  ]
 }

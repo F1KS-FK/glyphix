@@ -140,6 +140,237 @@ function Get-AppVersion {
     return '0.0.0'
 }
 
+# ---------- Самообновление приложения ----------
+# Версия приложения = app/version.txt. Сравнение семантическое (major.minor[.patch[.build]][-pre]); любой сбой сети - тихо $null.
+$script:SI_AppId = 'F1KS.Glyphix'                    # AppUserModelID: ярлыки «Glyphix» и окно приложения (Start11, группировка на панели задач)
+$script:SI_InstallerMaxBytes = 65536                  # install.ps1 крупнее 64 КБ не принимаем
+
+# строка версии -> @{ Nums = [long[]](4); Pre = '' } или $null, если это не версия
+function ConvertTo-VersionParts {
+    param([string]$Text)
+    if ($null -eq $Text) { return $null }
+    $t = $Text.Trim().TrimStart([char]0xFEFF).Trim()
+    if ($t.Length -eq 0 -or $t.Length -gt 40) { return $null }
+    $m = [regex]::Match($t, '^[vV]?(\d{1,9})(?:\.(\d{1,9}))?(?:\.(\d{1,9}))?(?:\.(\d{1,9}))?(?:-([0-9A-Za-z][0-9A-Za-z.\-]*))?(?:\+[0-9A-Za-z.\-]+)?$')
+    if (-not $m.Success) { return $null }
+    $nums = New-Object 'long[]' 4
+    for ($i = 0; $i -lt 4; $i++) { if ($m.Groups[$i + 1].Success) { $nums[$i] = [long]$m.Groups[$i + 1].Value } }
+    return @{ Nums = $nums; Pre = $m.Groups[5].Value }
+}
+
+# -1 / 0 / 1 (A меньше / равна / больше B); $null, если одна из строк не версия. Пре-релиз ниже релиза: 2.1.0-beta < 2.1.0
+function Compare-AppVersion {
+    param([string]$A, [string]$B)
+    $pa = ConvertTo-VersionParts $A
+    $pb = ConvertTo-VersionParts $B
+    if ($null -eq $pa -or $null -eq $pb) { return $null }
+    for ($i = 0; $i -lt 4; $i++) {
+        if ($pa.Nums[$i] -lt $pb.Nums[$i]) { return -1 }
+        if ($pa.Nums[$i] -gt $pb.Nums[$i]) { return 1 }
+    }
+    if ($pa.Pre -eq $pb.Pre) { return 0 }
+    if (-not $pa.Pre) { return 1 }
+    if (-not $pb.Pre) { return -1 }
+    $c = [string]::CompareOrdinal($pa.Pre, $pb.Pre)
+    if ($c -lt 0) { return -1 }
+    if ($c -gt 0) { return 1 }
+    return 0
+}
+
+# решение об обновлении: Available только если версия на сервере корректна и строго новее локальной
+function Get-UpdateDecision {
+    param([string]$Local, [string]$Remote)
+    $c = Compare-AppVersion $Remote $Local
+    $reason = 'unknown'
+    $ok = $false
+    if ($null -eq (ConvertTo-VersionParts $Remote)) { $reason = 'bad-remote' }
+    elseif ($null -eq (ConvertTo-VersionParts $Local)) { $reason = 'bad-local' }
+    elseif ($c -gt 0) { $reason = 'newer'; $ok = $true }
+    elseif ($c -eq 0) { $reason = 'same' }
+    else { $reason = 'older' }
+    return [pscustomobject]@{ Available = $ok; Local = $Local; Remote = $Remote; Reason = $reason }
+}
+
+# версия на сервере (app/version.txt) или $null (нет сети, таймаут, мусор в ответе) - без исключений и без шума
+function Get-RemoteAppVersion {
+    param([string]$BaseUrl = $script:SI_BaseUrl, [int]$TimeoutMs = 5000)
+    try {
+        if (-not $BaseUrl.EndsWith('/')) { $BaseUrl += '/' }
+        $b = Get-WebBytes ($BaseUrl + 'app/version.txt') 256 $TimeoutMs
+        if (-not $b -or $b.Length -eq 0) { return $null }
+        $t = [System.Text.Encoding]::UTF8.GetString($b).Trim().TrimStart([char]0xFEFF).Trim()
+        if ($null -eq (ConvertTo-VersionParts $t)) { return $null }
+        return $t
+    } catch { return $null }
+}
+
+# локальная версия + версия на сервере + решение; Remote = $null, если проверить не удалось
+function Get-AppUpdateInfo {
+    param([string]$BaseUrl = $script:SI_BaseUrl, [int]$TimeoutMs = 5000)
+    $local = Get-AppVersion
+    $remote = Get-RemoteAppVersion -BaseUrl $BaseUrl -TimeoutMs $TimeoutMs
+    return (Get-UpdateDecision -Local $local -Remote $remote)
+}
+
+# install.ps1 принимаем, только если это короткий ASCII-текст со своей таблицей хэшей (не HTML-заглушка, не бинарник, не BOM)
+function Test-InstallerBytes {
+    param([byte[]]$Bytes)
+    if (-not $Bytes -or $Bytes.Length -eq 0 -or $Bytes.Length -ge $script:SI_InstallerMaxBytes) { return $false }
+    $s = [System.Text.Encoding]::GetEncoding(28591).GetString($Bytes)      # 1 байт = 1 символ
+    if (-not [regex]::IsMatch($s, '\A[\x09\x0A\x0D\x20-\x7E]+\z')) { return $false }
+    return $s.Contains('BEGIN-HASHES')
+}
+
+# скачать install.ps1 в %TEMP%; бросает исключение, если файл не прошёл проверку
+function Save-AppInstaller {
+    param([string]$BaseUrl = $script:SI_BaseUrl, [string]$TempDir = [IO.Path]::GetTempPath())
+    if (-not $BaseUrl.EndsWith('/')) { $BaseUrl += '/' }
+    $b = Get-WebBytes ($BaseUrl + 'install.ps1') $script:SI_InstallerMaxBytes 20000
+    if (-not (Test-InstallerBytes $b)) { throw 'Скачанный install.ps1 не прошёл проверку (нужен ASCII-текст меньше 64 КБ). Обновление отменено.' }
+    $f = Join-Path $TempDir ('glyphix_install_' + [guid]::NewGuid().ToString('N').Substring(0, 8) + '.ps1')
+    Save-FileAtomic $f $b
+    return $f
+}
+
+# скачать install.ps1 и запустить ЕГО в новом powershell.exe без прав администратора (он сам проверит sha256 файлов и перезапустит приложение)
+function Start-AppSelfUpdate {
+    param([string]$BaseUrl = $script:SI_BaseUrl)
+    $f = Save-AppInstaller -BaseUrl $BaseUrl
+    $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    Write-Log "Обновление приложения: запускаю $f"
+    Start-NonElevated -Path $ps -Arguments ('-NoProfile -ExecutionPolicy Bypass -File "' + $f + '"')
+    return $f
+}
+
+# ---------- AppUserModelID ярлыков ----------
+# Ярлыки идут через wscript.exe launch.vbs, поэтому без явного AppUserModelID Start11 и панель задач видят «wscript.exe».
+# IPropertyStore ярлыка: PKEY_AppUserModel_ID = {9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 5. C# 5 (Windows PowerShell 5.1).
+$script:SI_AumidCode = @'
+using System;
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
+
+namespace GlyphixNative
+{
+    [ComImport, Guid("00021401-0000-0000-C000-000000000046")]
+    internal class CShellLinkObject { }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    internal struct PropertyKey
+    {
+        public Guid fmtid;
+        public uint pid;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct PropVariant
+    {
+        public ushort vt;
+        public ushort r1;
+        public ushort r2;
+        public ushort r3;
+        public IntPtr p;
+        public int p2;
+    }
+
+    [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IPropertyStore
+    {
+        void GetCount(out uint cProps);
+        void GetAt(uint iProp, out PropertyKey pkey);
+        void GetValue(ref PropertyKey key, out PropVariant pv);
+        void SetValue(ref PropertyKey key, ref PropVariant pv);
+        void Commit();
+    }
+
+    public static class ShortcutAppId
+    {
+        [DllImport("propsys.dll", CharSet = CharSet.Unicode)]
+        private static extern int InitPropVariantFromString(string psz, out PropVariant ppropvar);
+
+        [DllImport("ole32.dll")]
+        private static extern int PropVariantClear(ref PropVariant pvar);
+
+        private static PropertyKey AppIdKey()
+        {
+            PropertyKey k = new PropertyKey();
+            k.fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3");
+            k.pid = 5;
+            return k;
+        }
+
+        public static void Set(string lnkPath, string appId)
+        {
+            object link = new CShellLinkObject();
+            try
+            {
+                IPersistFile pf = (IPersistFile)link;
+                pf.Load(lnkPath, 2);                       // STGM_READWRITE
+                IPropertyStore store = (IPropertyStore)link;
+                PropertyKey key = AppIdKey();
+                PropVariant pv;
+                int hr = InitPropVariantFromString(appId, out pv);
+                if (hr != 0) { Marshal.ThrowExceptionForHR(hr); }
+                try
+                {
+                    store.SetValue(ref key, ref pv);
+                    store.Commit();
+                }
+                finally
+                {
+                    PropVariantClear(ref pv);
+                }
+                pf.Save(lnkPath, true);
+            }
+            finally
+            {
+                Marshal.ReleaseComObject(link);
+            }
+        }
+
+        public static string Get(string lnkPath)
+        {
+            object link = new CShellLinkObject();
+            try
+            {
+                IPersistFile pf = (IPersistFile)link;
+                pf.Load(lnkPath, 0);                       // STGM_READ
+                IPropertyStore store = (IPropertyStore)link;
+                PropertyKey key = AppIdKey();
+                PropVariant pv;
+                store.GetValue(ref key, out pv);
+                try
+                {
+                    if (pv.vt == 31) { return Marshal.PtrToStringUni(pv.p); }    // VT_LPWSTR
+                    return null;
+                }
+                finally
+                {
+                    PropVariantClear(ref pv);
+                }
+            }
+            finally
+            {
+                Marshal.ReleaseComObject(link);
+            }
+        }
+    }
+}
+'@
+
+# AppUserModelID для готового .lnk; $true/$false, исключений не бросает (ярлык без ID всё равно рабочий)
+function Set-ShortcutAppId {
+    param([string]$Path, [string]$AppId = $script:SI_AppId)
+    try {
+        if (-not ('GlyphixNative.ShortcutAppId' -as [type])) { Add-Type -TypeDefinition $script:SI_AumidCode -Language CSharp }
+        [GlyphixNative.ShortcutAppId]::Set($Path, $AppId)
+        return $true
+    } catch {
+        Write-Log "AppUserModelID для ярлыка не задан ($Path): $($_.Exception.Message)"
+        return $false
+    }
+}
+
 function Read-JsonFile {
     param([string]$Path)
     $t = [IO.File]::ReadAllText($Path, [System.Text.Encoding]::UTF8)
@@ -1671,6 +1902,7 @@ function Install-AppShortcuts {
             $sc.IconLocation = "$ico,0"
             $sc.Description = 'Glyphix'
             $sc.Save()
+            [void](Set-ShortcutAppId -Path $p)
             Write-Log "Ярлык: $p"
         } catch { Write-Log "Не удалось создать ярлык $p : $($_.Exception.Message)" }
     }

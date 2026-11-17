@@ -13,12 +13,12 @@ try {
     # re-run the generator and commit install.ps1 together with any change to app/.
     $siFiles = [ordered]@{
         # BEGIN-HASHES
-        'app/Engine.ps1' = 'f1a7aef224aae3527c40f805acc91f97f7306a50903d740e7137ab5e24d362d3'
-        'app/Glyphix.ps1' = 'cdfa45146c2b6d6ba1421afc95b9de4e579d58b14aa24ecb32cd89da75ee4ddc'
-        'app/ShadowIcons.ps1' = 'adf304bff3b2947d812405e6483e21d87f2b22fde8325207d0b6b95964bbbf4a'
-        'app/MainWindow.xaml' = 'c72d8cd5ca2f5487d78a7743322e68f798731e01a8db762f01782f9ba0679b16'
+        'app/Engine.ps1' = 'f0820c6ff1ca6f3efdc04d0f76f6e1bbb9b4ba0006eb4983d4e31134eab3a81f'
+        'app/Glyphix.ps1' = '82f4a00a454c7c15b5d8f3b3c7ca11fda9a6b0627bc2b338263a5fe7deb12dfb'
+        'app/ShadowIcons.ps1' = '70de09bdba26fb2d51e710f8a3753a476fbdbf38faa873ce8d92957351d335a3'
+        'app/MainWindow.xaml' = '2116b4c6d23a20b18701a71e12e041134f7aef4bcfc5c0b2dd2907ab386c98ab'
         'app/launch.vbs' = 'f07159a4489eb71c47d2b9bfa2c4e9939f83c0aaadf364eecbadc9da7685e337'
-        'app/version.txt' = 'f22abd6773ab232869321ad4b1e47ac0c908febf4f3a2bd10c8066140f741261'
+        'app/version.txt' = '8248f7772687aff0b103b36898908deb82126337f933e49a5ac04829093c58ff'
         'app/assets/app.ico' = '55780e2d17c72795d8f2390d6445e76df320587e83eb6dcc72517bcd954553c2'
         'app/assets/app.png' = 'a9dd1a82e50876dd88bab7343dbe40ea9597b05993672266a6a49acecfecb5a3'
         'app/assets/logo_tile.png' = '0cc3928dba30432041a4dd4e6d7224fddf7e05b0a612499664f72a33e79201e6'
@@ -89,6 +89,13 @@ try {
     Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\wscript.exe') -ArgumentList ('"' + (Join-Path $siApp 'launch.vbs') + '"') -WorkingDirectory $siApp
 } catch {
     Write-Host ("  Install failed: " + $_.Exception.Message) -ForegroundColor Red
+    if ($PSCommandPath) { try { [void](Read-Host '  Press Enter to close') } catch { } }      # run as a file (self-update): keep the window so the error can be read
 } finally {
     $ErrorActionPreference = $siOldEap
+    # started by the app's self-update (copy in %TEMP%): remove that copy afterwards
+    try {
+        if ($PSCommandPath -and ([IO.Path]::GetFileName($PSCommandPath) -like 'glyphix_install_*.ps1') -and ([IO.Path]::GetDirectoryName($PSCommandPath) -eq [IO.Path]::GetTempPath().TrimEnd('\'))) {
+            Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+        }
+    } catch { }
 }
