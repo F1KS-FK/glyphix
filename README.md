@@ -34,7 +34,7 @@ irm https://raw.githubusercontent.com/F1KS-FK/shadow-icons/main/install.ps1 | ie
 |---|---|
 | **Shadow** | Чёрные иконки с сине-фиолетовой аурой: Telegram, Discord, Chrome, Firefox, Gemini, Яндекс Музыка, PulseSync, EdrawMind, AniLibrix/AniLibria, spacedesk, Pionex, Калькулятор, Диспетчер задач, Проводник |
 
-Также в паке есть плитки 512×512 для **Start11** (`packs/shadow/tiles`).
+**Start11:** если установлен Start11, приложение само ставит плитки 512×512 из пака (галочка «Плитки Start11», есть вариант без подписи). Старые картинки плиток сохраняются и возвращаются кнопкой «Откатить всё».
 
 ## Ограничения
 

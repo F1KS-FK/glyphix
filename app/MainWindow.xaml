@@ -252,7 +252,9 @@
         <Button x:Name="BtnOpen" Style="{StaticResource GhostButton}" Margin="0,0,10,0"/>
         <Button x:Name="BtnMenu" Style="{StaticResource GhostButton}" Content="⋯" Padding="14,8" Margin="0,0,16,0"/>
         <CheckBox x:Name="ChkRestart" Style="{StaticResource DarkCheck}" IsChecked="True" VerticalAlignment="Center" Margin="0,0,18,0"/>
-        <CheckBox x:Name="ChkAllUsers" Style="{StaticResource DarkCheck}" IsChecked="False" VerticalAlignment="Center"/>
+        <CheckBox x:Name="ChkAllUsers" Style="{StaticResource DarkCheck}" IsChecked="False" VerticalAlignment="Center" Margin="0,0,18,0"/>
+        <CheckBox x:Name="ChkTiles" Style="{StaticResource DarkCheck}" IsChecked="True" VerticalAlignment="Center" Margin="0,0,18,0" Visibility="Collapsed"/>
+        <CheckBox x:Name="ChkNoName" Style="{StaticResource DarkCheck}" IsChecked="False" VerticalAlignment="Center" Visibility="Collapsed"/>
       </WrapPanel>
       <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="12">
         <Hyperlink x:Name="LnkGitHub" NavigateUri="https://github.com/F1KS-FK/shadow-icons" Foreground="#7F9BFF" TextDecorations="None">GitHub</Hyperlink>

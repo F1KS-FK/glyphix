@@ -1,7 +1,8 @@
 ﻿<#
   Shadow Icons - приложение (WPF, Windows PowerShell 5.1).
   GUI:  powershell -STA -File ShadowIcons.ps1      (обычно запускается через launch.vbs)
-  CLI:  ShadowIcons.ps1 -Cli [-Update] [-List <пак>] [-Apply <пак>] [-Undo] [-NoRestart] [-AllUsers]
+  CLI:  ShadowIcons.ps1 -Cli [-Update] [-List <пак>] [-Apply <пак>] [-Undo] [-NoRestart] [-AllUsers] [-NoTiles] [-NoName]
+  Плитки Start11 применяются вместе с ярлыками (если Start11 найден); -NoTiles - без плиток, -NoName - плитки без подписи.
   Прав администратора при запуске НЕ запрашивается. Общие ярлыки (-AllUsers) требуют повышения: GUI сам
   перезапускает этот скрипт в режиме CLI с UAC на одно действие.
 #>
@@ -13,7 +14,9 @@ param(
     [switch]$Undo,
     [switch]$Update,
     [switch]$NoRestart,
-    [switch]$AllUsers
+    [switch]$AllUsers,
+    [switch]$NoTiles,
+    [switch]$NoName
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,6 +32,7 @@ function Invoke-Cli {
     if ($prob) { Write-Log $prob; return 3 }
     $all = [bool]$AllUsers
     if ($all -and -not (Test-Admin)) { Write-Host 'Общие ярлыки требуют прав администратора - пропускаю их.'; $all = $false }
+    $tilesOn = ((-not $NoTiles) -and (Test-Start11))
     $packs = @(Get-Packs)
     if ($Update -or $packs.Count -eq 0) {
         $r = Update-Packs
@@ -37,8 +41,9 @@ function Invoke-Cli {
     }
     if ($Undo) {
         $u = $null
-        try { $u = Undo-All -RestartExplorer:(-not $NoRestart) } catch { Write-Log ('Откат не выполнен: ' + $_.Exception.Message) }
+        try { $u = Undo-All -RestartExplorer:(-not $NoRestart) -NoReload:$NoRestart } catch { Write-Log ('Откат не выполнен: ' + $_.Exception.Message) }
         if (-not $u -or $u.Failed -gt 0) { $code = 1 }
+        if ($u -and $u.Hint) { Write-Host $u.Hint }
     }
     foreach ($mode in @('List', 'Apply')) {
         $id = if ($mode -eq 'List') { $List } else { $Apply }
@@ -55,9 +60,22 @@ function Invoke-Cli {
                 $mark = if ($m.Already) { ' (уже стоит)' } else { '' }
                 Write-Host ("  [{0,-7}] {1,-32} -> {2} ({3}){4}" -f $m.Location, $m.Name, $m.IconName, $m.Rule, $mark)
             }
+            if ($tilesOn) {
+                $tiles = @(Get-Start11Matches -Pack $pk -NoName:$NoName)
+                Write-Host ("Плитки Start11: {0}" -f $tiles.Count)
+                foreach ($m in $tiles) {
+                    $mark = if ($m.Already) { ' (уже стоит)' } else { '' }
+                    Write-Host ("  [start11] {0,-32} -> {1} ({2}){3}" -f $(if ($m.Name) { $m.Name } else { $m.TileId }), $m.IconName, $m.Rule, $mark)
+                }
+            }
         } else {
             $r = Apply-Pack -Pack $pk -Items $items -RestartExplorer:(-not $NoRestart)
             if ($r.Failed -gt 0) { $code = 1 }
+            if ($tilesOn) {
+                $tr = Apply-Start11Tiles -Pack $pk -NoName:$NoName -NoReload:$NoRestart
+                if ($tr.Failed -gt 0) { $code = 1 }
+                if ($tr.Hint) { Write-Host $tr.Hint }
+            }
         }
     }
     return $code
@@ -150,6 +168,14 @@ $T = @{
     Loc_desktop_all = 'Рабочий стол (общий)'
     Loc_start_all   = 'Пуск (общий)'
     IconWord     = 'Иконка'
+    Tiles        = 'Плитки Start11'
+    TilesNoName  = 'Плитки без подписи'
+    TilesFound   = 'Плиток Start11: {0}'
+    TilesPill    = 'Плитка Start11'
+    TileSub      = 'Плитка: {0} · id: {1}'
+    TilesDone    = 'Плитки Start11: заменено {0}, уже стояли {1}'
+    TilesFail    = ', ошибок: {0}'
+    TilesUndone  = ', плиток Start11: {0}'
 }
 
 # ---- загрузка XAML ----
@@ -165,7 +191,7 @@ try {
 }
 $script:ui = @{}
 $names = @('ImgLogo', 'TxtVersion', 'TxtAdmin', 'TxtPacksTitle', 'PackList', 'TxtEmpty', 'TxtMatchTitle', 'TxtSelectedPack', 'MatchList',
-    'TxtMatchSummary', 'BtnUpdate', 'BtnUndo', 'BtnOpen', 'BtnMenu', 'ChkRestart', 'ChkAllUsers', 'LnkGitHub', 'PopMenu', 'BtnUninstall',
+    'TxtMatchSummary', 'BtnUpdate', 'BtnUndo', 'BtnOpen', 'BtnMenu', 'ChkRestart', 'ChkAllUsers', 'ChkTiles', 'ChkNoName', 'LnkGitHub', 'PopMenu', 'BtnUninstall',
     'PrgBusy', 'TxtStatus', 'BtnLog', 'LogPanel', 'TxtLog')
 foreach ($n in $names) {
     $script:ui[$n] = $script:Window.FindName($n)
@@ -180,6 +206,8 @@ $script:SelectedId = $null
 $script:PendingSelect = $null
 $script:Job = $null
 $script:DataHome = $script:SI_Home
+$script:HasStart11 = $false
+try { $script:HasStart11 = [bool](Test-Start11) } catch { }
 
 function Get-Res { param([string]$Key) return $script:Window.FindResource($Key) }
 
@@ -210,7 +238,7 @@ function Add-LogLine {
     } catch { }
 }
 
-function Set-Status { param([string]$Text) $script:ui.TxtStatus.Text = $Text }
+function Set-Status { param([string]$Text) $script:ui.TxtStatus.Text = $Text; $script:ui.TxtStatus.ToolTip = $Text }
 
 function Show-Error {
     param($Err)
@@ -368,62 +396,87 @@ function Rebuild-Packs {
 }
 
 # ---- панель «Что поменяется» ----
+function New-MatchRow {
+    param([string]$ImgPath, [string]$Title, [string]$Sub, [string]$Pill, [string]$Tip)
+    $row = New-Object System.Windows.Controls.Border
+    $row.Background = (Get-Res 'RowBrush')
+    $row.CornerRadius = New-Object System.Windows.CornerRadius(10)
+    $row.Padding = New-Object System.Windows.Thickness(10)
+    $row.Margin = New-Object System.Windows.Thickness(0, 0, 0, 6)
+    $row.ToolTip = $Tip
+    $g = New-Object System.Windows.Controls.Grid
+    $d1 = New-Object System.Windows.Controls.ColumnDefinition; $d1.Width = [System.Windows.GridLength]::Auto
+    $d2 = New-Object System.Windows.Controls.ColumnDefinition; $d2.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Star)
+    $d3 = New-Object System.Windows.Controls.ColumnDefinition; $d3.Width = [System.Windows.GridLength]::Auto
+    [void]$g.ColumnDefinitions.Add($d1); [void]$g.ColumnDefinitions.Add($d2); [void]$g.ColumnDefinitions.Add($d3)
+    $im = New-Object System.Windows.Controls.Image
+    $im.Width = 34; $im.Height = 34
+    $src = New-Img $ImgPath 68
+    if ($src) { $im.Source = $src }
+    [void]$g.Children.Add($im)
+    $tx = New-Object System.Windows.Controls.StackPanel
+    $tx.Margin = New-Object System.Windows.Thickness(12, 0, 8, 0)
+    $tx.VerticalAlignment = 'Center'
+    $n1 = New-Text $Title 13 'TextBrush' 'SemiBold'
+    $n1.TextTrimming = 'CharacterEllipsis'
+    [void]$tx.Children.Add($n1)
+    $n2 = New-Text $Sub 11 'MutedBrush'
+    $n2.TextTrimming = 'CharacterEllipsis'
+    [void]$tx.Children.Add($n2)
+    [System.Windows.Controls.Grid]::SetColumn($tx, 1)
+    [void]$g.Children.Add($tx)
+    $pill = New-Object System.Windows.Controls.Border
+    $pill.Background = (Get-Res 'GhostBrush')
+    $pill.CornerRadius = New-Object System.Windows.CornerRadius(8)
+    $pill.Padding = New-Object System.Windows.Thickness(8, 3, 8, 3)
+    $pill.VerticalAlignment = 'Center'
+    $pill.Child = New-Text $Pill 11 'MutedBrush'
+    [System.Windows.Controls.Grid]::SetColumn($pill, 2)
+    [void]$g.Children.Add($pill)
+    $row.Child = $g
+    return $row
+}
+
 function Fill-Matches {
-    param($Matches2)
+    param($Matches2, $TileMatches)
     $script:ui.MatchList.Children.Clear()
     $items = @($Matches2 | Where-Object { $_ })
+    $tiles = @($TileMatches | Where-Object { $_ })
     $same = 0
     foreach ($m in $items) {
         if ($m.Already) { $same++ }
-        $row = New-Object System.Windows.Controls.Border
-        $row.Background = (Get-Res 'RowBrush')
-        $row.CornerRadius = New-Object System.Windows.CornerRadius(10)
-        $row.Padding = New-Object System.Windows.Thickness(10)
-        $row.Margin = New-Object System.Windows.Thickness(0, 0, 0, 6)
-        $row.ToolTip = [string]$m.Path
-        $g = New-Object System.Windows.Controls.Grid
-        $d1 = New-Object System.Windows.Controls.ColumnDefinition; $d1.Width = [System.Windows.GridLength]::Auto
-        $d2 = New-Object System.Windows.Controls.ColumnDefinition; $d2.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Star)
-        $d3 = New-Object System.Windows.Controls.ColumnDefinition; $d3.Width = [System.Windows.GridLength]::Auto
-        [void]$g.ColumnDefinitions.Add($d1); [void]$g.ColumnDefinitions.Add($d2); [void]$g.ColumnDefinitions.Add($d3)
-        $im = New-Object System.Windows.Controls.Image
-        $im.Width = 34; $im.Height = 34
-        $src = New-Img $m.PngPath 68
-        if ($src) { $im.Source = $src }
-        [void]$g.Children.Add($im)
-        $tx = New-Object System.Windows.Controls.StackPanel
-        $tx.Margin = New-Object System.Windows.Thickness(12, 0, 8, 0)
-        $tx.VerticalAlignment = 'Center'
-        $n1 = New-Text ([string]$m.Name) 13 'TextBrush' 'SemiBold'
-        $n1.TextTrimming = 'CharacterEllipsis'
-        [void]$tx.Children.Add($n1)
         $sub = "{0}: {1}" -f $script:T.IconWord, $m.IconName
         if ($m.Already) { $sub += ' · ' + $script:T.AlreadySet }
-        $n2 = New-Text $sub 11 'MutedBrush'
-        $n2.TextTrimming = 'CharacterEllipsis'
-        [void]$tx.Children.Add($n2)
-        [System.Windows.Controls.Grid]::SetColumn($tx, 1)
-        [void]$g.Children.Add($tx)
-        $pill = New-Object System.Windows.Controls.Border
-        $pill.Background = (Get-Res 'GhostBrush')
-        $pill.CornerRadius = New-Object System.Windows.CornerRadius(8)
-        $pill.Padding = New-Object System.Windows.Thickness(8, 3, 8, 3)
-        $pill.VerticalAlignment = 'Center'
         $locKey = 'Loc_' + [string]$m.Location
-        $pill.Child = New-Text $(if ($script:T.ContainsKey($locKey)) { $script:T[$locKey] } else { [string]$m.Location }) 11 'MutedBrush'
-        [System.Windows.Controls.Grid]::SetColumn($pill, 2)
-        [void]$g.Children.Add($pill)
-        $row.Child = $g
-        [void]$script:ui.MatchList.Children.Add($row)
+        $pillText = if ($script:T.ContainsKey($locKey)) { $script:T[$locKey] } else { [string]$m.Location }
+        [void]$script:ui.MatchList.Children.Add((New-MatchRow $m.PngPath ([string]$m.Name) $sub $pillText ([string]$m.Path)))
     }
-    if ($items.Count -eq 0) {
+    $tsame = 0
+    foreach ($m in $tiles) {
+        if ($m.Already) { $tsame++ }
+        $title = if ($m.Name) { [string]$m.Name } else { [string]$m.TileId }
+        $sub = $script:T.TileSub -f $m.IconName, $m.TileId
+        if ($m.Already) { $sub += ' · ' + $script:T.AlreadySet }
+        [void]$script:ui.MatchList.Children.Add((New-MatchRow $m.TilePath $title $sub $script:T.TilesPill ([string]$m.TileId)))
+    }
+    if ($items.Count -eq 0 -and $tiles.Count -eq 0) {
         $s = $script:T.NoneFound
     } else {
-        $s = $script:T.Found -f $items.Count
+        $s = if ($items.Count -gt 0) { $script:T.Found -f $items.Count } else { '' }
         if ($same -gt 0) { $s += ($script:T.FoundSame -f $same) }
+        if ($tiles.Count -gt 0) {
+            if ($s) { $s += "`n" }
+            $s += ($script:T.TilesFound -f $tiles.Count)
+            if ($tsame -gt 0) { $s += ($script:T.FoundSame -f $tsame) }
+        }
     }
     if (-not [bool]$script:ui.ChkAllUsers.IsChecked) { $s += "`n" + $script:T.AdminNote }
     $script:ui.TxtMatchSummary.Text = $s
+}
+
+# плитки Start11 включены: Start11 найден и галочка стоит
+function Get-TilesWanted {
+    return [bool]($script:HasStart11 -and [bool]$script:ui.ChkTiles.IsChecked)
 }
 
 function Select-Pack {
@@ -437,15 +490,17 @@ function Select-Pack {
     $script:ui.TxtSelectedPack.Text = $script:T.PackLine -f ('{0} {1}' -f $pk.Name, $pk.Version)
     $script:ui.MatchList.Children.Clear()
     $script:ui.TxtMatchSummary.Text = $script:T.Scanning
-    Start-Bg -Title $script:T.Scanning -Params @{ Id = $Id; All = [bool]$script:ui.ChkAllUsers.IsChecked } -Body @'
+    Start-Bg -Title $script:T.Scanning -Params @{ Id = $Id; All = [bool]$script:ui.ChkAllUsers.IsChecked; Tiles = (Get-TilesWanted); NoName = [bool]$script:ui.ChkNoName.IsChecked } -Body @'
 param($p)
 $pk = @(Get-Packs) | Where-Object { $_.Id -eq $p.Id } | Select-Object -First 1
 if (-not $pk) { throw 'Пак не найден' }
-[pscustomobject]@{ Matches = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All)) }
+$tm = @()
+if ($p.Tiles) { try { $tm = @(Get-Start11Matches -Pack $pk -NoName:([bool]$p.NoName)) } catch { Write-Log ('Плитки Start11: ' + $_.Exception.Message) } }
+[pscustomobject]@{ Matches = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All)); TileMatches = $tm }
 '@ -OnDone {
         param($res)
         if ($res -and $res.Error) { Show-Error $res.Error; $script:ui.TxtMatchSummary.Text = ''; return }
-        Fill-Matches $res.Matches
+        Fill-Matches $res.Matches $res.TileMatches
         Set-Status $script:T.Ready
     }
 }
@@ -459,19 +514,31 @@ function Invoke-Apply {
     $restart = [bool]$script:ui.ChkRestart.IsChecked
     # общие ярлыки при обычных правах: один раз перезапускаем этот скрипт с UAC (режим CLI) и ждём его завершения
     $elevate = ($all -and -not (Test-Admin))
-    Start-Bg -Title $script:T.Applying -Params @{ Id = $Id; Restart = $restart; All = $all; Elevate = $elevate } -Body @'
+    Start-Bg -Title $script:T.Applying -Params @{ Id = $Id; Restart = $restart; All = $all; Elevate = $elevate; Tiles = (Get-TilesWanted); NoName = [bool]$script:ui.ChkNoName.IsChecked } -Body @'
 param($p)
 $pk = @(Get-Packs) | Where-Object { $_.Id -eq $p.Id } | Select-Object -First 1
 if (-not $pk) { throw 'Пак не найден' }
+# плитки Start11 - в реестре текущего пользователя: применяем здесь, а не в повышенном процессе (там -NoTiles)
+$tr = $null
+$doTiles = { param($packObj)
+    if (-not $p.Tiles) { return $null }
+    try { return (Apply-Start11Tiles -Pack $packObj -NoName:([bool]$p.NoName)) } catch { Write-Log ('Плитки Start11: ' + $_.Exception.Message); return [pscustomobject]@{ Changed = 0; Same = 0; Failed = 1; Hint = '' } }
+}
+$getTiles = { param($packObj)
+    if (-not $p.Tiles) { return @() }
+    try { return @(Get-Start11Matches -Pack $packObj -NoName:([bool]$p.NoName)) } catch { return @() }
+}
 if ($p.Elevate) {
-    $a = @('-Cli', '-Apply', [string]$p.Id, '-AllUsers')
+    $a = @('-Cli', '-Apply', [string]$p.Id, '-AllUsers', '-NoTiles')
     if (-not $p.Restart) { $a += '-NoRestart' }
     $er = Invoke-ElevatedCli -CliArgs $a
-    return [pscustomobject]@{ Elevated = $true; Elev = $er; Matches = @(Get-Matches -Pack $pk -AllUsers:$true); PackName = $pk.Name }
+    $tr = & $doTiles $pk
+    return [pscustomobject]@{ Elevated = $true; Elev = $er; Tiles = $tr; Matches = @(Get-Matches -Pack $pk -AllUsers:$true); TileMatches = @(& $getTiles $pk); PackName = $pk.Name }
 }
 $items = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All))
 $r = Apply-Pack -Pack $pk -Items $items -RestartExplorer:([bool]$p.Restart)
-[pscustomobject]@{ Elevated = $false; Result = $r; Matches = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All)); PackName = $pk.Name }
+$tr = & $doTiles $pk
+[pscustomobject]@{ Elevated = $false; Result = $r; Tiles = $tr; Matches = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All)); TileMatches = @(& $getTiles $pk); PackName = $pk.Name }
 '@ -OnDone {
         param($res)
         if ($res -and $res.Error) { Show-Error $res.Error; return }
@@ -487,10 +554,16 @@ $r = Apply-Pack -Pack $pk -Items $items -RestartExplorer:([bool]$p.Restart)
             if ($r.Failed -gt 0) { $s += ($script:T.ApplyFail -f $r.Failed) }
             Set-Status $s
         }
+        if ($res.Tiles) {
+            $ts = $script:T.TilesDone -f $res.Tiles.Changed, $res.Tiles.Same
+            if ($res.Tiles.Failed -gt 0) { $ts += ($script:T.TilesFail -f $res.Tiles.Failed) }
+            if ($res.Tiles.Hint) { $ts += '. ' + $res.Tiles.Hint }
+            Set-Status ($script:ui.TxtStatus.Text + ' | ' + $ts)
+        }
         Rebuild-Packs
         $pk = $script:Packs | Where-Object { $_.Id -eq $script:SelectedId } | Select-Object -First 1
         if ($pk) { $script:ui.TxtSelectedPack.Text = $script:T.PackLine -f ('{0} {1}' -f $pk.Name, $pk.Version) }
-        Fill-Matches $res.Matches
+        Fill-Matches $res.Matches $res.TileMatches
     }
 }
 
@@ -530,7 +603,9 @@ Undo-All -RestartExplorer:([bool]$p.Restart)
         if ($res.Nothing) { Set-Status $script:T.UndoNothing }
         else {
             $s = $script:T.UndoDone -f $res.Restored
+            if ($res.TilesRestored -gt 0) { $s += ($script:T.TilesUndone -f $res.TilesRestored) }
             if ($res.Failed -gt 0) { $s += ($script:T.UndoFail -f $res.Failed) }
+            if ($res.Hint) { $s += '. ' + $res.Hint }
             Set-Status $s
         }
         Rebuild-Packs
@@ -566,6 +641,13 @@ $script:ui.BtnOpen.Content = $script:T.Open
 $script:ui.BtnUninstall.Content = $script:T.Uninstall
 $script:ui.ChkRestart.Content = $script:T.Restart
 $script:ui.ChkAllUsers.Content = $script:T.AllUsers
+$script:ui.ChkTiles.Content = $script:T.Tiles
+$script:ui.ChkNoName.Content = $script:T.TilesNoName
+# галочки плиток видны только если Start11 найден (ключ реестра есть)
+$script:ui.ChkTiles.Visibility = if ($script:HasStart11) { 'Visible' } else { 'Collapsed' }
+$script:ui.ChkNoName.Visibility = if ($script:HasStart11) { 'Visible' } else { 'Collapsed' }
+$script:ui.ChkTiles.IsEnabled = $script:HasStart11
+$script:ui.ChkNoName.IsEnabled = $script:HasStart11
 $script:ui.BtnLog.Content = $script:T.LogShow
 $script:ui.TxtStatus.Text = $script:T.Ready
 $script:Window.Title = $script:T.Title
@@ -594,6 +676,13 @@ $script:ui.BtnOpen.Add_Click({
     } catch { Show-Error $_ }
 })
 $script:ui.ChkAllUsers.Add_Click({ try { if ($script:SelectedId) { Select-Pack $script:SelectedId } } catch { Show-Error $_ } })
+$script:ui.ChkTiles.Add_Click({
+    try {
+        $script:ui.ChkNoName.IsEnabled = ($script:HasStart11 -and [bool]$script:ui.ChkTiles.IsChecked)
+        if ($script:SelectedId) { Select-Pack $script:SelectedId }
+    } catch { Show-Error $_ }
+})
+$script:ui.ChkNoName.Add_Click({ try { if ($script:SelectedId) { Select-Pack $script:SelectedId } } catch { Show-Error $_ } })
 $script:ui.BtnMenu.Add_Click({ $script:ui.PopMenu.IsOpen = (-not $script:ui.PopMenu.IsOpen) })
 $script:ui.BtnUninstall.Add_Click({ try { $script:ui.PopMenu.IsOpen = $false; Invoke-Uninstall } catch { Show-Error $_ } })
 $script:ui.BtnLog.Add_Click({
