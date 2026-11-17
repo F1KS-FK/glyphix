@@ -823,10 +823,23 @@ function Get-S11Value {
     } finally { $k.Close() }
 }
 
+# вид значения ('String', 'ExpandString', 'DWord', ...) или $null, если значения нет
+function Get-S11Kind {
+    param([string]$Sub, [string]$Name)
+    $k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($Sub, $false)
+    if (-not $k) { return $null }
+    try {
+        if (@($k.GetValueNames()) -notcontains $Name) { return $null }
+        return [string]$k.GetValueKind($Name)
+    } finally { $k.Close() }
+}
+
+# строковое значение: $Kind = String (по умолчанию) или ExpandString
 function Set-S11Value {
-    param([string]$Sub, [string]$Name, [string]$Data)
+    param([string]$Sub, [string]$Name, [string]$Data, [string]$Kind = 'String')
+    if ($Kind -ne 'String' -and $Kind -ne 'ExpandString') { $Kind = 'String' }
     $k = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($Sub)
-    try { $k.SetValue($Name, $Data, [Microsoft.Win32.RegistryValueKind]::String) } finally { $k.Close() }
+    try { $k.SetValue($Name, $Data, [Microsoft.Win32.RegistryValueKind]$Kind) } finally { $k.Close() }
 }
 
 function Remove-S11Value {
@@ -836,18 +849,12 @@ function Remove-S11Value {
     try { $k.DeleteValue($Name, $false) } finally { $k.Close() }
 }
 
-# имена всех значений в дереве (рекурсивно), без значений по умолчанию
+# имена значений одного подключа (без вложенных), без значения по умолчанию
 function Get-S11ValueNames {
-    param([string]$Sub, [int]$Depth = 0)
-    $out = New-Object 'System.Collections.Generic.List[string]'
-    if ($Depth -gt 8) { return @() }
+    param([string]$Sub)
     $k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($Sub, $false)
     if (-not $k) { return @() }
-    try {
-        foreach ($n in @($k.GetValueNames())) { if ($n) { $out.Add([string]$n) } }
-        foreach ($s in @($k.GetSubKeyNames())) { foreach ($n in @(Get-S11ValueNames ($Sub + '\' + $s) ($Depth + 1))) { $out.Add([string]$n) } }
-    } finally { $k.Close() }
-    return $out.ToArray()
+    try { return @($k.GetValueNames() | Where-Object { $_ } | ForEach-Object { [string]$_ }) } finally { $k.Close() }
 }
 
 function Test-Start11 {
@@ -855,7 +862,10 @@ function Test-Start11 {
 }
 
 # --- id плитки и сопоставление ---
-# Приложения из Get-StartApps + все имена значений, уже лежащие в дереве Start8.ini
+# Подключи Start8, где Start11 хранит id плиток (имена значений = id); остальное дерево Start8.ini не читаем
+$script:SI_S11TileKeys = @('CustomTiles', 'CustomTilesText', 'CustomTilesIcon', 'CustomTilesPainting', 'CustomText')
+
+# Приложения из Get-StartApps + имена значений из подключей Start8\CustomTiles*, CustomText
 function Get-Start11Candidates {
     $map = @{}
     $list = New-Object 'System.Collections.Generic.List[object]'
@@ -871,7 +881,9 @@ function Get-Start11Candidates {
         $map[$id] = $o; $list.Add($o)
     }
     $names = @()
-    try { $names = @(Get-S11ValueNames $script:SI_S11Root) } catch { Write-Log ('чтение реестра Start11: ' + $_.Exception.Message) }
+    foreach ($sk in $script:SI_S11TileKeys) {
+        try { $names += @(Get-S11ValueNames ($script:SI_S11Root + '\Start8\' + $sk)) } catch { Write-Log ('чтение реестра Start11 (' + $sk + '): ' + $_.Exception.Message) }
+    }
     foreach ($n in $names) {
         if (-not $n) { continue }
         if ($map.ContainsKey($n)) { $map[$n].Source = 'start+reg'; continue }
@@ -896,6 +908,9 @@ function Get-StrippedKeys {
     return $out
 }
 
+# слова, которые в id бывают издателем/общим словом, а не именем приложения (ключи уже без регистра и знаков)
+$script:SI_PublisherWords = @('com', 'org', 'net', 'ru', 'io', 'microsoft', 'windows', 'google', 'app', 'apps', 'desktop', 'the')
+
 # Что можно вытащить из id плитки. Pwa = PWA Chrome/Edge (Chrome._crx_<id>): по id не сопоставляем вообще.
 # Keys = упорядоченные ключи для точного сравнения с names (последний токен важнее: com.anilibria.anilibrix -> anilibrix);
 # Last = ключ имени файла/последнего токена для exes и префикса.
@@ -908,9 +923,10 @@ function Get-TileIdInfo {
     $extRx = '\.(exe|lnk|bat|cmd|com|msi|url|app)$'
     $tokens = @()
     $pathLike = ($s -match '^[A-Za-z]:[_\\/]') -or ($s -match '^\{[0-9A-Fa-f\-]{36}\}[_\\/]') -or ($s -match '[\\/]')
-    if ($s.Contains('!')) {                                             # AUMID: Имя.Пакета_хэш!App
-        $pfn = $s.Substring(0, $s.IndexOf('!')) -replace '_[a-z0-9]{13}$', ''
-        $tokens = @($pfn.Split([char[]]@('.', '_', ' ')) | Where-Object { $_ })
+    if ($s.Contains('!')) {                                             # AUMID: Имя.Пакета_хэш!App - берём только имя пакета (до '_' / '!')
+        $pfn = $s.Substring(0, $s.IndexOf('!'))
+        if ($pfn.Contains('_')) { $pfn = $pfn.Substring(0, $pfn.IndexOf('_')) }
+        $tokens = @($pfn.Split([char[]]@('.', ' ')) | Where-Object { $_ })
     } elseif ($pathLike) {                                              # полный путь: смотрим только на имя файла
         $seg = @($s.Split([char[]]@('_', '\', '/')) | Where-Object { $_ })
         if ($seg.Count -gt 0) { $tokens = @(($seg[$seg.Count - 1]) -replace $extRx, '') }
@@ -919,15 +935,18 @@ function Get-TileIdInfo {
     }
     $tokens = @($tokens | ForEach-Object { Get-Key $_ } | Where-Object { $_ })
     if ($tokens.Count -eq 0) { return $info }
+    # Для точного сравнения берём только хвост id (последние 2 токена): ведущие токены - издатель (com.google.*, Microsoft.*)
+    # и не должны давать совпадений. Порядок: оба токена вместе, последний, предпоследний (если это не слово-издатель).
     $keys = New-Object 'System.Collections.Generic.List[string]'
     $seen = @{}
     $n = $tokens.Count
-    for ($end = $n; $end -ge 1; $end--) {
-        for ($len = [Math]::Min(3, $end); $len -ge 1; $len--) {
-            $k = ($tokens[($end - $len)..($end - 1)]) -join ''
-            foreach ($v in (@($k) + @(Get-StrippedKeys $k))) {
-                if ($v -and -not $seen.ContainsKey($v)) { $seen[$v] = $true; $keys.Add($v) }
-            }
+    $cand = New-Object 'System.Collections.Generic.List[string]'
+    if ($n -ge 2) { $cand.Add(($tokens[($n - 2)..($n - 1)]) -join '') }
+    $cand.Add($tokens[$n - 1])
+    if ($n -ge 2 -and ($script:SI_PublisherWords -notcontains $tokens[$n - 2])) { $cand.Add($tokens[$n - 2]) }
+    foreach ($k in $cand) {
+        foreach ($v in (@($k) + @(Get-StrippedKeys $k))) {
+            if ($v -and -not $seen.ContainsKey($v)) { $seen[$v] = $true; $keys.Add($v) }
         }
     }
     $info.Keys = $keys.ToArray()
@@ -936,7 +955,7 @@ function Get-TileIdInfo {
 }
 
 # доп. имена для сопоставления плиток (только в движке; pack.json не меняем): icon id -> ключи
-$script:SI_TileAliases = @{ yandexmusic = @('yandexdesktopmusic') }
+$script:SI_TileAliases = @{ yandexmusic = @('yandexdesktopmusic', 'desktopmusic') }   # ru.yandex.desktop.music: от id остаются 2 последних токена
 
 function New-TileIndex {
     param($Pack)
@@ -1007,7 +1026,7 @@ function Get-Start11Matches {
     return $out.ToArray()
 }
 
-# --- бэкап значений CustomTiles: backup\start11.json = массив {Id, Absent, Data}; Absent = значения не было ---
+# --- бэкап значений CustomTiles: backup\start11.json = массив {Id, Absent, Data, Kind}; Absent = значения не было; Kind = String | ExpandString ---
 function Save-JsonAtomic {
     param([string]$Path, [string]$Json)
     $dir = [IO.Path]::GetDirectoryName($Path)
@@ -1033,7 +1052,9 @@ function Load-S11Backup {
             if (-not $e -or -not $e.Id) { continue }
             $absent = [bool]$e.Absent
             if (-not $absent -and $null -eq $e.Data) { continue }
-            $map[[string]$e.Id] = [pscustomobject]@{ Absent = $absent; Data = $(if ($absent) { $null } else { [string]$e.Data }) }
+            $kind = 'String'
+            if ($e.PSObject.Properties['Kind'] -and [string]$e.Kind -eq 'ExpandString') { $kind = 'ExpandString' }     # старые записи без Kind - String
+            $map[[string]$e.Id] = [pscustomobject]@{ Absent = $absent; Data = $(if ($absent) { $null } else { [string]$e.Data }); Kind = $kind }
         }
     }
     return $map
@@ -1045,56 +1066,96 @@ function Save-S11Backup {
         if (Test-Path -LiteralPath $script:SI_S11BackupFile) { Remove-Item -LiteralPath $script:SI_S11BackupFile -Force }
         return
     }
-    $arr = foreach ($k in $Map.Keys) { [pscustomobject]@{ Id = $k; Absent = [bool]$Map[$k].Absent; Data = $Map[$k].Data } }
+    $arr = foreach ($k in $Map.Keys) { [pscustomobject]@{ Id = $k; Absent = [bool]$Map[$k].Absent; Data = $Map[$k].Data; Kind = $(if ($Map[$k].PSObject.Properties['Kind'] -and $Map[$k].Kind) { [string]$Map[$k].Kind } else { 'String' }) } }
     Save-JsonAtomic $script:SI_S11BackupFile (ConvertTo-Json -InputObject @($arr))
 }
 
 # --- перезапуск Start11, чтобы он перечитал плитки ---
+# аргументы из командной строки процесса: всё после пути к exe (путь в кавычках или без)
+function Get-CommandLineArgs {
+    param([string]$CommandLine, [string]$Path)
+    if (-not $CommandLine) { return '' }
+    $c = $CommandLine.Trim()
+    if ($c.StartsWith('"')) {
+        $e = $c.IndexOf('"', 1)
+        if ($e -lt 0) { return '' }
+        return $c.Substring($e + 1).Trim()
+    }
+    if ($Path -and $c.StartsWith($Path, [StringComparison]::OrdinalIgnoreCase)) { return $c.Substring($Path.Length).Trim() }
+    $sp = $c.IndexOf(' ')
+    if ($sp -lt 0) { return '' }
+    return $c.Substring($sp + 1).Trim()
+}
+
+# Id процесса -> командная строка (Win32_Process); без неё перезапускаем без аргументов
+function Get-Start11CommandLines {
+    $map = @{}
+    try {
+        foreach ($w in @(Get-CimInstance -ClassName Win32_Process -Filter "Name LIKE 'Start11%'" -ErrorAction Stop)) { $map[[int]$w.ProcessId] = [string]$w.CommandLine }
+    } catch { Write-Log ('Start11: командная строка не прочитана: ' + $_.Exception.Message) }
+    return $map
+}
+
 function Get-Start11Processes {
     $sid = (Get-Process -Id $PID).SessionId
-    foreach ($p in @(Get-Process -ErrorAction SilentlyContinue)) {
+    $cmds = $null
+    foreach ($p in @(Get-Process -Name 'Start11*' -ErrorAction SilentlyContinue)) {
         $path = ''
         try {
             if ($p.SessionId -ne $sid) { continue }
             $path = [string]$p.MainModule.FileName
         } catch { continue }
         if (-not (Test-Start11Process ([string]$p.ProcessName) $path)) { continue }
-        [pscustomobject]@{ Id = [int]$p.Id; Name = [string]$p.ProcessName; Path = $path }
+        if ($null -eq $cmds) { $cmds = Get-Start11CommandLines }
+        $cl = ''
+        if ($cmds.ContainsKey([int]$p.Id)) { $cl = [string]$cmds[[int]$p.Id] }
+        [pscustomobject]@{ Id = [int]$p.Id; Name = [string]$p.ProcessName; Path = $path; Args = (Get-CommandLineArgs $cl $path) }
     }
 }
 
-# процесс Start11, который нужно перезапускать: exe в папке ...\Stardock\Start11\, кроме Start11Config и *Srv*
+# процесс меню Start11, который нужно перезапускать: Start11*.exe в папке ...\Stardock\Start11\, кроме *Config*, *Update*, *Uninst* (и *Srv* - служебный)
 function Test-Start11Process {
     param([string]$Name, [string]$Path)
     if (-not $Path -or $Path -notlike '*\Stardock\Start11\*') { return $false }
-    if ($Name -like 'Start11Config*' -or $Name -like '*Srv*') { return $false }
+    $leaf = $Path.Substring($Path.LastIndexOfAny($script:SI_Seps) + 1)
+    if ($leaf -notlike 'Start11*.exe') { return $false }
+    if ($Name -notlike 'Start11*') { return $false }
+    foreach ($bad in @('*Config*', '*Update*', '*Uninst*', '*Srv*')) { if ($Name -like $bad -or $leaf -like $bad) { return $false } }
     return $true
 }
 
 # запуск без прав администратора (из повышенного процесса - через runas /trustlevel, как у проводника)
 function Start-NonElevated {
-    param([string]$Path)
+    param([string]$Path, [string]$Arguments = '')
     if (Test-Admin) {
         $runas = Join-Path $env:SystemRoot 'System32\runas.exe'
-        Start-Process -FilePath $runas -ArgumentList ('/trustlevel:0x20000 "' + $Path + '"') -WindowStyle Hidden
+        $cmd = '/trustlevel:0x20000 "' + $Path + '"'
+        if ($Arguments) { $cmd = '/trustlevel:0x20000 "\"' + $Path + '\" ' + $Arguments.Replace('"', '\"') + '"' }
+        Start-Process -FilePath $runas -ArgumentList $cmd -WindowStyle Hidden
+    } elseif ($Arguments) {
+        Start-Process -FilePath $Path -ArgumentList $Arguments -WorkingDirectory ([IO.Path]::GetDirectoryName($Path))
     } else {
         Start-Process -FilePath $Path -WorkingDirectory ([IO.Path]::GetDirectoryName($Path))
     }
 }
 
-# Находим процессы Start11 (кроме Start11Config и *Srv*), запоминаем пути, завершаем (Stop-Process = Kill: настройки
-# в реестре он при этом не перезаписывает) и запускаем снова. Не вышло - Ok=$false и Message = что сказать пользователю.
-# Закрыть Start11 (до записи в реестр, чтобы он не перезаписал плитки из памяти). Возвращает пути для повторного запуска.
+# Закрыть Start11 (до записи в реестр, чтобы он не перезаписал плитки из памяти; Stop-Process = Kill: настройки при этом не пишутся).
+# Paths - уникальные пути exe; Launch - то же с аргументами командной строки для повторного запуска.
 function Stop-Start11 {
-    $r = [pscustomobject]@{ Ok = $true; Paths = (New-Object 'System.Collections.Generic.List[string]') }
+    param($Procs = $null)
+    $r = [pscustomobject]@{ Ok = $true; Paths = (New-Object 'System.Collections.Generic.List[string]'); Launch = (New-Object 'System.Collections.Generic.List[object]') }
     try {
-        $procs = @(Get-Start11Processes)
+        if ($null -eq $Procs) { $Procs = @(Get-Start11Processes) }
         $ids = New-Object 'System.Collections.Generic.List[int]'
-        foreach ($p in $procs) {
+        foreach ($p in @($Procs)) {
             try {
                 Stop-Process -Id $p.Id -Force -ErrorAction Stop
                 $ids.Add([int]$p.Id)
-                if (-not ($r.Paths | Where-Object { $_ -ieq $p.Path })) { $r.Paths.Add([string]$p.Path) }
+                if (-not ($r.Paths | Where-Object { $_ -ieq $p.Path })) {
+                    $r.Paths.Add([string]$p.Path)
+                    $a = ''; if ($p.PSObject.Properties['Args'] -and $p.Args) { $a = [string]$p.Args }
+                    $r.Launch.Add([pscustomobject]@{ Path = [string]$p.Path; Args = $a })
+                }
             } catch { $r.Ok = $false; Write-Log "  Start11: не удалось завершить $($p.Name): $($_.Exception.Message)" }
         }
         for ($i = 0; $i -lt 25; $i++) {
@@ -1105,43 +1166,40 @@ function Stop-Start11 {
     return $r
 }
 
+# Запуск обратно: элементы - строки-пути или {Path, Args}. Если процесс с таким путём уже запущен - не запускаем второй.
 function Start-Start11Paths($Paths) {
     $ok = $true
-    foreach ($path in @($Paths)) {
-        try { Start-NonElevated $path; Write-Log "  Start11 запущен снова: $path" } catch { $ok = $false; Write-Log "  Start11: не удалось запустить $path : $($_.Exception.Message)" }
+    $running = @()
+    try { $running = @(Get-Start11Processes | ForEach-Object { [string]$_.Path }) } catch { }
+    if ($null -eq $Paths) { return $true }
+    foreach ($item in $Paths) {
+        $path = ''; $a = ''
+        if ($item -is [string]) { $path = $item } else { $path = [string]$item.Path; $a = [string]$item.Args }
+        if (-not $path) { continue }
+        if ($running | Where-Object { $_ -ieq $path }) { Write-Log "  Start11 уже запущен, второй не запускаю: $path"; continue }
+        try { Start-NonElevated $path $a; Write-Log "  Start11 запущен снова: $path" } catch { $ok = $false; Write-Log "  Start11: не удалось запустить $path : $($_.Exception.Message)" }
     }
     return $ok
 }
 
 function Restart-Start11 {
     $res = [pscustomobject]@{ Ok = $false; Found = 0; Message = $script:SI_S11Hint }
-    $stoppedPaths = New-Object 'System.Collections.Generic.List[string]'
     $allOk = $true
+    $stop = $null
     try {
         $procs = @(Get-Start11Processes)
         $res.Found = $procs.Count
         if ($procs.Count -eq 0) { Write-Log 'Start11 не запущен или не найден среди процессов.'; return $res }
-        $stopped = New-Object 'System.Collections.Generic.List[int]'
-        foreach ($p in $procs) {
-            try {
-                Stop-Process -Id $p.Id -Force -ErrorAction Stop
-                $stopped.Add([int]$p.Id)
-                if (-not ($stoppedPaths | Where-Object { $_ -ieq $p.Path })) { $stoppedPaths.Add([string]$p.Path) }
-            } catch { $allOk = $false; Write-Log "  Start11: не удалось завершить $($p.Name): $($_.Exception.Message)" }
-        }
-        for ($i = 0; $i -lt 25; $i++) {
-            $alive = @($stopped | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
-            if ($alive.Count -eq 0) { break }
-            Start-Sleep -Milliseconds 200
-        }
+        $stop = Stop-Start11 -Procs $procs
+        if (-not $stop.Ok) { $allOk = $false }
     } catch {
         $allOk = $false
         Write-Log ('Start11: ' + $_.Exception.Message)
     }
-    foreach ($path in $stoppedPaths) {      # что завершили - обязательно запускаем обратно, даже если что-то пошло не так
-        try { Start-NonElevated $path; Write-Log "  Start11 запущен снова: $path" } catch { $allOk = $false; Write-Log "  Start11: не удалось запустить $path : $($_.Exception.Message)" }
+    if ($stop) {     # что завершили - обязательно запускаем обратно, даже если что-то пошло не так
+        if (-not (Start-Start11Paths $stop.Launch)) { $allOk = $false }
+        if ($allOk -and $stop.Paths.Count -gt 0) { $res.Ok = $true; $res.Message = '' }
     }
-    if ($allOk -and $stoppedPaths.Count -gt 0) { $res.Ok = $true; $res.Message = '' }
     return $res
 }
 
@@ -1156,8 +1214,13 @@ function Apply-Start11Tiles {
     $backup = Load-S11Backup           # не читается - исключение до любых изменений, исходные значения не потеряем
     $changed = 0; $same = 0; $failed = 0
     # есть что менять -> сначала закрываем Start11, пишем реестр, потом запускаем обратно
+    # значения не REG_SZ/REG_EXPAND_SZ не трогаем - ради них Start11 не закрываем
     $needs = @($Items | Where-Object {
-        try { -not (Test-Start11TileSet ([string]$_.TileId) (Get-Start11TileDest ([string]$Pack.Id) ([string]$_.IconId)) ([string]$_.TilePath)) } catch { $true } })
+        try {
+            $kind = Get-S11Kind $script:SI_S11Tiles ([string]$_.TileId)
+            if ($kind -and $kind -ne 'String' -and $kind -ne 'ExpandString') { return $false }
+            -not (Test-Start11TileSet ([string]$_.TileId) (Get-Start11TileDest ([string]$Pack.Id) ([string]$_.IconId)) ([string]$_.TilePath))
+        } catch { $true } })
     $stop = $null; $restarted = $true
     if ($needs.Count -gt 0 -and -not $NoReload) { $stop = Stop-Start11 }
     try {
@@ -1169,9 +1232,11 @@ function Apply-Start11Tiles {
             $dest = Get-Start11TileDest ([string]$Pack.Id) $icId
             if (Test-Start11TileSet $id $dest $src) { $same++; continue }
             $cur = Get-S11Value $script:SI_S11Tiles $id                    # не REG_SZ - исключение, значение не трогаем
+            $curKind = 'String'
+            if ($null -ne $cur) { $k0 = Get-S11Kind $script:SI_S11Tiles $id; if ($k0 -eq 'ExpandString') { $curKind = 'ExpandString' } }
             Save-FileAtomic $dest ([IO.File]::ReadAllBytes($src))
             if (-not $backup.ContainsKey($id)) {                           # первый оригинал храним, пока не откатим
-                $backup[$id] = [pscustomobject]@{ Absent = ($null -eq $cur); Data = $cur }
+                $backup[$id] = [pscustomobject]@{ Absent = ($null -eq $cur); Data = $cur; Kind = $curKind }
                 Save-S11Backup $backup
             }
             Set-S11Value $script:SI_S11Tiles $id $dest
@@ -1184,7 +1249,7 @@ function Apply-Start11Tiles {
         }
     }
     } finally {
-        if ($stop) { $restarted = (Start-Start11Paths $stop.Paths) }
+        if ($stop) { $restarted = (Start-Start11Paths $stop.Launch) }
     }
     $st = Read-State
     if ($changed -gt 0 -or $same -gt 0) {
@@ -1204,36 +1269,54 @@ function Apply-Start11Tiles {
     return [pscustomobject]@{ Changed = $changed; Same = $same; Failed = $failed; Total = @($Items).Count; Reload = $reload; Hint = $hint }
 }
 
-# Откат плиток: возвращаем ровно то, что сохранено (значение или его отсутствие). PNG удаляем только когда всё вернулось.
+# Откат плиток: возвращаем ровно то, что сохранено (значение того же вида или его отсутствие). Как и при применении:
+# сначала закрываем Start11, пишем реестр, в finally запускаем обратно. PNG и start11.json удаляем только когда всё вернулось
+# и Start11 либо корректно перезапущен, либо вообще не запущен; при -NoReload и работающем Start11 оставляем их (Kept = $true).
 function Undo-Start11Tiles {
     [CmdletBinding()]
     param([switch]$NoReload)
     Assert-ElevationSafe
     $backup = Load-S11Backup
-    if ($backup.Count -eq 0) { return [pscustomobject]@{ Restored = 0; Failed = 0; Nothing = $true; Reload = $null; Hint = '' } }
+    if ($backup.Count -eq 0) { return [pscustomobject]@{ Restored = 0; Failed = 0; Nothing = $true; Kept = $false; Reload = $null; Hint = '' } }
     $n = 0; $failed = 0
-    foreach ($id in @($backup.Keys)) {
-        $e = $backup[$id]
-        try {
-            if ($e.Absent) { Remove-S11Value $script:SI_S11Tiles $id } else { Set-S11Value $script:SI_S11Tiles $id ([string]$e.Data) }
-            $backup.Remove($id); $n++
-            Write-Log "  плитка возвращена: $id"
-        } catch { $failed++; Write-Log "  ошибка с плиткой $id : $($_.Exception.Message)" }
+    $stop = $null; $restarted = $true; $running = $false
+    if ($NoReload) {
+        try { $running = (@(Get-Start11Processes).Count -gt 0) } catch { $running = $true }
+    } else {
+        $stop = Stop-Start11
     }
-    Save-S11Backup $backup
+    try {
+        foreach ($id in @($backup.Keys)) {
+            $e = $backup[$id]
+            try {
+                if ($e.Absent) { Remove-S11Value $script:SI_S11Tiles $id } else { Set-S11Value $script:SI_S11Tiles $id ([string]$e.Data) ([string]$e.Kind) }
+                $n++
+                Write-Log "  плитка возвращена: $id"
+                if ($running) { continue }       # Start11 работает и не закрыт: значения вернули, но бэкап оставляем
+                $backup.Remove($id)
+            } catch { $failed++; Write-Log "  ошибка с плиткой $id : $($_.Exception.Message)" }
+        }
+    } finally {
+        if ($stop) { $restarted = (Start-Start11Paths $stop.Launch) }
+    }
+    $safe = if ($NoReload) { -not $running } else { [bool]$stop.Ok }
+    $kept = ($n -gt 0 -and -not $safe)
+    if ($safe) { Save-S11Backup $backup }
     $reload = $null; $hint = ''
     if ($n -gt 0) {
         if ($NoReload) { $hint = $script:SI_S11Hint }
         else {
-            $reload = Restart-Start11
-            if (-not $reload.Ok) { $hint = $script:SI_S11Hint; Write-Log $hint }
+            $okAll = ($stop.Ok -and $stop.Paths.Count -gt 0 -and $restarted)
+            $reload = [pscustomobject]@{ Ok = [bool]$okAll; Found = $stop.Paths.Count; Message = $(if ($okAll) { '' } else { $script:SI_S11Hint }) }
+            if (-not $okAll) { $hint = $script:SI_S11Hint; Write-Log $hint }
         }
     }
-    if ($failed -eq 0) { Remove-Start11Files }
+    if ($failed -eq 0 -and $safe) { Remove-Start11Files }
+    elseif ($failed -eq 0 -and $kept) { Write-Log 'Start11 работает: PNG плиток и start11.json оставлены, повторите откат после перезапуска Start11.' }
     $st = Read-State
-    if ($failed -eq 0 -and $st.ContainsKey('Tiles')) { $st.Remove('Tiles'); Save-State $st }
+    if ($failed -eq 0 -and $safe -and $st.ContainsKey('Tiles')) { $st.Remove('Tiles'); Save-State $st }
     Write-Log "Плитки Start11 возвращены: $n$(if ($failed -gt 0) { ', не удалось: ' + $failed })"
-    return [pscustomobject]@{ Restored = $n; Failed = $failed; Nothing = $false; Reload = $reload; Hint = $hint }
+    return [pscustomobject]@{ Restored = $n; Failed = $failed; Nothing = $false; Kept = $kept; Reload = $reload; Hint = $hint }
 }
 
 function Remove-Start11Files {
@@ -1245,21 +1328,56 @@ function Remove-CopyQuiet {
     try { if ($Copy -and (Test-Path -LiteralPath $Copy)) { Remove-Item -LiteralPath $Copy -Force } } catch { }
 }
 
+# Запись бэкапа лежит в общей папке (рабочий стол всех пользователей / общее меню Пуск)? Для таких нужны права администратора.
+function Test-CommonPath {
+    param([string]$Path, [string[]]$CommonRoots)
+    if (-not $Path) { return $false }
+    try { $full = [IO.Path]::GetFullPath($Path) } catch { $full = $Path }
+    foreach ($r in @($CommonRoots)) {
+        if (-not $r) { continue }
+        try { $rp = [IO.Path]::GetFullPath($r) } catch { $rp = $r }
+        if (Test-PathUnder $full $rp) { return $true }
+    }
+    return $false
+}
+
+function Get-CommonRootPaths {
+    return @([Environment]::GetFolderPath('CommonDesktopDirectory'), [Environment]::GetFolderPath('CommonPrograms') | Where-Object { $_ })
+}
+
+# Чистое решение, как откатывать: есть ли в бэкапе записи общих папок и нужно ли для них повышение (процесс не администратор).
+# Elevate -> общие записи откатывает повышенный CLI-дочерний процесс (-Cli -Undo -NoTiles -CommonOnly), остальное (ярлыки пользователя и плитки) - текущий.
+function Get-UndoRoute {
+    param([string[]]$Paths, [bool]$IsAdmin, [string[]]$CommonRoots)
+    $common = 0; $user = 0
+    foreach ($p in @($Paths)) { if (Test-CommonPath $p $CommonRoots) { $common++ } else { $user++ } }
+    return [pscustomobject]@{ Elevate = ((-not $IsAdmin) -and $common -gt 0); CommonCount = $common; UserCount = $user }
+}
+
 # Откат: .lnk - возвращаем только иконку (Set-LinkIcon), удалённые ярлыки не воскрешаем; .ico - копируем обратно.
 # Каждая запись сначала проходит Test-BackupEntry; отклонённые записи выбрасываются из индекса, файлы по ним не трогаются.
 function Undo-All {
     [CmdletBinding()]
-    param([switch]$RestartExplorer, [switch]$NoReload)
+    param([switch]$RestartExplorer, [switch]$NoReload,
+          [switch]$NoTiles,          # плитки Start11 не трогать
+          [switch]$CommonOnly,       # только записи общих папок (для повышенного дочернего процесса); плитки не трогаются
+          [switch]$SkipCommon)       # записи общих папок пропустить (остаются в бэкапе; их откатывает повышенный процесс)
     Assert-ElevationSafe
     $backup = Load-Backup
+    if ($CommonOnly) { $NoTiles = $true }
+    $commonRoots = @(Get-CommonRootPaths)
     $s11 = 0
-    try { $s11 = (Load-S11Backup).Count } catch { $s11 = 1; Write-Log ('start11.json не прочитан: ' + $_.Exception.Message) }
-    if ($backup.Count -eq 0 -and $s11 -eq 0) {
-        Write-Log 'Бэкапа нет - восстанавливать нечего.'
-        return [pscustomobject]@{ Restored = 0; Failed = 0; Skipped = 0; Nothing = $true; TilesRestored = 0; Hint = '' }
+    if (-not $NoTiles) { try { $s11 = (Load-S11Backup).Count } catch { $s11 = 1; Write-Log ('start11.json не прочитан: ' + $_.Exception.Message) } }
+    $todo = @($backup.Keys | Where-Object {
+        $isCommon = (Test-CommonPath $_ $commonRoots)
+        if ($CommonOnly) { $isCommon } elseif ($SkipCommon) { -not $isCommon } else { $true } })
+    $pendingCommon = if ($SkipCommon) { @($backup.Keys).Count - $todo.Count } else { 0 }
+    if ($todo.Count -eq 0 -and $s11 -eq 0) {
+        if ($pendingCommon -eq 0) { Write-Log 'Бэкапа нет - восстанавливать нечего.' }
+        return [pscustomobject]@{ Restored = 0; Failed = 0; Skipped = 0; Nothing = ($pendingCommon -eq 0); CommonPending = $pendingCommon; TilesRestored = 0; Hint = '' }
     }
     $n = 0; $failed = 0; $skipped = 0
-    foreach ($path in @($backup.Keys)) {
+    foreach ($path in $todo) {
         $e = $backup[$path]
         $copy = [string]$e.Copy
         $bad = Test-BackupEntry $path $copy
@@ -1289,20 +1407,47 @@ function Undo-All {
         } catch { $failed++; Write-Log "  ошибка с $path : $($_.Exception.Message)" }
     }
     Save-Backup $backup
-    $tilesRestored = 0; $hint = ''; $tileFailed = 0
+    $tilesRestored = 0; $hint = ''; $tileFailed = 0; $tilesKept = $false
     if ($s11 -gt 0) {       # плитки Start11 возвращаем тоже (значения реестра, потом PNG)
         try {
             $tr = Undo-Start11Tiles -NoReload:$NoReload
-            $tilesRestored = [int]$tr.Restored; $tileFailed = [int]$tr.Failed; $hint = [string]$tr.Hint
+            $tilesRestored = [int]$tr.Restored; $tileFailed = [int]$tr.Failed; $hint = [string]$tr.Hint; $tilesKept = [bool]$tr.Kept
         } catch { $tileFailed = 1; Write-Log ('Плитки Start11 не возвращены: ' + $_.Exception.Message) }
     }
     $failed += $tileFailed
     $st = Read-State
-    if ($st.ContainsKey('Applied') -and $failed -eq 0) { $st.Remove('Applied'); Save-State $st }
+    if ($st.ContainsKey('Applied') -and $failed -eq 0 -and $pendingCommon -eq 0 -and -not $CommonOnly) { $st.Remove('Applied'); Save-State $st }
     $tail = if ($failed -gt 0) { ", не удалось: $failed (для общих ярлыков отметьте «Также общие ярлыки» - нужны права администратора)" } else { '' }
     Write-Log "Восстановлено: $n$tail"
     if ($n -gt 0) { Update-IconView -RestartExplorer ([bool]$RestartExplorer) -ClearCache $true }
-    return [pscustomobject]@{ Restored = $n; Failed = $failed; Skipped = $skipped; Nothing = $false; TilesRestored = $tilesRestored; Hint = $hint }
+    return [pscustomobject]@{ Restored = $n; Failed = $failed; Skipped = $skipped; Nothing = $false; CommonPending = $pendingCommon; TilesKept = $tilesKept; TilesRestored = $tilesRestored; Hint = $hint }
+}
+
+# Откат для GUI и удаления: записи общих папок при обычных правах возвращает повышенный CLI (один UAC), ярлыки пользователя
+# и плитки Start11 - текущий процесс. Не вернулось что-то общее (UAC отменён, ошибка) - это Failed, чтобы удаление не стартовало.
+function Undo-Routed {
+    [CmdletBinding()]
+    param([switch]$RestartExplorer, [switch]$NoReload)
+    Assert-ElevationSafe
+    $route = Get-UndoRoute -Paths @((Load-Backup).Keys) -IsAdmin (Test-Admin) -CommonRoots @(Get-CommonRootPaths)
+    if (-not $route.Elevate) {
+        if ($NoReload) { return (Undo-All -RestartExplorer:$RestartExplorer -NoReload) }
+        return (Undo-All -RestartExplorer:$RestartExplorer)
+    }
+    Write-Log "В бэкапе общих ярлыков: $($route.CommonCount) - откатываю их через повышенный процесс."
+    $a = @('-Cli', '-Undo', '-NoTiles', '-CommonOnly')
+    if (-not $RestartExplorer -or $route.UserCount -gt 0) { $a += '-NoRestart' }      # проводник перезапустит основной процесс (если ему есть что откатывать)
+    $er = Invoke-ElevatedCli -CliArgs $a
+    $u = $null
+    if ($NoReload) { $u = Undo-All -RestartExplorer:$RestartExplorer -NoReload -SkipCommon } else { $u = Undo-All -RestartExplorer:$RestartExplorer -SkipCommon }
+    $left = 0
+    try { $left = @((Load-Backup).Keys | Where-Object { Test-CommonPath $_ @(Get-CommonRootPaths) }).Count } catch { $left = 1 }
+    if ($left -gt 0) {
+        Write-Log "Общие ярлыки не возвращены ($left): повышение отменено или не удалось (код $($er.ExitCode))."
+        $u.Failed = [int]$u.Failed + $left
+        $u.Nothing = $false
+    }
+    return $u
 }
 
 # Запуск этого же скрипта (CLI) с повышением прав (UAC) на одно действие; ждём завершения.
@@ -1380,13 +1525,14 @@ function Uninstall-App {
     Assert-ElevationSafe
     Write-Log 'Удаляю приложение...'
     $u = $null
-    try { if ($NoReload) { $u = Undo-All -RestartExplorer:$RestartExplorer -NoReload } else { $u = Undo-All -RestartExplorer:$RestartExplorer } } catch { Write-Log "Откат не выполнен: $($_.Exception.Message)" }
+    try { if ($NoReload) { $u = Undo-Routed -RestartExplorer:$RestartExplorer -NoReload } else { $u = Undo-Routed -RestartExplorer:$RestartExplorer } } catch { Write-Log "Откат не выполнен: $($_.Exception.Message)" }
     if (-not $u -or $u.Failed -gt 0) {      # откат не удался (или результата нет) - ничего не удаляем, иначе потеряем бэкап
         $msg = 'Не все иконки удалось вернуть - приложение не удалено, бэкап сохранён. Исправьте причину (см. журнал; для общих ярлыков отметьте «Также общие ярлыки») и повторите.'
         Write-Log $msg
         return [pscustomobject]@{ Ok = $false; KeptBackup = $true; Aborted = $true; Message = $msg }
     }
-    Remove-Start11Files       # PNG плиток - только теперь, когда значения реестра уже возвращены (иначе плитки остались бы без картинок)
+    if ($u.PSObject.Properties['TilesKept'] -and $u.TilesKept) { Write-Log 'Start11 работает и не перезапущен: PNG плиток оставлены.' }
+    else { Remove-Start11Files }       # PNG плиток - только теперь, когда значения реестра уже возвращены (иначе плитки остались бы без картинок)
     # не держим папку приложения/данных текущей: иначе её не удалить
     $tmpDir = if ($env:TEMP) { $env:TEMP } else { [IO.Path]::GetTempPath() }
     try { [Environment]::CurrentDirectory = $tmpDir } catch { }

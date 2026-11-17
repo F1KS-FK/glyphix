@@ -1,10 +1,11 @@
 ﻿<#
   Shadow Icons - приложение (WPF, Windows PowerShell 5.1).
   GUI:  powershell -STA -File ShadowIcons.ps1      (обычно запускается через launch.vbs)
-  CLI:  ShadowIcons.ps1 -Cli [-Update] [-List <пак>] [-Apply <пак>] [-Undo] [-NoRestart] [-AllUsers] [-NoTiles] [-NoName]
+  CLI:  ShadowIcons.ps1 -Cli [-Update] [-List <пак>] [-Apply <пак>] [-Undo] [-NoRestart] [-AllUsers] [-NoTiles] [-NoName] [-CommonOnly]
   Плитки Start11 применяются вместе с ярлыками (если Start11 найден); -NoTiles - без плиток, -NoName - плитки без подписи.
   Прав администратора при запуске НЕ запрашивается. Общие ярлыки (-AllUsers) требуют повышения: GUI сам
   перезапускает этот скрипт в режиме CLI с UAC на одно действие.
+  -CommonOnly (с -Undo): откатить только записи общих папок (его использует GUI через повышенный процесс).
 #>
 [CmdletBinding()]
 param(
@@ -16,7 +17,8 @@ param(
     [switch]$NoRestart,
     [switch]$AllUsers,
     [switch]$NoTiles,
-    [switch]$NoName
+    [switch]$NoName,
+    [switch]$CommonOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,7 +43,7 @@ function Invoke-Cli {
     }
     if ($Undo) {
         $u = $null
-        try { $u = Undo-All -RestartExplorer:(-not $NoRestart) -NoReload:$NoRestart } catch { Write-Log ('Откат не выполнен: ' + $_.Exception.Message) }
+        try { $u = Undo-All -RestartExplorer:(-not $NoRestart) -NoReload:$NoRestart -NoTiles:$NoTiles -CommonOnly:$CommonOnly } catch { Write-Log ('Откат не выполнен: ' + $_.Exception.Message) }
         if (-not $u -or $u.Failed -gt 0) { $code = 1 }
         if ($u -and $u.Hint) { Write-Host $u.Hint }
     }
@@ -595,7 +597,7 @@ function Invoke-Undo {
     if ($ans -ne [System.Windows.MessageBoxResult]::Yes) { return }
     Start-Bg -Title $script:T.Undoing -Params @{ Restart = [bool]$script:ui.ChkRestart.IsChecked } -Body @'
 param($p)
-Undo-All -RestartExplorer:([bool]$p.Restart)
+Undo-Routed -RestartExplorer:([bool]$p.Restart)
 '@ -OnDone {
         param($res)
         if (-not $res) { Show-Error 'Откат не вернул результат'; return }
