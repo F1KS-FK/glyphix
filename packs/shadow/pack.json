@@ -1,0 +1,380 @@
+{
+  "schema": 1,
+  "id": "shadow",
+  "name": "Shadow",
+  "version": "1.0.0",
+  "author": "F1KS",
+  "license": "CC BY-NC-SA 4.0",
+  "description": "Чёрные иконки с сине-фиолетовой аурой. Black glyphs with a violet-blue aura.",
+  "preview": "preview.png",
+  "icons": [
+    {
+      "id": "telegram",
+      "name": "Telegram",
+      "ico": "icons/telegram.ico",
+      "ico_sha256": "e73c3d65efa216b140d271cc1cc0155ce2666441c281d5489501ed94afd48803",
+      "png": "icons/telegram.png",
+      "png_sha256": "84b95f5e11a733dfb51ae340454e3df8d73e152ea5363a00511b0f8f1752891f",
+      "match": {
+        "names": [
+          "telegram",
+          "telegramdesktop",
+          "ayugram",
+          "kotatogram"
+        ],
+        "exes": [
+          "telegram",
+          "ayugram"
+        ]
+      }
+    },
+    {
+      "id": "discord",
+      "name": "Discord",
+      "ico": "icons/discord.ico",
+      "ico_sha256": "08dd286cca7d2dd328faa7a03ec93e2d71c96b21357fa7aa426f1d6bfeb1ca5e",
+      "png": "icons/discord.png",
+      "png_sha256": "c73e9078fa6aa82e7692d85e8281d410252ae33e7a48b9a1af6481ba2175a6ba",
+      "match": {
+        "names": [
+          "discord",
+          "discordptb",
+          "discordcanary",
+          "vesktop"
+        ],
+        "exes": [
+          "discord",
+          "vesktop"
+        ]
+      }
+    },
+    {
+      "id": "chrome",
+      "name": "Google Chrome",
+      "ico": "icons/chrome.ico",
+      "ico_sha256": "1b34e5a998f8dcda69bf3571d41940d19137438e650c434b1d62b64e3b667b3d",
+      "png": "icons/chrome.png",
+      "png_sha256": "db8ae7c838d2c1cf0c1e03254e71a275c99a6da6b6fb2e2354862920b5c849f6",
+      "match": {
+        "names": [
+          "googlechrome",
+          "chrome"
+        ],
+        "exes": [
+          "chrome"
+        ]
+      }
+    },
+    {
+      "id": "firefox",
+      "name": "Firefox",
+      "ico": "icons/firefox.ico",
+      "ico_sha256": "cbaaceeccf55de821c9a6598df8eede155a226bcf6e1e98c935e75ac0be9c060",
+      "png": "icons/firefox.png",
+      "png_sha256": "7233e3717e65c1a511005c9307e863509209598f679de64f23b8a06c147d61cf",
+      "match": {
+        "names": [
+          "firefox",
+          "mozillafirefox"
+        ],
+        "exes": [
+          "firefox"
+        ]
+      }
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini",
+      "ico": "icons/gemini.ico",
+      "ico_sha256": "63b750e21793835da3d1e1ed810ff2baed693df6e09eb8272214315b1e5c899f",
+      "png": "icons/gemini.png",
+      "png_sha256": "54da9d5454ad4cd7f9ba1ab890d5a931e1f856e0974b8a109431fe73a2474b72",
+      "match": {
+        "names": [
+          "gemini",
+          "googlegemini"
+        ],
+        "exes": []
+      }
+    },
+    {
+      "id": "yandexmusic",
+      "name": "Яндекс Музыка",
+      "ico": "icons/yandexmusic.ico",
+      "ico_sha256": "78e8ddf4e6f7b5afa2889b5086bfe5809f87f8bd9f057ca16b4fba72ac310906",
+      "png": "icons/yandexmusic.png",
+      "png_sha256": "b82ffe67edf6a8999d622db268ccfa6a81b5051cb58f8eed918e93c1db526426",
+      "match": {
+        "names": [
+          "яндексмузыка",
+          "yandexmusic",
+          "yandexмузыка"
+        ],
+        "exes": [
+          "яндексмузыка",
+          "yandexmusic"
+        ]
+      }
+    },
+    {
+      "id": "pulsesync",
+      "name": "PulseSync",
+      "ico": "icons/pulsesync.ico",
+      "ico_sha256": "21caef7203cea809b549bad2b561798418f558a512c1b777b3fbb3194a984656",
+      "png": "icons/pulsesync.png",
+      "png_sha256": "822fb48a628402d11efae171ec1f1cb9ecbdfccbad7f76f793aa937650a4b0eb",
+      "match": {
+        "names": [
+          "pulsesync"
+        ],
+        "exes": [
+          "pulsesync"
+        ]
+      }
+    },
+    {
+      "id": "edrawmind",
+      "name": "EdrawMind",
+      "ico": "icons/edrawmind.ico",
+      "ico_sha256": "a0f3b32715c60c3531cbafb26728491ad3c54980c7155bc8e845f21166793816",
+      "png": "icons/edrawmind.png",
+      "png_sha256": "40694caa4a8432b474dadb63358c847d0d75a6a9c76eb1bc2ad9ac78ce59ddef",
+      "match": {
+        "names": [
+          "edrawmind",
+          "wondershareedrawmind"
+        ],
+        "exes": [
+          "edrawmind"
+        ]
+      }
+    },
+    {
+      "id": "anilibrix",
+      "name": "AniLibrix (аниме)",
+      "ico": "icons/anilibrix.ico",
+      "ico_sha256": "c6fa954d4917e87e73dbbcc9606acf6ef3fbe0e5145f45fd6092c5367ea3e84d",
+      "png": "icons/anilibrix.png",
+      "png_sha256": "d49b9803e75fad3f67ac2332609ff897ddf6605662d5e85bde881f3c5c3d899e",
+      "match": {
+        "names": [
+          "anilibrix",
+          "анилибрикс"
+        ],
+        "exes": [
+          "anilibrix"
+        ]
+      }
+    },
+    {
+      "id": "anilibria",
+      "name": "AniLibria (аниме)",
+      "ico": "icons/anilibria.ico",
+      "ico_sha256": "f0f6123d25f01bb6821ac5e606f88947681ea51acf7c3e207fb0f88218c08d93",
+      "png": "icons/anilibria.png",
+      "png_sha256": "53ff855aaf3aa10ec9bd476c000c7d7746f717b8f19e63c2156c080e10560e6c",
+      "match": {
+        "names": [
+          "anilibria",
+          "анилибрия",
+          "anilibriatv"
+        ],
+        "exes": [
+          "anilibria"
+        ]
+      }
+    },
+    {
+      "id": "spacedesk",
+      "name": "spacedesk",
+      "ico": "icons/spacedesk.ico",
+      "ico_sha256": "9db13531dcc7f2358089a3cd0643ef5f4ca8d38187b6d0743567586865bee1d5",
+      "png": "icons/spacedesk.png",
+      "png_sha256": "d3ec6eb6d0e75fe1693b4e0e8cf6064dc7e820e416e6685b90a4c04a83495d22",
+      "match": {
+        "names": [
+          "spacedesk"
+        ],
+        "exes": [
+          "spacedesk",
+          "spacedeskconsole"
+        ]
+      }
+    },
+    {
+      "id": "pionex",
+      "name": "Pionex",
+      "ico": "icons/pionex.ico",
+      "ico_sha256": "a491c0a37240ae5cbeb670bb883912d8ee6c72f253cc505af4d7561d641c2a07",
+      "png": "icons/pionex.png",
+      "png_sha256": "bb083306171d444c1c5535905d40617456782c0139cf98c888d019625d10503f",
+      "match": {
+        "names": [
+          "pionex"
+        ],
+        "exes": [
+          "pionex"
+        ]
+      }
+    },
+    {
+      "id": "calculator",
+      "name": "Калькулятор",
+      "ico": "icons/calculator.ico",
+      "ico_sha256": "c2b8a9341db8d3614c4103b30e993f6881acc4904d5b0ebb4d2eff10867a7f32",
+      "png": "icons/calculator.png",
+      "png_sha256": "ead23f6536aa5a9fbaf13c4282fb024b4d778c2a382fdad602519e1622a4f613",
+      "match": {
+        "names": [
+          "калькулятор",
+          "calculator"
+        ],
+        "exes": [
+          "calc"
+        ]
+      }
+    },
+    {
+      "id": "taskmgr",
+      "name": "Диспетчер задач",
+      "ico": "icons/taskmgr.ico",
+      "ico_sha256": "2bdf2f83e81e4bc238dd4c4cbdf6de0f10fbedac72fb49aff9ca01ff439c2a7a",
+      "png": "icons/taskmgr.png",
+      "png_sha256": "607d82e6f5dda084fc07b836fe4e0c4526fb514520ea1f5e33e297364c7a90eb",
+      "match": {
+        "names": [
+          "taskmanager",
+          "диспетчерзадач"
+        ],
+        "exes": [
+          "taskmgr"
+        ]
+      }
+    },
+    {
+      "id": "explorer",
+      "name": "Проводник",
+      "ico": "icons/explorer.ico",
+      "ico_sha256": "4df650255e444195a7dab009cda371bca038f4b4c1b49163f597d42a6031f2cf",
+      "png": "icons/explorer.png",
+      "png_sha256": "1a63a18a492e3977482969efb61f502ee41dd0d0bfc6060f620790065e08faf9",
+      "match": {
+        "names": [
+          "fileexplorer",
+          "проводник",
+          "explorer"
+        ],
+        "exes": [
+          "explorer"
+        ]
+      }
+    }
+  ],
+  "tiles": [
+    {
+      "id": "telegram",
+      "file": "tiles/telegram.png",
+      "sha256": "61dcfc8f360a94c2f756b4b50ec561fed93a83128f08ba8a7c62737346dd6f77",
+      "file_noname": "tiles_noname/telegram.png",
+      "sha256_noname": "d92dc6fc546faef2c311f8b71ab8d32497355c6477e01128583d20130e5ce2cf"
+    },
+    {
+      "id": "discord",
+      "file": "tiles/discord.png",
+      "sha256": "c4af1242a25e7032f4f4be576055c6492b10dfe07ba67deee0ba39286046dfcb",
+      "file_noname": "tiles_noname/discord.png",
+      "sha256_noname": "fabf254639cdf2e4656329519ae0ddbbf53ef08f90e159a33704fbc5e5df37b5"
+    },
+    {
+      "id": "chrome",
+      "file": "tiles/chrome.png",
+      "sha256": "a453dee91380ac377d5e215e5124fab8ca3dee43e64857310c4ac6fead87d4d3",
+      "file_noname": "tiles_noname/chrome.png",
+      "sha256_noname": "7b426ef4c1a8761e1003c98cbbe331958e8bf86c12d64335c5b68a665f9614f8"
+    },
+    {
+      "id": "firefox",
+      "file": "tiles/firefox.png",
+      "sha256": "e9825828dc1c7516ab9c737586b0d9aad8d1145ef13ef2fd8aa69578fc17e59f",
+      "file_noname": "tiles_noname/firefox.png",
+      "sha256_noname": "d3e28e48e5537ea150c73cd13d8f28bf8d0ce27c301171805c613c5eb7ebcf16"
+    },
+    {
+      "id": "gemini",
+      "file": "tiles/gemini.png",
+      "sha256": "a43218a43a27d27af56539f6edcb218dfade322157e95e0ce057e3c33a51507e",
+      "file_noname": "tiles_noname/gemini.png",
+      "sha256_noname": "c2287c4a887cbcf85e6781c601e388a1a6aae005c2a7026f8e9eb96c435cf134"
+    },
+    {
+      "id": "yandexmusic",
+      "file": "tiles/yandexmusic.png",
+      "sha256": "11954ac8a0aa70aa6199b9f2039003132b4660a91adea25036b70d789ff4e0cb",
+      "file_noname": "tiles_noname/yandexmusic.png",
+      "sha256_noname": "ea332304da7d0e271287a7a9bed26b1e3650afc0300e5d456c924206d283f86a"
+    },
+    {
+      "id": "pulsesync",
+      "file": "tiles/pulsesync.png",
+      "sha256": "36389587a56b5dc907c41bc5a581bcefd3def46b387181876a1747dd677dbcc6",
+      "file_noname": "tiles_noname/pulsesync.png",
+      "sha256_noname": "de93bdd1cf73a530124bf4feb9f39bcb7cd483090eb17c0104e91bd6b317c3a7"
+    },
+    {
+      "id": "edrawmind",
+      "file": "tiles/edrawmind.png",
+      "sha256": "75bf55ea0a417c94a4e72753d24ae24102a30ccaea63a033594424b3197f7cd8",
+      "file_noname": "tiles_noname/edrawmind.png",
+      "sha256_noname": "36a00f65d8d6ac10c3776b7e437bac7b5c21fa330f2d06351f6b485d4f9faa77"
+    },
+    {
+      "id": "anilibrix",
+      "file": "tiles/anilibrix.png",
+      "sha256": "b0f7a5bfbaf9f723e60c5d9f4a315fbb34e834aeb0636598461aa99b31c01905",
+      "file_noname": "tiles_noname/anilibrix.png",
+      "sha256_noname": "b0f7a5bfbaf9f723e60c5d9f4a315fbb34e834aeb0636598461aa99b31c01905"
+    },
+    {
+      "id": "anilibria",
+      "file": "tiles/anilibria.png",
+      "sha256": "a1cdcd5a95d44d7185a3fa8eab0d9218326a4398af488abcfdea2d84ec221306",
+      "file_noname": "tiles_noname/anilibria.png",
+      "sha256_noname": "a1cdcd5a95d44d7185a3fa8eab0d9218326a4398af488abcfdea2d84ec221306"
+    },
+    {
+      "id": "spacedesk",
+      "file": "tiles/spacedesk.png",
+      "sha256": "0d97bf1e52b7c3cb9244e5a575b183fd33ba0f02185907dcfa72b434de55cecc",
+      "file_noname": "tiles_noname/spacedesk.png",
+      "sha256_noname": "919739e9ba51ef32d1f540ba0d020a1a3d055b3237bc47a7b81f7cfe48599745"
+    },
+    {
+      "id": "pionex",
+      "file": "tiles/pionex.png",
+      "sha256": "e980a9959099dbae1ae4cf67baf7bc052123958df81682779dccaa516941699a",
+      "file_noname": "tiles_noname/pionex.png",
+      "sha256_noname": "020c0b527913c68c388c17a641bfeacad7319bc36aa15b89b1431641cde71e2f"
+    },
+    {
+      "id": "calculator",
+      "file": "tiles/calculator.png",
+      "sha256": "d8c4768295f2adf085c6e7bb34d66a391eb57c8c551f785b7808c9e66f846690",
+      "file_noname": "tiles_noname/calculator.png",
+      "sha256_noname": "424b4f3b2fddb72251b31d958db5bb0e69eb417a5890a6550cade17594bbda85"
+    },
+    {
+      "id": "taskmgr",
+      "file": "tiles/taskmgr.png",
+      "sha256": "60ed8318ec962cb22acfc35553490cca3baf9932ccfb09758d2d07c2fab5428f",
+      "file_noname": "tiles_noname/taskmgr.png",
+      "sha256_noname": "ab70201e926541a7c3ae4daff3b31fd7970c93c9844ba79e33cd2d1f050f98e5"
+    },
+    {
+      "id": "explorer",
+      "file": "tiles/explorer.png",
+      "sha256": "bcdcecc9f085b38f2750aaa57d22d80e0fee118731bad4b1ecc38a1da5ee8954",
+      "file_noname": "tiles_noname/explorer.png",
+      "sha256_noname": "c3c070f074c5cbd07729c4ee9e85af292b1490c67682dce78f0cd310a88e5749"
+    }
+  ]
+}
