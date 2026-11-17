@@ -1,20 +1,59 @@
 {
   "schema": 1,
-  "app_min_version": "1.0.0",
-  "updated": "2026-11-17T08:24:23Z",
+  "app_min_version": "2.0.0",
+  "updated": "2026-11-17T11:14:42Z",
   "packs": [
     {
       "id": "shadow",
       "name": "Shadow",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": "F1KS",
-      "description": "Чёрные иконки с сине-фиолетовой аурой. Black glyphs with a violet-blue aura.",
-      "icon_count": 15,
+      "description": "Чёрные иконки с сине-фиолетовой аурой",
+      "icon_count": 126,
       "path": "packs/shadow/",
       "manifest": "packs/shadow/pack.json",
-      "manifest_sha256": "6e1b2558e069e6985b9bbd11274e52765441eb73390a05bfd8cc5f745f33f45a",
+      "manifest_sha256": "f3c9b2e2e17fbc000954bc5e34baf3979992c902cb5eb9e5c2cce0063df78efb",
       "preview": "packs/shadow/preview.png",
-      "preview_sha256": "eb4dd9b35128aee6f8a9bf293419f7c149abc2942ab57e7970af86cc48c0db51"
+      "preview_sha256": "145e68e8f13a60f6da7a20996d8dccc251f427716358a18dca17a353ad7cb6bf"
+    },
+    {
+      "id": "azure",
+      "name": "Azure",
+      "version": "2.0.0",
+      "author": "F1KS",
+      "description": "Голубые светящиеся иконки",
+      "icon_count": 126,
+      "path": "packs/azure/",
+      "manifest": "packs/azure/pack.json",
+      "manifest_sha256": "21545def8580349132206c51b3dfd4938b132b2abfbcf3fe47e6db22a362ac34",
+      "preview": "packs/azure/preview.png",
+      "preview_sha256": "5c5d634c2edb9b6368f34d11aa1d3e229f919a1f32d663343ebe06495fdf4a5a"
+    },
+    {
+      "id": "white",
+      "name": "White",
+      "version": "2.0.0",
+      "author": "F1KS",
+      "description": "Белые минималистичные иконки",
+      "icon_count": 126,
+      "path": "packs/white/",
+      "manifest": "packs/white/pack.json",
+      "manifest_sha256": "5b5b437d7f5291dde2179f576831a9d7e8cb2172bb7bded6da9996265743ab35",
+      "preview": "packs/white/preview.png",
+      "preview_sha256": "8f2fac3b686828acfaef8c8cba7c9b44e3006f307be4d8794ab19f2ecc0b0ff4"
+    },
+    {
+      "id": "black",
+      "name": "Black",
+      "version": "2.0.0",
+      "author": "F1KS",
+      "description": "Чёрные иконки с серебряной кромкой",
+      "icon_count": 126,
+      "path": "packs/black/",
+      "manifest": "packs/black/pack.json",
+      "manifest_sha256": "e7fc46b0b2446ab3e7c6793fff7cdb9c5241e794a018ddc52e8dfafa9ce45e17",
+      "preview": "packs/black/preview.png",
+      "preview_sha256": "1a69f07cf57e265b8742ed7f387846590f40dc7297c7ca21278033912c602543"
     }
   ]
 }

@@ -5,7 +5,7 @@ All icon packs in this folder are © 2026 F1KS and licensed under
 https://creativecommons.org/licenses/by-nc-sa/4.0/
 
 You may use, share and remix them for free, as long as you credit **F1KS** (link to
-https://github.com/F1KS-FK/shadow-icons), do not sell them, and publish your remixes under the same license.
+https://github.com/F1KS-FK/glyphix), do not sell them, and publish your remixes under the same license.
 
 ## Trademarks
 

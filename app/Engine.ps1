@@ -1,7 +1,8 @@
 ﻿<#
-  Shadow Icons - движок (Windows PowerShell 5.1, без модулей).
+  Glyphix - движок (Windows PowerShell 5.1, без модулей).
   Подключается точкой: . .\Engine.ps1
-  Данные: %LOCALAPPDATA%\ShadowIcons  (app\, packs\<id>\, backup\, state.json, log.txt)
+  Данные: %LOCALAPPDATA%\Glyphix  (app\, packs\<id>\, backup\, start11\, state.json, log.txt)
+  Данные прежней версии (%LOCALAPPDATA%\ShadowIcons) один раз переносятся функцией Invoke-LegacyMigration.
   Ничего не запускается в фоне: нет автозапуска, нет задач планировщика.
 #>
 
@@ -20,9 +21,10 @@ function Test-Admin {
 }
 
 # ---------- Пути и настройки ----------
-$script:SI_BaseUrl = 'https://raw.githubusercontent.com/F1KS-FK/shadow-icons/main/'
-# Под администратором переменную SHADOWICONS_HOME игнорируем: повышенный процесс не должен писать куда указал окружением кто-то другой.
-$script:SI_Home = if ($env:SHADOWICONS_HOME -and -not (Test-Admin)) { $env:SHADOWICONS_HOME } else { Join-Path $env:LOCALAPPDATA 'ShadowIcons' }
+$script:SI_BaseUrl = 'https://raw.githubusercontent.com/F1KS-FK/glyphix/main/'
+# Под администратором переменную GLYPHIX_HOME игнорируем: повышенный процесс не должен писать куда указал окружением кто-то другой.
+$script:SI_Home = if ($env:GLYPHIX_HOME -and -not (Test-Admin)) { $env:GLYPHIX_HOME } else { Join-Path $env:LOCALAPPDATA 'Glyphix' }
+$script:SI_OldHome = Join-Path $env:LOCALAPPDATA 'ShadowIcons'                       # папка данных прежней версии (Shadow Icons)
 $script:SI_AppDir = Join-Path $script:SI_Home 'app'
 $script:SI_PacksDir = Join-Path $script:SI_Home 'packs'
 $script:SI_BackupDir = Join-Path $script:SI_Home 'backup'
@@ -42,8 +44,8 @@ $script:SI_Wsh = $null
 $script:SI_Seps = [char[]]@([char]92, [char]47)     # \ и /
 
 try {
-    if (-not ('ShadowIconsNative.Shell' -as [type])) {
-        Add-Type -Namespace ShadowIconsNative -Name Shell -MemberDefinition @'
+    if (-not ('GlyphixNative.Shell' -as [type])) {
+        Add-Type -Namespace GlyphixNative -Name Shell -MemberDefinition @'
 [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
 public static extern void SHChangeNotify(int wEventId, uint uFlags, string dwItem1, IntPtr dwItem2);
 '@
@@ -115,10 +117,10 @@ function Get-ElevationProblem {
     try { $me = Get-CurrentUserSid } catch { }
     $own = Get-ExplorerOwnerSid
     if (-not $me -or -not $own) {
-        return 'Не удалось определить, чей рабочий стол открыт (владелец проводника). Запустите Shadow Icons обычным образом, без прав администратора, и отметьте «Также общие ярлыки».'
+        return 'Не удалось определить, чей рабочий стол открыт (владелец проводника). Запустите Glyphix обычным образом, без прав администратора, и отметьте «Также общие ярлыки».'
     }
     if ($me -ne $own) {
-        return 'Shadow Icons запущен от другой учётной записи администратора: изменения затронули бы не ваш рабочий стол. Закройте окно и запустите программу от своего пользователя; права администратора запрашиваются галочкой «Также общие ярлыки».'
+        return 'Glyphix запущен от другой учётной записи администратора: изменения затронули бы не ваш рабочий стол. Закройте окно и запустите программу от своего пользователя; права администратора запрашиваются галочкой «Также общие ярлыки».'
     }
     return $null
 }
@@ -206,7 +208,7 @@ function Get-WebBytes {
     $u = $Url + $sep + 'cb=' + [DateTime]::UtcNow.Ticks          # против кэша
     $req = [Net.HttpWebRequest]::Create($u)
     $req.Method = 'GET'
-    $req.UserAgent = 'ShadowIcons/' + (Get-AppVersion)
+    $req.UserAgent = 'Glyphix/' + (Get-AppVersion)
     $req.Timeout = $TimeoutMs
     $req.ReadWriteTimeout = $TimeoutMs
     $req.AllowAutoRedirect = $true
@@ -270,6 +272,59 @@ function Sync-File {
     return 1
 }
 
+# Список файлов пака из pack.json: иконки (.ico/.png) и плитки Start11 (обычная и без подписи); у каждого файла свой sha256.
+# Небезопасный путь - исключение (такой pack.json не принимается и не сохраняется).
+function Get-PackFileList {
+    param([string]$PackDir, [string]$PackUrl, $Manifest)
+    $list = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($ic in @($Manifest.icons)) {
+        $icId = [string]$ic.id
+        if ($icId -notmatch '^[A-Za-z0-9_\-]+$') { Write-Log "  пропуск иконки с неверным id '$icId'"; continue }
+        foreach ($pair in @(@('ico', '.ico'), @('png', '.png'))) {
+            $rel = [string]$ic.($pair[0])
+            if (-not $rel) { continue }
+            if (-not (Test-SafeRel $rel @($pair[1]))) { throw "недопустимый путь файла '$rel'" }
+            $list.Add([pscustomobject]@{ Rel = $rel; Url = ($PackUrl + $rel); Dest = (Join-Rel $PackDir $rel); Sha = [string]$ic.($pair[0] + '_sha256'); Ext = $pair[1] })
+        }
+    }
+    foreach ($tl in @($Manifest.tiles)) {
+        if (-not $tl) { continue }
+        $tId = [string]$tl.id
+        if ($tId -notmatch '^[A-Za-z0-9_\-]+$') { Write-Log "  пропуск плитки с неверным id '$tId'"; continue }
+        foreach ($pair in @(@('file', 'sha256'), @('file_noname', 'sha256_noname'))) {
+            $rel = [string]$tl.($pair[0])
+            if (-not $rel) { continue }
+            if (-not (Test-SafeRel $rel @('.png'))) { throw "недопустимый путь файла '$rel'" }
+            $list.Add([pscustomobject]@{ Rel = $rel; Url = ($PackUrl + $rel); Dest = (Join-Rel $PackDir $rel); Sha = [string]$tl.($pair[1]); Ext = '.png' })
+        }
+    }
+    return $list.ToArray()
+}
+
+# Скачать недостающие/изменённые файлы списка (каждый проверяется по sha256). Прогресс - строки журнала «Скачиваю <пак>: i/n»
+# (GUI показывает их в строке состояния). Возвращает число скачанных файлов.
+function Sync-PackFiles {
+    param($Files, [string]$Label, [switch]$Force)
+    $todo = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($f in @($Files)) {
+        $sha = ([string]$f.Sha).ToLowerInvariant()
+        if ($sha -notmatch '^[0-9a-f]{64}$') { throw "нет корректного sha256 для $($f.Dest)" }
+        $have = $false
+        if (-not $Force -and (Test-Path -LiteralPath $f.Dest -PathType Leaf)) { try { $have = ((Get-FileSha256 $f.Dest) -eq $sha) } catch { } }
+        if (-not $have) { $todo.Add($f) }
+    }
+    $n = $todo.Count; $i = 0
+    if ($n -gt 0) { Write-Log "Скачиваю ${Label}: файлов $n" }
+    $step = [Math]::Max(1, [int][Math]::Floor($n / 20))
+    foreach ($f in $todo) {
+        [void](Sync-File $f.Url $f.Dest ([string]$f.Sha) $f.Ext -Force)
+        $i++
+        if ($i -eq $n -or ($i % $step) -eq 0) { Write-Log "Скачиваю ${Label}: $i/$n" }
+    }
+    return $n
+}
+
+# pack.json и превью пака (иконки и плитки здесь НЕ качаем - см. Install-Pack); возвращает число скачанных файлов
 function Update-OnePack {
     param([string]$BaseUrl, $Entry, [bool]$Force)
     $id = [string]$Entry.id
@@ -298,29 +353,8 @@ function Update-OnePack {
         $man = Read-JsonFile $manLocal
     }
     if ([string]$man.id -ne $id) { throw "id в pack.json ('$($man.id)') не совпал с index.json" }
+    [void](Get-PackFileList $packDir $packUrl $man)          # пути файлов проверяем до сохранения pack.json
 
-    foreach ($ic in @($man.icons)) {
-        $icId = [string]$ic.id
-        if ($icId -notmatch '^[A-Za-z0-9_\-]+$') { Write-Log "  пропуск иконки с неверным id '$icId'"; continue }
-        foreach ($pair in @(@('ico', '.ico'), @('png', '.png'))) {
-            $rel = [string]$ic.($pair[0])
-            if (-not $rel) { continue }
-            if (-not (Test-SafeRel $rel @($pair[1]))) { throw "недопустимый путь файла '$rel'" }
-            $downloaded += (Sync-File ($packUrl + $rel) (Join-Rel $packDir $rel) ([string]$ic.($pair[0] + '_sha256')) $pair[1] -Force:$Force)
-        }
-    }
-    # плитки Start11 (необязательно): обычная и без подписи; у каждой свой sha256
-    foreach ($tl in @($man.tiles)) {
-        if (-not $tl) { continue }
-        $tId = [string]$tl.id
-        if ($tId -notmatch '^[A-Za-z0-9_\-]+$') { Write-Log "  пропуск плитки с неверным id '$tId'"; continue }
-        foreach ($pair in @(@('file', 'sha256'), @('file_noname', 'sha256_noname'))) {
-            $rel = [string]$tl.($pair[0])
-            if (-not $rel) { continue }
-            if (-not (Test-SafeRel $rel @('.png'))) { throw "недопустимый путь файла '$rel'" }
-            $downloaded += (Sync-File ($packUrl + $rel) (Join-Rel $packDir $rel) ([string]$tl.($pair[1])) '.png' -Force:$Force)
-        }
-    }
     $prevRel = [string]$man.preview
     if ($prevRel -and $Entry.preview_sha256) {
         if (-not (Test-SafeRel $prevRel @('.png'))) { throw "недопустимый preview '$prevRel'" }
@@ -329,6 +363,56 @@ function Update-OnePack {
     # pack.json пишем последним: если что-то оборвалось, следующая проверка догрузит остальное
     if ($needManifest) { Save-FileAtomic $manLocal $manBytes; $downloaded++ }
     return $downloaded
+}
+
+# Файлы пака на диске: 'ready' - всё на месте и проверено по текущему pack.json (метка .synced);
+# 'stale' - файлы на месте, но не проверены (pack.json обновился / кэш перенесён из прежней версии); 'none' - чего-то не хватает
+function Get-PackState {
+    param([string]$PackDir, [string[]]$Files)
+    foreach ($f in @($Files)) { if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { return 'none' } }
+    try {
+        $mk = Join-Path $PackDir '.synced'
+        if (Test-Path -LiteralPath $mk -PathType Leaf) {
+            if (([IO.File]::ReadAllText($mk)).Trim() -eq (Get-FileSha256 (Join-Path $PackDir 'pack.json'))) { return 'ready' }
+        }
+    } catch { }
+    return 'stale'
+}
+
+# Скачать иконки и плитки ОДНОГО пака (по требованию: при «Применить» или «Скачать»). Сначала сверяем pack.json с index.json
+# (пак мог обновиться), потом качаем только недостающие/изменённые файлы; каждый - с проверкой sha256. Ошибка сети/sha - исключение.
+function Install-Pack {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Id, [string]$BaseUrl = $script:SI_BaseUrl, [switch]$Force)
+    if ($Id -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$') { throw "недопустимый id пака '$Id'" }
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
+    if (-not $BaseUrl.EndsWith('/')) { $BaseUrl += '/' }
+    $idx = ConvertFrom-JsonBytes (Get-WebBytes ($BaseUrl + 'index.json') 1048576)
+    $entry = @($idx.packs) | Where-Object { [string]$_.id -eq $Id } | Select-Object -First 1
+    if (-not $entry) { throw "пака '$Id' нет в index.json" }
+    $d0 = Update-OnePack $BaseUrl $entry ([bool]$Force)
+    $packDir = Join-Path $script:SI_PacksDir $Id
+    $man = Read-JsonFile (Join-Path $packDir 'pack.json')
+    $files = @(Get-PackFileList $packDir ($BaseUrl + ([string]$entry.path).Trim('/') + '/') $man)
+    $label = if ($man.name) { [string]$man.name } else { $Id }
+    $n = Sync-PackFiles $files $label -Force:$Force
+    [IO.File]::WriteAllText((Join-Path $packDir '.synced'), (Get-FileSha256 (Join-Path $packDir 'pack.json')), (New-Object System.Text.UTF8Encoding($false)))
+    Write-Log $(if ($n -gt 0) { "Пак ${label}: скачано файлов $n" } else { "Пак ${label}: все файлы на месте" })
+    return [pscustomobject]@{ Id = $Id; Downloaded = ($n + $d0); Files = $files.Count }
+}
+
+# Перед применением: файлы пака не скачаны / не проверены - скачиваем (только этот пак). Всё на месте, но сети нет - работаем из кэша.
+function Confirm-PackFiles {
+    param($Pack)
+    if (-not $Pack -or -not $Pack.PSObject.Properties['Dir'] -or -not $Pack.PSObject.Properties['Files']) { return }
+    $state = Get-PackState ([string]$Pack.Dir) @($Pack.Files)
+    if ($state -eq 'ready') { return }
+    try {
+        [void](Install-Pack -Id ([string]$Pack.Id))
+    } catch {
+        if ($state -eq 'stale') { Write-Log ('Не удалось проверить файлы пака (' + $_.Exception.Message + ') - использую сохранённые'); return }
+        throw
+    }
 }
 
 function Update-Packs {
@@ -340,8 +424,10 @@ function Update-Packs {
     try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
     if (-not $BaseUrl.EndsWith('/')) { $BaseUrl += '/' }
     Write-Log 'Проверяю обновления паков...'
+    $idxBytes = $null
     try {
-        $idx = ConvertFrom-JsonBytes (Get-WebBytes ($BaseUrl + 'index.json') 1048576)
+        $idxBytes = Get-WebBytes ($BaseUrl + 'index.json') 1048576
+        $idx = ConvertFrom-JsonBytes $idxBytes
     } catch {
         $m = 'Не удалось получить index.json: ' + $_.Exception.Message
         Write-Log $m
@@ -356,8 +442,14 @@ function Update-Packs {
             }
         }
     } catch { }
-    foreach ($entry in @($idx.packs)) {
+    try { Save-FileAtomic (Join-Path $script:SI_PacksDir 'index.json') $idxBytes } catch { Write-Log ('index.json не сохранён: ' + $_.Exception.Message) }   # порядок паков в галерее
+    # на каждом запуске - только index.json, pack.json и превью всех паков; иконки и плитки - по требованию (Install-Pack)
+    $entries = @($idx.packs)
+    $i = 0
+    foreach ($entry in $entries) {
+        $i++
         $pid2 = [string]$entry.id
+        Write-Log "Проверяю паки: $i/$($entries.Count) ($pid2)"
         try {
             $n = Update-OnePack $BaseUrl $entry ([bool]$Force)
             $total += $n
@@ -370,15 +462,22 @@ function Update-Packs {
     if ($errors.Count -eq 0) {
         $st = Read-State; $st['LastUpdate'] = (Get-Date).ToString('s'); Save-State $st
     }
-    $msg = if ($errors.Count -gt 0) { "Обновление завершено с ошибками: $($errors.Count)" } elseif ($total -gt 0) { "Обновлено файлов: $total" } else { 'Все паки актуальны' }
+    $msg = if ($errors.Count -gt 0) { "Обновление завершено с ошибками: $($errors.Count)" } elseif ($total -gt 0) { "Паки обновлены (файлов: $total)" } else { 'Все паки актуальны' }
     Write-Log $msg
     return [pscustomobject]@{ Ok = ($errors.Count -eq 0); Downloaded = $total; Updated = $updated.ToArray(); Errors = $errors.ToArray(); Message = $msg }
 }
 
 # ---------- Локальные паки ----------
+# Паки читаются из pack.json (он есть у всех паков после Update-Packs); сами файлы иконок могут быть ещё не скачаны.
+# Поэтому пути IcoPath/PngPath/TilePath - «где файл должен лежать», State - 'ready' | 'stale' | 'none' (см. Get-PackState).
 function Get-Packs {
     $res = New-Object 'System.Collections.Generic.List[object]'
     if (-not (Test-Path -LiteralPath $script:SI_PacksDir)) { return @() }
+    $order = @{}
+    try {
+        $ixf = Join-Path $script:SI_PacksDir 'index.json'
+        if (Test-Path -LiteralPath $ixf) { $k = 0; foreach ($e in @((Read-JsonFile $ixf).packs)) { $order[[string]$e.id] = $k; $k++ } }
+    } catch { }
     foreach ($d in (Get-ChildItem -LiteralPath $script:SI_PacksDir -Directory -ErrorAction SilentlyContinue)) {
         $mf = Join-Path $d.FullName 'pack.json'
         if (-not (Test-Path -LiteralPath $mf)) { continue }
@@ -386,49 +485,87 @@ function Get-Packs {
             $j = Read-JsonFile $mf
             $id = [string]$j.id
             if ($id -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$') { continue }
+            $files = New-Object 'System.Collections.Generic.List[string]'
             $tileMap = @{}
             foreach ($tl in @($j.tiles)) {
                 if (-not $tl) { continue }
                 $tId = [string]$tl.id
                 if ($tId -notmatch '^[A-Za-z0-9_\-]+$') { continue }
                 $tp = $null; $tn = $null
-                if ($tl.file -and (Test-SafeRel ([string]$tl.file) @('.png'))) {
-                    $x = Join-Rel $d.FullName ([string]$tl.file); if (Test-Path -LiteralPath $x) { $tp = $x }
-                }
-                if ($tl.file_noname -and (Test-SafeRel ([string]$tl.file_noname) @('.png'))) {
-                    $x = Join-Rel $d.FullName ([string]$tl.file_noname); if (Test-Path -LiteralPath $x) { $tn = $x }
-                }
+                if ($tl.file -and (Test-SafeRel ([string]$tl.file) @('.png'))) { $tp = Join-Rel $d.FullName ([string]$tl.file); $files.Add($tp) }
+                if ($tl.file_noname -and (Test-SafeRel ([string]$tl.file_noname) @('.png'))) { $tn = Join-Rel $d.FullName ([string]$tl.file_noname); $files.Add($tn) }
                 if ($tp -or $tn) { $tileMap[$tId] = @{ Tile = $tp; NoName = $tn } }
             }
             $icons = New-Object 'System.Collections.Generic.List[object]'
             foreach ($ic in @($j.icons)) {
                 if (-not $ic.ico -or -not (Test-SafeRel ([string]$ic.ico) @('.ico'))) { continue }
                 $ico = Join-Rel $d.FullName ([string]$ic.ico)
-                if (-not (Test-Path -LiteralPath $ico)) { continue }
+                $files.Add($ico)
                 $png = $null
-                if ($ic.png -and (Test-SafeRel ([string]$ic.png) @('.png'))) {
-                    $pp = Join-Rel $d.FullName ([string]$ic.png)
-                    if (Test-Path -LiteralPath $pp) { $png = $pp }
-                }
+                if ($ic.png -and (Test-SafeRel ([string]$ic.png) @('.png'))) { $png = Join-Rel $d.FullName ([string]$ic.png); $files.Add($png) }
                 $mn = @(); $mx = @()
                 if ($ic.match) { $mn = @($ic.match.names | ForEach-Object { [string]$_ }); $mx = @($ic.match.exes | ForEach-Object { [string]$_ }) }
                 $tilePath = $null; $tileNoName = $null
                 if ($tileMap.ContainsKey([string]$ic.id)) { $tilePath = $tileMap[[string]$ic.id].Tile; $tileNoName = $tileMap[[string]$ic.id].NoName }
-                $icons.Add([pscustomobject]@{ Id = [string]$ic.id; Name = [string]$ic.name; IcoPath = $ico; PngPath = $png; Names = $mn; Exes = $mx; TilePath = $tilePath; TileNoNamePath = $tileNoName })
+                $icons.Add([pscustomobject]@{ Id = [string]$ic.id; Name = [string]$ic.name; Group = (Get-GroupKey $ic.group); IcoPath = $ico; PngPath = $png; Names = $mn; Exes = $mx; TilePath = $tilePath; TileNoNamePath = $tileNoName })
             }
             $prev = $null
             if ($j.preview -and (Test-SafeRel ([string]$j.preview) @('.png'))) {
                 $pv = Join-Rel $d.FullName ([string]$j.preview)
                 if (Test-Path -LiteralPath $pv) { $prev = $pv }
             }
+            $fileArr = $files.ToArray()
+            $state = Get-PackState $d.FullName $fileArr
             $res.Add([pscustomobject]@{
                 Id = $id; Name = [string]$j.name; Version = [string]$j.version; Author = [string]$j.author
                 License = [string]$j.license; Description = [string]$j.description
                 IconCount = $icons.Count; Dir = $d.FullName; Preview = $prev; Icons = $icons.ToArray()
+                Files = $fileArr; State = $state; Ready = ($state -eq 'ready')
             })
         } catch { Write-Log "пак $($d.Name) не прочитан: $($_.Exception.Message)" }
     }
-    return @($res | Sort-Object { $_.Name })
+    return @($res | Sort-Object @{ Expression = { if ($order.ContainsKey($_.Id)) { [int]$order[$_.Id] } else { 1000 } } }, @{ Expression = { $_.Name } })
+}
+
+# ---------- Группы иконок (pack.json: icons[].group = apps | games | system | work | creative; необязательно) ----------
+$script:SI_GroupOrder = @('apps', 'games', 'system', 'work', 'creative')
+
+function Get-GroupKey {
+    param($Group)
+    $s = ([string]$Group).Trim().ToLowerInvariant()
+    if ($s -notmatch '^[a-z0-9_\-]{1,32}$') { return '' }
+    return $s
+}
+
+function Get-GroupRank {
+    param([string]$Group)
+    if (-not $Group) { return 99 }                                     # без группы - в конец
+    $i = [Array]::IndexOf($script:SI_GroupOrder, $Group)
+    if ($i -lt 0) { return 50 }                                        # незнакомая группа - после известных
+    return $i
+}
+
+# Совпадения (ярлыки и плитки) -> группы в порядке apps, games, system, work, creative, прочие, без группы; внутри - по названию
+function Get-MatchGroups {
+    param($Matches2, $TileMatches)
+    $by = @{}
+    foreach ($m in @($Matches2)) {
+        if (-not $m) { continue }
+        $k = Get-GroupKey $m.Group
+        if (-not $by.ContainsKey($k)) { $by[$k] = New-Object 'System.Collections.Generic.List[object]' }
+        $by[$k].Add([pscustomobject]@{ Kind = 'link'; Title = [string]$m.Name; Item = $m })
+    }
+    foreach ($m in @($TileMatches)) {
+        if (-not $m) { continue }
+        $k = Get-GroupKey $m.Group
+        if (-not $by.ContainsKey($k)) { $by[$k] = New-Object 'System.Collections.Generic.List[object]' }
+        $by[$k].Add([pscustomobject]@{ Kind = 'tile'; Title = $(if ($m.Name) { [string]$m.Name } else { [string]$m.TileId }); Item = $m })
+    }
+    $out = foreach ($k in $by.Keys) {
+        [pscustomobject]@{ Group = $k; Rank = (Get-GroupRank $k); Count = $by[$k].Count
+            Rows = @($by[$k] | Sort-Object @{ Expression = { $_.Title } }, @{ Expression = { $_.Kind } }) }
+    }
+    return @($out | Sort-Object @{ Expression = { $_.Rank } }, @{ Expression = { $_.Group } })
 }
 
 # ---------- Сопоставление ----------
@@ -543,7 +680,7 @@ function Get-Matches {
             if (-not $m) { continue }
             $out.Add([pscustomobject]@{
                 Name = $s.Name; Path = $s.Path; Location = $s.Location; Target = $s.Target; Args = $s.Args; Icon = $s.Icon
-                IconId = $m.Icon.Id; IconName = $m.Icon.Name; IcoPath = $m.Icon.IcoPath; PngPath = $m.Icon.PngPath
+                IconId = $m.Icon.Id; IconName = $m.Icon.Name; Group = [string]$m.Icon.Group; IcoPath = $m.Icon.IcoPath; PngPath = $m.Icon.PngPath
                 Rule = $m.Rule; Already = (Test-IconIsSet $s.Icon $m.Icon.IcoPath)
             })
         } catch { Write-Log "  ошибка сопоставления $($s.Name): $($_.Exception.Message)" }
@@ -576,6 +713,7 @@ function Test-IcoSwapPath {
             if ($seg -ieq 'LocalLow') { return $false }
         }
         if (Test-PathUnder $full ([IO.Path]::GetFullPath($script:SI_Home))) { return $false }
+        if ($script:SI_OldHome -and (Test-PathUnder $full ([IO.Path]::GetFullPath($script:SI_OldHome)))) { return $false }   # папка прежней версии: иконки уже применённого пака
         $cur = $full
         while ($cur -and (($cur.TrimEnd($script:SI_Seps) + $sep).StartsWith($root, [StringComparison]::OrdinalIgnoreCase))) {
             if (Test-Path -LiteralPath $cur) {
@@ -699,10 +837,10 @@ function Set-LinkIcon {
 
 function Send-ItemNotify {
     param([string]$Path)
-    try { [ShadowIconsNative.Shell]::SHChangeNotify(0x00002000, 0x0005, $Path, [IntPtr]::Zero) } catch { }   # SHCNE_UPDATEITEM, SHCNF_PATHW
+    try { [GlyphixNative.Shell]::SHChangeNotify(0x00002000, 0x0005, $Path, [IntPtr]::Zero) } catch { }   # SHCNE_UPDATEITEM, SHCNF_PATHW
 }
 function Send-AllNotify {
-    try { [ShadowIconsNative.Shell]::SHChangeNotify(0x08000000, 0x0000, $null, [IntPtr]::Zero) } catch { }    # SHCNE_ASSOCCHANGED
+    try { [GlyphixNative.Shell]::SHChangeNotify(0x08000000, 0x0000, $null, [IntPtr]::Zero) } catch { }    # SHCNE_ASSOCCHANGED
 }
 
 function Get-SessionExplorer {
@@ -751,6 +889,8 @@ function Apply-Pack {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Pack, $Items, [switch]$RestartExplorer)
     Assert-ElevationSafe
+    Assert-LegacyMigrationComplete               # бэкап прежней версии ещё не перенесён - не применяем
+    Confirm-PackFiles $Pack                      # иконки пака качаем только сейчас (если ещё не скачаны)
     Write-Log "Применяю пак: $($Pack.Name) $($Pack.Version)"
     if ($null -eq $Items) { $Items = @(Get-Matches -Pack $Pack) }
     $backup = Load-Backup
@@ -758,6 +898,7 @@ function Apply-Pack {
     foreach ($m in @($Items)) {
         try {
             if ($m.Already) { $same++; continue }
+            if (-not (Test-Path -LiteralPath $m.IcoPath -PathType Leaf)) { throw "нет файла иконки $($m.IcoPath)" }
             Backup-File $backup $m.Path ([string]$m.Icon)
             $how = Set-LinkIcon $m.Path $m.IcoPath
             $after = [string](Get-WshShell).CreateShortcut($m.Path).IconLocation
@@ -765,7 +906,7 @@ function Apply-Pack {
             $changed++
             # приложение может пересоздать ярлык со своей иконкой - подменяем и сам .ico, на который он указывал
             if ($m.Icon -match '^(.+?),\s*(-?\d+)$') {
-                $orig = [Environment]::ExpandEnvironmentStrings($Matches[1].Trim().Trim('"'))
+                $orig = [Environment]::ExpandEnvironmentVariables($Matches[1].Trim().Trim('"'))
                 if ((Test-IcoSwapPath $orig) -and (Test-Path -LiteralPath $orig -PathType Leaf)) {
                     if ((Get-FileSha256 $orig) -ne (Get-FileSha256 $m.IcoPath)) {
                         try {
@@ -789,6 +930,7 @@ function Apply-Pack {
         Save-State $st
     }
     Write-Log "Заменено: $changed, уже стояли: $same, ошибок: $failed"
+    if ($failed -eq 0 -and ($changed + $same) -gt 0) { Invoke-LegacyCleanup }     # прежняя папка данных больше не нужна, если на неё не ссылается ни один ярлык
     $restarted = $false
     if ($changed -gt 0) { Update-IconView -RestartExplorer ([bool]$RestartExplorer) -ClearCache $true; $restarted = [bool]$RestartExplorer }
     return [pscustomobject]@{ Changed = $changed; Same = $same; Failed = $failed; Total = @($Items).Count; Restarted = $restarted }
@@ -1018,7 +1160,7 @@ function Get-Start11Matches {
             $dest = Get-Start11TileDest ([string]$Pack.Id) ([string]$m.Icon.Id)
             $out.Add([pscustomobject]@{
                 TileId = [string]$c.Id; Name = [string]$c.Name; Source = [string]$c.Source
-                IconId = [string]$m.Icon.Id; IconName = [string]$m.Icon.Name; TilePath = $src
+                IconId = [string]$m.Icon.Id; IconName = [string]$m.Icon.Name; Group = [string]$m.Icon.Group; TilePath = $src
                 Rule = $m.Rule; Already = (Test-Start11TileSet ([string]$c.Id) $dest $src)
             })
         } catch { Write-Log "  ошибка сопоставления плитки $($c.Id): $($_.Exception.Message)" }
@@ -1207,8 +1349,10 @@ function Apply-Start11Tiles {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Pack, $Items, [switch]$NoName, [switch]$NoReload)
     Assert-ElevationSafe
+    Assert-LegacyMigrationComplete               # бэкап прежней версии ещё не перенесён - не применяем
     $none = [pscustomobject]@{ Changed = 0; Same = 0; Failed = 0; Total = 0; Reload = $null; Hint = '' }
     if (-not (Test-Start11)) { Write-Log 'Start11 не найден - плитки пропускаю.'; return $none }
+    Confirm-PackFiles $Pack
     Write-Log "Применяю плитки Start11: $($Pack.Name) $($Pack.Version)"
     if ($null -eq $Items) { $Items = @(Get-Start11Matches -Pack $Pack -NoName:$NoName) }
     $backup = Load-S11Backup           # не читается - исключение до любых изменений, исходные значения не потеряем
@@ -1419,6 +1563,7 @@ function Undo-All {
     if ($st.ContainsKey('Applied') -and $failed -eq 0 -and $pendingCommon -eq 0 -and -not $CommonOnly) { $st.Remove('Applied'); Save-State $st }
     $tail = if ($failed -gt 0) { ", не удалось: $failed (для общих ярлыков отметьте «Также общие ярлыки» - нужны права администратора)" } else { '' }
     Write-Log "Восстановлено: $n$tail"
+    if ($failed -eq 0 -and -not $CommonOnly) { Invoke-LegacyCleanup }
     if ($n -gt 0) { Update-IconView -RestartExplorer ([bool]$RestartExplorer) -ClearCache $true }
     return [pscustomobject]@{ Restored = $n; Failed = $failed; Skipped = $skipped; Nothing = $false; CommonPending = $pendingCommon; TilesKept = $tilesKept; TilesRestored = $tilesRestored; Hint = $hint }
 }
@@ -1454,7 +1599,7 @@ function Undo-Routed {
 function Invoke-ElevatedCli {
     param([string[]]$CliArgs)
     $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $script = Join-Path $script:SI_CodeDir 'ShadowIcons.ps1'
+    $script = Join-Path $script:SI_CodeDir 'Glyphix.ps1'
     $tmpDir = if ($env:TEMP) { $env:TEMP } else { [IO.Path]::GetTempPath() }
     $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', ('"{0}"' -f $script)) + @($CliArgs)
     Write-Log ('Запрашиваю права администратора для одного действия: ' + ($CliArgs -join ' '))
@@ -1484,19 +1629,31 @@ function Remove-Legacy {
             }
         }
     } catch { Write-Log "Задача планировщика не удалена: $($_.Exception.Message)" }
-    try {
-        $vbs = Join-Path $script:SI_Home 'run-hidden.vbs'
-        if (Test-Path -LiteralPath $vbs) { Remove-Item -LiteralPath $vbs -Force; $removed.Add($vbs); Write-Log "Удалён $vbs" }
-    } catch { Write-Log "run-hidden.vbs не удалён: $($_.Exception.Message)" }
+    foreach ($vbs in @((Join-Path $script:SI_Home 'run-hidden.vbs'), (Join-Path ([string]$script:SI_OldHome) 'run-hidden.vbs'))) {      # v2 держала его в %LOCALAPPDATA%\ShadowIcons
+        try {
+            if ($vbs -and (Test-Path -LiteralPath $vbs -PathType Leaf)) { Remove-Item -LiteralPath $vbs -Force; $removed.Add($vbs); Write-Log "Удалён $vbs" }
+        } catch { Write-Log "run-hidden.vbs не удалён: $($_.Exception.Message)" }
+    }
     return $removed.ToArray()
 }
 
 # ---------- Ярлыки приложения и удаление ----------
 function Get-AppShortcutPaths {
     return @(
-        (Join-Path ([Environment]::GetFolderPath('Programs')) 'Shadow Icons.lnk'),
-        (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Shadow Icons.lnk')
+        (Join-Path ([Environment]::GetFolderPath('Programs')) 'Glyphix.lnk'),
+        (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Glyphix.lnk')
     )
+}
+
+# ярлыки прежней версии (Shadow Icons): удаляются при переносе данных и при удалении приложения
+function Get-LegacyShortcutPaths {
+    $out = @()
+    foreach ($f in @('Programs', 'Desktop')) {
+        $d = [Environment]::GetFolderPath($f)
+        if ($d) { $out += (Join-Path $d 'Shadow Icons.lnk') }
+    }
+    if ($env:APPDATA) { $out += (Join-Path $env:APPDATA 'Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Shadow Icons.lnk') }     # закреплённый на панели задач
+    return $out
 }
 
 function Install-AppShortcuts {
@@ -1512,11 +1669,372 @@ function Install-AppShortcuts {
             $sc.Arguments = '"' + $vbs + '"'
             $sc.WorkingDirectory = $script:SI_AppDir
             $sc.IconLocation = "$ico,0"
-            $sc.Description = 'Shadow Icons'
+            $sc.Description = 'Glyphix'
             $sc.Save()
             Write-Log "Ярлык: $p"
         } catch { Write-Log "Не удалось создать ярлык $p : $($_.Exception.Message)" }
     }
+}
+
+# ---------- Перенос данных из прежней версии (Shadow Icons -> Glyphix) ----------
+# Прежняя папка %LOCALAPPDATA%\ShadowIcons: backup\ (index.json, start11.json, копии), state.json, start11\ (PNG плиток), packs\, log.txt.
+# Папка packs\ КОПИРУЕТСЯ, а не переносится, и остаётся на месте вместе с icons\: на .ico оттуда ещё ссылаются применённые ярлыки.
+# Следующее «Применить» перенацелит их на новую папку, после чего Invoke-LegacyCleanup удалит остатки (когда ссылок не осталось).
+
+# путь внутри $OldDir -> тот же относительный путь внутри $NewDir; иначе $null
+function Convert-LegacyPath {
+    param([string]$Path, [string]$OldDir, [string]$NewDir)
+    if (-not $Path -or -not $OldDir) { return $null }
+    $p = $Path.Trim()
+    $od = $OldDir.TrimEnd($script:SI_Seps)
+    if ($p.Length -le ($od.Length + 1)) { return $null }
+    if (-not $p.StartsWith($od, [StringComparison]::OrdinalIgnoreCase)) { return $null }
+    if ($script:SI_Seps -notcontains $p[$od.Length]) { return $null }
+    $out = $NewDir
+    foreach ($seg in $p.Substring($od.Length + 1).Split($script:SI_Seps)) { if ($seg) { $out = Join-Path $out $seg } }
+    return $out
+}
+
+# JSON-массив бэкапа (backup\index.json: поле Copy; backup\start11.json: поле Data); остальные поля и старые форматы не меняются
+function Convert-LegacyBackupJson {
+    param([string]$File, [string]$Field, [string]$OldDir, [string]$NewDir)
+    $data = @(Read-JsonFile $File | Where-Object { $_ })
+    $changed = 0
+    foreach ($e in $data) {
+        if (-not $e.PSObject.Properties[$Field] -or $null -eq $e.$Field) { continue }
+        $nv = Convert-LegacyPath ([string]$e.$Field) $OldDir $NewDir
+        if ($nv) { $e.$Field = $nv; $changed++ }
+    }
+    return [pscustomobject]@{ Json = (ConvertTo-Json -InputObject @($data)); Items = @($data); Count = $data.Count; Changed = $changed }
+}
+
+# копия дерева с объединением (Copy-Item -Recurse в существующую папку вкладывает её внутрь, поэтому вручную)
+function Copy-TreeMerge {
+    param([string]$Src, [string]$Dst)
+    if (-not (Test-Path -LiteralPath $Dst)) { New-Item -ItemType Directory -Path $Dst -Force | Out-Null }
+    foreach ($c in @(Get-ChildItem -LiteralPath $Src -Force)) {
+        $t = Join-Path $Dst $c.Name
+        if ($c.PSIsContainer) { Copy-TreeMerge $c.FullName $t } else { Copy-Item -LiteralPath $c.FullName -Destination $t -Force }
+    }
+}
+
+# '' - перенос нужен; иначе причина, по которой он не нужен. Условие: прежняя папка есть и метки migrated.json в папке Glyphix ещё нет.
+# Бэкап в папке Glyphix сам по себе не повод пропускать перенос: старый бэкап сливается с новым (см. Merge-LegacyBackup).
+function Get-LegacyMigrationSkipReason {
+    $old = [string]$script:SI_OldHome
+    $new = [string]$script:SI_Home
+    if (-not $old -or -not (Test-Path -LiteralPath $old -PathType Container)) { return 'нет прежней папки' }
+    if ($old.TrimEnd($script:SI_Seps) -ieq $new.TrimEnd($script:SI_Seps)) { return 'та же папка' }
+    if (Test-Path -LiteralPath (Join-Path $new 'migrated.json')) { return 'уже перенесено' }
+    return ''
+}
+
+# $true - метки нет, а бэкап прежней версии (backup\ или backup.migrating\) ещё лежит в прежней папке: перенос не завершён.
+# Пока так, применять пак нельзя: исходные иконки уже заменены, и новый бэкап записал бы в «оригиналы» иконки пака.
+function Test-LegacyMigrationIncomplete {
+    $old = [string]$script:SI_OldHome
+    $new = [string]$script:SI_Home
+    if (-not $old -or -not (Test-Path -LiteralPath $old -PathType Container)) { return $false }
+    if ($old.TrimEnd($script:SI_Seps) -ieq $new.TrimEnd($script:SI_Seps)) { return $false }
+    if (Test-Path -LiteralPath (Join-Path $new 'migrated.json')) { return $false }
+    foreach ($n in @('backup', 'backup.migrating')) { if (Test-Path -LiteralPath (Join-Path $old $n)) { return $true } }
+    return $false
+}
+
+$script:SI_MigrationPendingMsg = 'Перенос данных Shadow Icons не завершён: бэкап исходных иконок ещё лежит в прежней папке. Применять пак сейчас нельзя - иначе иконки пака попадут в бэкап как «оригинальные». Перезапустите Glyphix (перенос повторится сам); если сообщение не пропадает, смотрите журнал.'
+
+function Assert-LegacyMigrationComplete {
+    if (Test-LegacyMigrationIncomplete) { Write-Log ('Отказ: ' + $script:SI_MigrationPendingMsg); throw $script:SI_MigrationPendingMsg }
+}
+
+# записи $Incoming + записи из файла $ExistingFile (если он есть) без повторов по полю $Key (регистр не важен) -> JSON.
+# $IncomingWins: при совпадении ключа остаётся запись из $Incoming (старый бэкап - это первые оригиналы), иначе - уже лежащая в файле.
+function Merge-BackupEntries {
+    param($Incoming, [string]$ExistingFile, [string]$Key, [bool]$IncomingWins)
+    $existing = @()
+    if (Test-Path -LiteralPath $ExistingFile -PathType Leaf) { $existing = @(Read-JsonFile $ExistingFile | Where-Object { $_ }) }
+    $first = if ($IncomingWins) { @($Incoming) } else { $existing }
+    $second = if ($IncomingWins) { $existing } else { @($Incoming) }
+    $seen = @{}
+    $out = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($e in $first) {
+        $k = ''; if ($e.PSObject.Properties[$Key] -and $null -ne $e.$Key) { $k = [string]$e.$Key }
+        if ($k) { $seen[$k] = $true }
+        $out.Add($e)
+    }
+    foreach ($e in $second) {
+        $k = ''; if ($e.PSObject.Properties[$Key] -and $null -ne $e.$Key) { $k = [string]$e.$Key }
+        if ($k -and $seen.ContainsKey($k)) { continue }
+        if ($k) { $seen[$k] = $true }
+        $out.Add($e)
+    }
+    return (ConvertTo-Json -InputObject @($out.ToArray()))
+}
+
+# Слить каталог старого бэкапа $Src (backup.migrating\ или лишний backup\) в бэкап Glyphix: копии файлов, потом start11.json и index.json
+# (пути Copy/Data переписаны на новую папку). Записи старого бэкапа главнее ($OldFirst): это самые первые оригиналы.
+# Ничего в $Src не удаляет. При ошибке удаляет только файлы, СОЗДАННЫЕ этим вызовом, и только пока $Src на месте; ошибку пробрасывает.
+# Возвращает число записей index.json старого бэкапа.
+function Merge-LegacyBackup {
+    param([string]$Src, [string]$OldBackup, [string]$OldS11, [bool]$OldFirst = $true)
+    $created = New-Object 'System.Collections.Generic.List[string]'
+    $count = 0
+    try {
+        if (-not (Test-Path -LiteralPath $script:SI_BackupDir)) { New-Item -ItemType Directory -Path $script:SI_BackupDir -Force | Out-Null }
+        foreach ($f in @(Get-ChildItem -LiteralPath $Src -File -Force)) {
+            if (@('index.json', 'start11.json') -contains $f.Name -or $f.Name.EndsWith('.tmp')) { continue }
+            $dst = Join-Path $script:SI_BackupDir $f.Name
+            $existed = Test-Path -LiteralPath $dst
+            if ($existed -and -not $OldFirst) { continue }
+            Copy-Item -LiteralPath $f.FullName -Destination $dst -Force
+            if (-not $existed) { $created.Add($dst) }
+        }
+        $specs = @(
+            @{ File = 'start11.json'; Dest = $script:SI_S11BackupFile; Field = 'Data'; Key = 'Id'; OldDir = $OldS11; NewDir = $script:SI_S11Dir },
+            @{ File = 'index.json'; Dest = $script:SI_BackupFile; Field = 'Copy'; Key = 'Path'; OldDir = $OldBackup; NewDir = $script:SI_BackupDir }
+        )
+        foreach ($sp in $specs) {
+            $sf = Join-Path $Src $sp.File
+            if (-not (Test-Path -LiteralPath $sf -PathType Leaf)) { continue }
+            $c = Convert-LegacyBackupJson $sf $sp.Field $sp.OldDir $sp.NewDir
+            if ($c.Count -eq 0) { continue }
+            $existed = Test-Path -LiteralPath $sp.Dest
+            Save-JsonAtomic $sp.Dest (Merge-BackupEntries $c.Items $sp.Dest $sp.Key $OldFirst)
+            if (-not $existed) { $created.Add($sp.Dest) }
+            if ($sp.File -eq 'index.json') { $count = $c.Count }
+        }
+    } catch {
+        $err = $_
+        if (Test-Path -LiteralPath $Src -PathType Container) {      # источник цел - можно убрать то, что создали сами; чужое и прежнее не трогаем
+            foreach ($cf in $created) { try { if (Test-Path -LiteralPath $cf) { Remove-Item -LiteralPath $cf -Force } } catch { Write-Log ('  не удалён файл неудачного переноса: ' + $cf) } }
+        }
+        throw $err
+    }
+    return [int]$count
+}
+
+$script:SI_MigrationWaitMs = 30000
+
+# Результат: Migrated, Reason, Backup (записей index.json), Packs, Registry (значения CustomTiles), Failed.
+# -NoReload: Start11 не закрываем (значения реестра всё равно перепишем, но PNG из старой папки тогда не удаляем).
+# Один перенос за раз: именованный мьютекс Local\Glyphix.Migration (ждём до 30 с, иначе пропускаем с записью в журнал).
+function Invoke-LegacyMigration {
+    [CmdletBinding()]
+    param([switch]$NoReload)
+    $res = [pscustomobject]@{ Migrated = $false; Reason = ''; Backup = 0; Packs = 0; Registry = 0; Failed = 0 }
+    $skip = Get-LegacyMigrationSkipReason
+    if ($skip) { $res.Reason = $skip; return $res }
+    $mtx = $null; $got = $false
+    try {
+        try {
+            $mtx = New-Object System.Threading.Mutex($false, 'Local\Glyphix.Migration')
+            try { $got = $mtx.WaitOne([int]$script:SI_MigrationWaitMs) }
+            catch {
+                $ex = $_.Exception
+                if ($ex -is [System.Threading.AbandonedMutexException] -or $ex.InnerException -is [System.Threading.AbandonedMutexException]) { $got = $true }     # предыдущий владелец завершился, не отпустив - теперь он наш
+                else { throw }
+            }
+        } catch { Write-Log ('Перенос данных: мьютекс недоступен (' + $_.Exception.Message + ') - пропускаю'); $res.Reason = 'мьютекс переноса недоступен'; return $res }
+        if (-not $got) { Write-Log 'Перенос данных уже выполняет другой процесс Glyphix - пропускаю'; $res.Reason = 'перенос выполняется другим процессом'; return $res }
+        $skip = Get-LegacyMigrationSkipReason          # пока ждали, другой процесс мог закончить
+        if ($skip) { $res.Reason = $skip; return $res }
+        return (Invoke-LegacyMigrationLocked -NoReload:$NoReload)
+    } finally {
+        if ($mtx) {
+            if ($got) { try { $mtx.ReleaseMutex() } catch { } }
+            $mtx.Dispose()
+        }
+    }
+}
+
+# тело переноса; вызывать только под мьютексом (Invoke-LegacyMigration)
+function Invoke-LegacyMigrationLocked {
+    [CmdletBinding()]
+    param([switch]$NoReload)
+    $res = [pscustomobject]@{ Migrated = $false; Reason = ''; Backup = 0; Packs = 0; Registry = 0; Failed = 0 }
+    $old = [string]$script:SI_OldHome
+    $new = [string]$script:SI_Home
+    $marker = Join-Path $new 'migrated.json'
+
+    Write-Log "Переношу данные прежней версии: $old"
+    $oldBackup = Join-Path $old 'backup'
+    $oldMig = Join-Path $old 'backup.migrating'      # старый backup\ после переименования: замок и метка «перенос идёт» (найден при запуске - продолжаем с него)
+    $oldS11 = Join-Path $old 'start11'
+    $retry = $false          # true - не перенесён бэкап: метку не ставим, перенос повторится при следующем запуске (идемпотентно)
+
+    # 0) старый backup\ -> backup.migrating\ одним переименованием (атомарно); дальше работаем только с ним
+    $sources = New-Object 'System.Collections.Generic.List[object]'
+    try {
+        $hasMig = Test-Path -LiteralPath $oldMig -PathType Container
+        $hasBk = Test-Path -LiteralPath $oldBackup -PathType Container
+        if ($hasMig) {
+            Write-Log '  найден backup.migrating - продолжаю прерванный перенос бэкапа'
+            $sources.Add(@{ Dir = $oldMig; OldFirst = $true })
+            if ($hasBk) { $sources.Add(@{ Dir = $oldBackup; OldFirst = $false }) }       # свежий backup\ рядом с незаконченным: прежние записи главнее
+        } elseif ($hasBk) {
+            [IO.Directory]::Move($oldBackup, $oldMig)
+            $sources.Add(@{ Dir = $oldMig; OldFirst = $true })
+        }
+    } catch { $res.Failed++; $retry = $true; $sources.Clear(); Write-Log ('  старый backup не переименован в backup.migrating: ' + $_.Exception.Message) }
+
+    # 1) state.json (значения из новой папки главнее)
+    try {
+        $os = Join-Path $old 'state.json'
+        if (Test-Path -LiteralPath $os -PathType Leaf) {
+            $st = Read-State
+            foreach ($p in (Read-JsonFile $os).PSObject.Properties) { if (-not $st.ContainsKey($p.Name)) { $st[$p.Name] = $p.Value } }
+            Save-State $st
+            Remove-Item -LiteralPath $os -Force
+        }
+    } catch { $res.Failed++; Write-Log ('  state.json не перенесён: ' + $_.Exception.Message) }
+
+    # 2) кэш паков: копия (оригиналы нужны применённым ярлыкам)
+    try {
+        $op = Join-Path $old 'packs'
+        if (Test-Path -LiteralPath $op -PathType Container) {
+            foreach ($d in @(Get-ChildItem -LiteralPath $op -Directory -Force)) {
+                $dst = Join-Path $script:SI_PacksDir $d.Name
+                if (Test-Path -LiteralPath $dst) { continue }
+                Copy-TreeMerge $d.FullName $dst
+                $res.Packs++
+            }
+        }
+    } catch { $res.Failed++; Write-Log ('  кэш паков не перенесён: ' + $_.Exception.Message) }
+
+    # 3) плитки Start11: PNG -> новая папка, значения CustomTiles, указывающие в старую папку, -> новые пути
+    try {
+        $rew = New-Object 'System.Collections.Generic.List[object]'
+        if (Test-Start11) {
+            foreach ($n in @(Get-S11ValueNames $script:SI_S11Tiles)) {
+                $v = $null
+                try { $v = Get-S11Value $script:SI_S11Tiles $n } catch { continue }          # не REG_SZ - не трогаем
+                if ($null -eq $v) { continue }
+                $nv = Convert-LegacyPath $v $oldS11 $script:SI_S11Dir
+                if ($nv) { $rew.Add([pscustomobject]@{ Id = [string]$n; Data = $nv; Kind = $(if ((Get-S11Kind $script:SI_S11Tiles $n) -eq 'ExpandString') { 'ExpandString' } else { 'String' }) }) }
+            }
+        }
+        $hasPng = (Test-Path -LiteralPath $oldS11 -PathType Container)
+        if ($hasPng) { Copy-TreeMerge $oldS11 $script:SI_S11Dir }       # сначала файлы, потом реестр: плитки ни на секунду не остаются без картинки
+        $s11ok = $true; $stop = $null
+        if ($rew.Count -gt 0) {
+            if (-not $NoReload) { $stop = Stop-Start11 }                 # пока Start11 работает, он может записать плитки из памяти поверх наших
+            try {
+                foreach ($r in $rew) {
+                    try {
+                        Set-S11Value $script:SI_S11Tiles $r.Id $r.Data $r.Kind
+                        if ((Get-S11Value $script:SI_S11Tiles $r.Id) -ine $r.Data) { throw 'значение в реестре не записалось' }
+                        $res.Registry++
+                    } catch { $s11ok = $false; $res.Failed++; Write-Log "  плитка $($r.Id) не перенесена: $($_.Exception.Message)" }
+                }
+            } finally {
+                if ($stop) { [void](Start-Start11Paths $stop.Launch) }
+            }
+        }
+        if ($hasPng) {
+            $canDelete = ($s11ok -and ($rew.Count -eq 0 -or ($stop -and $stop.Ok)))
+            if ($canDelete) { Remove-Item -LiteralPath $oldS11 -Recurse -Force }
+            else { Write-Log '  PNG плиток в прежней папке оставлены (Start11 не перезапущен или значения не переписаны)' }
+        }
+    } catch { $res.Failed++; Write-Log ('  плитки Start11 не перенесены: ' + $_.Exception.Message) }     # старые PNG остаются на месте: значения реестра, которые не переписали, продолжают работать
+
+    # 4) бэкап: слияние с бэкапом Glyphix (старые записи главнее); backup.migrating\ удаляем после успеха - отдельным try, который только пишет в журнал
+    foreach ($s in $sources) {
+        $merged = $false
+        try { $res.Backup += (Merge-LegacyBackup $s.Dir $oldBackup $oldS11 $s.OldFirst); $merged = $true }
+        catch { $res.Failed++; $retry = $true; Write-Log ('  бэкап не перенесён: ' + $_.Exception.Message) }      # повтор продолжит с backup.migrating
+        if (-not $merged) { break }
+        try { Remove-Item -LiteralPath $s.Dir -Recurse -Force }
+        catch { Write-Log ('  старый бэкап не удалён (он уже перенесён, остаток можно удалить вручную): ' + $s.Dir + ' - ' + $_.Exception.Message) }
+    }
+
+    # 5) журнал: старый - перед новым
+    try {
+        foreach ($ln in @('log.txt.old', 'log.txt')) {
+            $ol = Join-Path $old $ln
+            if (-not (Test-Path -LiteralPath $ol -PathType Leaf)) { continue }
+            $nl = Join-Path $new $ln
+            if ($ln -eq 'log.txt' -and (Test-Path -LiteralPath $nl)) {
+                [IO.File]::WriteAllText($nl, ([IO.File]::ReadAllText($ol) + [IO.File]::ReadAllText($nl)), (New-Object System.Text.UTF8Encoding($false)))
+                Remove-Item -LiteralPath $ol -Force
+            } elseif (-not (Test-Path -LiteralPath $nl)) {
+                Move-Item -LiteralPath $ol -Destination $nl -Force
+            }
+        }
+    } catch { Write-Log ('  журнал не перенесён: ' + $_.Exception.Message) }
+
+    # 6) метка переноса, и только после неё (перенос удался полностью, не $retry) - старая папка приложения и ярлыки «Shadow Icons» (запускали бы прежнюю версию)
+    if (-not $retry) {
+        try { Save-JsonAtomic $marker (ConvertTo-Json -InputObject ([pscustomobject]@{ From = $old; At = (Get-Date).ToString('s') })) }
+        catch { $res.Failed++; $retry = $true; Write-Log ('  метка переноса не записана: ' + $_.Exception.Message) }
+    }
+    if (-not $retry) {
+        try {
+            $oa = Join-Path $old 'app'
+            if (Test-Path -LiteralPath $oa) {
+                $cd = ''
+                try { $cd = [IO.Path]::GetFullPath([string]$script:SI_CodeDir).TrimEnd($script:SI_Seps) } catch { }
+                if ($cd -and (($cd -ieq $oa.TrimEnd($script:SI_Seps)) -or (Test-PathUnder $cd $oa))) { Write-Log '  прежняя папка app используется сейчас - не удаляю' }
+                else { Remove-Item -LiteralPath $oa -Recurse -Force; Write-Log '  удалена прежняя папка app' }
+            }
+        } catch { Write-Log ('  прежняя папка app не удалена: ' + $_.Exception.Message) }
+        foreach ($lp in (Get-LegacyShortcutPaths)) {
+            try { if ($lp -and (Test-Path -LiteralPath $lp)) { Remove-Item -LiteralPath $lp -Force; Write-Log "  удалён прежний ярлык: $lp" } } catch { Write-Log "  ярлык не удалён: $lp" }
+        }
+    }
+    $res.Migrated = (-not $retry)
+    $res.Reason = if ($retry) { 'перенос не завершён, повторится при следующем запуске' } else { 'ok' }
+    Write-Log "Перенос данных: бэкап $($res.Backup), паков в кэше $($res.Packs), значений плиток Start11 $($res.Registry), ошибок $($res.Failed)"
+    return $res
+}
+
+# Есть ли ярлыки, иконка которых лежит в прежней папке данных (уже применённый пак прежней версии)?
+function Test-LegacyHomeReferenced {
+    $old = [string]$script:SI_OldHome
+    if (-not $old) { return $false }
+    try {
+        foreach ($s in @(Get-ShortcutList -AllUsers)) {
+            $loc = Split-IconLocation ([string]$s.Icon)
+            $p = [Environment]::ExpandEnvironmentVariables($loc.Path.Trim('"'))
+            if ($p -and (Test-PathUnder $p $old)) { return $true }
+        }
+    } catch { return $true }          # не смогли проверить - считаем, что ссылки есть
+    return $false
+}
+
+# пустые подпапки внутри $Root (сам $Root не трогаем); в ссылки/junction не заходим
+function Remove-EmptyDirs {
+    param([string]$Root)
+    $dirs = @(Get-ChildItem -LiteralPath $Root -Directory -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) } | Sort-Object { $_.FullName.Length } -Descending)
+    foreach ($d in $dirs) {
+        try { if (-not (Get-ChildItem -LiteralPath $d.FullName -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $d.FullName -Force } } catch { }
+    }
+}
+
+# Удалить из прежней папки данных packs\ и icons\ (и остатки v2: Set-TaskbarIcons.ps1, log.txt, run-hidden.vbs, пустые папки), когда на неё больше не ссылается ни один ярлык;
+# саму папку - если она опустела. Пока бэкап не перенесён (нет метки, а backup\ на месте) - ничего не трогаем.
+function Remove-LegacyHomeIfUnused {
+    $old = [string]$script:SI_OldHome
+    if (-not $old -or -not (Test-Path -LiteralPath $old -PathType Container)) { return $false }
+    if ($old.TrimEnd($script:SI_Seps) -ieq ([string]$script:SI_Home).TrimEnd($script:SI_Seps)) { return $false }
+    if (Test-LegacyMigrationIncomplete) { return $false }
+    if (Test-LegacyHomeReferenced) { return $false }
+    $subs = @('packs', 'icons')
+    if (Test-Path -LiteralPath (Join-Path ([string]$script:SI_Home) 'migrated.json')) { $subs += 'backup.migrating' }       # остаток уже перенесённого бэкапа
+    foreach ($sub in $subs) {
+        $d = Join-Path $old $sub
+        try { if (Test-Path -LiteralPath $d) { Remove-Item -LiteralPath $d -Recurse -Force; Write-Log "Удалена прежняя папка: $d" } } catch { Write-Log "Не удалена $d : $($_.Exception.Message)" }
+    }
+    foreach ($fn in @('Set-TaskbarIcons.ps1', 'log.txt', 'log.txt.old', 'run-hidden.vbs')) {
+        $f = Join-Path $old $fn
+        try { if (Test-Path -LiteralPath $f -PathType Leaf) { Remove-Item -LiteralPath $f -Force; Write-Log "Удалён остаток прежней версии: $f" } } catch { Write-Log "Не удалён $f : $($_.Exception.Message)" }
+    }
+    try { Remove-EmptyDirs $old } catch { }
+    try { if (-not (Get-ChildItem -LiteralPath $old -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $old -Force } } catch { }
+    return $true
+}
+
+function Invoke-LegacyCleanup {
+    try { [void](Remove-LegacyHomeIfUnused) } catch { Write-Log ('Прежняя папка данных: ' + $_.Exception.Message) }
 }
 
 function Uninstall-App {
@@ -1538,10 +2056,12 @@ function Uninstall-App {
     try { [Environment]::CurrentDirectory = $tmpDir } catch { }
     try { Set-Location -LiteralPath $tmpDir } catch { }
     [void](Remove-Legacy)
-    foreach ($p in (Get-AppShortcutPaths)) {
-        try { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force; Write-Log "Удалён ярлык: $p" } } catch { Write-Log "Ярлык не удалён: $p" }
+    foreach ($p in @(Get-AppShortcutPaths) + @(Get-LegacyShortcutPaths)) {
+        try { if ($p -and (Test-Path -LiteralPath $p)) { Remove-Item -LiteralPath $p -Force; Write-Log "Удалён ярлык: $p" } } catch { Write-Log "Ярлык не удалён: $p" }
     }
+    Invoke-LegacyCleanup                 # откат выполнен: прежняя папка данных (packs\, icons\) больше не нужна
     try { if (Test-Path -LiteralPath $script:SI_StateFile) { Remove-Item -LiteralPath $script:SI_StateFile -Force } } catch { }
+    try { $mg = Join-Path $script:SI_Home 'migrated.json'; if (Test-Path -LiteralPath $mg) { Remove-Item -LiteralPath $mg -Force } } catch { }
     try { if (Test-Path -LiteralPath $script:SI_PacksDir) { Remove-Item -LiteralPath $script:SI_PacksDir -Recurse -Force } } catch { Write-Log "packs не удалён: $($_.Exception.Message)" }
     $appRemoved = $true
     try {

@@ -1,6 +1,6 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Shadow Icons" Width="1060" Height="720" MinWidth="880" MinHeight="600"
+        Title="Glyphix" Width="1060" Height="720" MinWidth="880" MinHeight="600"
         WindowStartupLocation="CenterScreen" Background="#070A18"
         FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True" SnapsToDevicePixels="True">
   <Window.Resources>
@@ -187,7 +187,7 @@
       </Grid.ColumnDefinitions>
       <Image x:Name="ImgLogo" Grid.Column="0" Width="48" Height="48" RenderOptions.BitmapScalingMode="HighQuality"/>
       <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
-        <TextBlock Text="SHADOW ICONS" FontSize="22" FontWeight="Bold">
+        <TextBlock Text="GLYPHIX" FontSize="22" FontWeight="Bold">
           <TextBlock.Foreground>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
               <GradientStop Color="#9C92FF" Offset="0"/>
@@ -257,7 +257,7 @@
         <CheckBox x:Name="ChkNoName" Style="{StaticResource DarkCheck}" IsChecked="False" VerticalAlignment="Center" Visibility="Collapsed"/>
       </WrapPanel>
       <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="12">
-        <Hyperlink x:Name="LnkGitHub" NavigateUri="https://github.com/F1KS-FK/shadow-icons" Foreground="#7F9BFF" TextDecorations="None">GitHub</Hyperlink>
+        <Hyperlink x:Name="LnkGitHub" NavigateUri="https://github.com/F1KS-FK/glyphix" Foreground="#7F9BFF" TextDecorations="None">GitHub</Hyperlink>
       </TextBlock>
       <Popup x:Name="PopMenu" PlacementTarget="{Binding ElementName=BtnMenu}" Placement="Top" StaysOpen="False" AllowsTransparency="True">
         <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource GhostBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="8" Margin="8">
