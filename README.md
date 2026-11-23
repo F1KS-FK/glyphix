@@ -12,7 +12,7 @@
 (закреплённые на панели задач, ярлыки на рабочем столе и в «Пуске», плитки **Start11**) и ставит им иконки из пака.
 
 - **Один клик:** «Применить» — и всё. «Откатить всё» возвращает исходные иконки и плитки.
-- **4 цветовых пака по 126 иконок:** Shadow, Azure, White, Black — мессенджеры, браузеры, игры и лаунчеры
+- **11 стилей по 127 иконок:** Shadow, Azure, White, Black, Neon, Pixel, Gold, Holo, Glass, System, Sticker — мессенджеры, браузеры, игры и лаунчеры
   (Steam, Roblox, Minecraft, Epic, Riot, Battle.net, CS2, Dota 2…), музыка, системные приложения, работа и творчество.
 - **Плитки Start11:** если установлен Start11, плитки ставятся автоматически (с подписью или без).
 - **Обновления без архивов:** «Обновить паки» докачивает новое из этого репозитория.
@@ -33,11 +33,20 @@ irm https://raw.githubusercontent.com/F1KS-FK/glyphix/main/install.ps1 | iex
 
 ## Паки
 
-| Shadow | Azure |
+| | |
 |---|---|
+| **Shadow** | **Azure** |
 | <img src="packs/shadow/preview.png" width="420"> | <img src="packs/azure/preview.png" width="420"> |
 | **White** | **Black** |
 | <img src="packs/white/preview.png" width="420"> | <img src="packs/black/preview.png" width="420"> |
+| **Neon** | **Pixel** |
+| <img src="packs/neon/preview.png" width="420"> | <img src="packs/pixel/preview.png" width="420"> |
+| **Gold** | **Holo** |
+| <img src="packs/gold/preview.png" width="420"> | <img src="packs/holo/preview.png" width="420"> |
+| **Glass** | **System** |
+| <img src="packs/glass/preview.png" width="420"> | <img src="packs/system/preview.png" width="420"> |
+| **Sticker** | |
+| <img src="packs/sticker/preview.png" width="420"> | |
 
 Нет иконки для твоего приложения? Открой issue с названием приложения.
 
@@ -58,7 +67,7 @@ irm https://raw.githubusercontent.com/F1KS-FK/glyphix/main/install.ps1 | iex
 
 ### English
 
-**Glyphix** applies icon packs (Shadow, Azure, White, Black — 126 icons each) to Windows 10/11 taskbar pins, shortcuts and
+**Glyphix** applies icon packs (11 styles: Shadow, Azure, White, Black, Neon, Pixel, Gold, Holo, Glass, System, Sticker — 127 icons each) to Windows 10/11 taskbar pins, shortcuts and
 Start11 tiles in one click, with undo and in-app updates. No background processes. Install:
 `irm https://raw.githubusercontent.com/F1KS-FK/glyphix/main/install.ps1 | iex`.
 Code: GPL-3.0, icons: CC BY-NC-SA 4.0, © 2026 F1KS.

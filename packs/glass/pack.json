@@ -1,0 +1,3153 @@
+{
+ "schema": 1,
+ "id": "glass",
+ "name": "Glass",
+ "version": "2.1.0",
+ "author": "F1KS",
+ "license": "CC BY-NC-SA 4.0",
+ "description": "Матовое прозрачное стекло с яркой кромкой на цветном фоне",
+ "preview": "preview.png",
+ "icons": [
+  {
+   "id": "glyphix",
+   "name": "Glyphix",
+   "group": "system",
+   "ico": "icons/glyphix.ico",
+   "ico_sha256": "926061896d7d9ce1c4108defa98bbe589e42869651d98659cbc8ece30fb6d61d",
+   "png": "icons/glyphix.png",
+   "png_sha256": "9ff4cc7bc873858324306c29ae2a6df43b456ac175230493eef9e662711ab8b7",
+   "match": {
+    "names": [
+     "glyphix",
+     "shadowicons"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "telegram",
+   "name": "Telegram",
+   "group": "apps",
+   "ico": "icons/telegram.ico",
+   "ico_sha256": "af8f712afcc4715217022e92f7c947147e45c44d64cc070d1eb684e590d8cacf",
+   "png": "icons/telegram.png",
+   "png_sha256": "780baefee2389b7f07bce2240fc8b2bd3e791f536794a998301ab28c175161a8",
+   "match": {
+    "names": [
+     "telegram",
+     "telegramdesktop",
+     "ayugram",
+     "kotatogram"
+    ],
+    "exes": [
+     "telegram",
+     "ayugram"
+    ]
+   }
+  },
+  {
+   "id": "discord",
+   "name": "Discord",
+   "group": "apps",
+   "ico": "icons/discord.ico",
+   "ico_sha256": "46e92453824938c7c12742a48fcf4e2c4e1d2d3824e2a49d78f580dce387673b",
+   "png": "icons/discord.png",
+   "png_sha256": "223d66086ffe92e3677dd608cb56a33e345776dc026cdc338a96923b44020255",
+   "match": {
+    "names": [
+     "discord",
+     "discordptb",
+     "discordcanary",
+     "vesktop"
+    ],
+    "exes": [
+     "discord",
+     "vesktop"
+    ]
+   }
+  },
+  {
+   "id": "chrome",
+   "name": "Google Chrome",
+   "group": "apps",
+   "ico": "icons/chrome.ico",
+   "ico_sha256": "b08be0bedc576e1f1ebeec0d3e46bf5a3bffc4126d0b0fe2b1d113e8c722b1d9",
+   "png": "icons/chrome.png",
+   "png_sha256": "869bdb1b29df00398c4c6a99f9f3464a501cc97ab554891e25bdd248ad24148f",
+   "match": {
+    "names": [
+     "googlechrome",
+     "chrome"
+    ],
+    "exes": [
+     "chrome"
+    ]
+   }
+  },
+  {
+   "id": "firefox",
+   "name": "Firefox",
+   "group": "apps",
+   "ico": "icons/firefox.ico",
+   "ico_sha256": "00a9bd7e75b06b38718a8049bf9b53daf114297c3ca4d5e1b5852be9bd791028",
+   "png": "icons/firefox.png",
+   "png_sha256": "0b9ffcc5c255353c87a81728e9b8be628e6d55d267baee815d1cab5bdfb9f19c",
+   "match": {
+    "names": [
+     "firefox",
+     "mozillafirefox"
+    ],
+    "exes": [
+     "firefox"
+    ]
+   }
+  },
+  {
+   "id": "edge",
+   "name": "Microsoft Edge",
+   "group": "apps",
+   "ico": "icons/edge.ico",
+   "ico_sha256": "d712d351208b775a35131ba6a7a86d704b551e186c1cdec722eedcdebe43ebe3",
+   "png": "icons/edge.png",
+   "png_sha256": "34dc492bec7d7f1cf4d21d39f4a9a7e3a111c495a319e4be96238f6f31dbe2bd",
+   "match": {
+    "names": [
+     "microsoftedge",
+     "msedge",
+     "edge"
+    ],
+    "exes": [
+     "msedge"
+    ]
+   }
+  },
+  {
+   "id": "opera",
+   "name": "Opera",
+   "group": "apps",
+   "ico": "icons/opera.ico",
+   "ico_sha256": "38784e7eb6c244830c5e4665098535dc03279665f38d090a6fbc1ad2df38d6b1",
+   "png": "icons/opera.png",
+   "png_sha256": "4ce670fe4f73ac2fa5ff31bd42ff7acde93217bb119a4719f0cfa927ff986c4a",
+   "match": {
+    "names": [
+     "opera",
+     "operabrowser"
+    ],
+    "exes": [
+     "opera"
+    ]
+   }
+  },
+  {
+   "id": "operagx",
+   "name": "Opera GX",
+   "group": "apps",
+   "ico": "icons/operagx.ico",
+   "ico_sha256": "878e7df42848ed84e82e660bcab571a9cdd6ed6254c9bcc81e737e4af7415ab4",
+   "png": "icons/operagx.png",
+   "png_sha256": "ccf51b202c34a99a6a318edd665707ee430d9ba8358e8f89c578b142c2f97bcc",
+   "match": {
+    "names": [
+     "operagx",
+     "operagxbrowser"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "brave",
+   "name": "Brave",
+   "group": "apps",
+   "ico": "icons/brave.ico",
+   "ico_sha256": "f863995527aa556e769b1335a03435d1f8b4320d09c35c2752537d2bd0e673b9",
+   "png": "icons/brave.png",
+   "png_sha256": "ecb9238ef987402ed033cbb3f63029e5a78e0da8751d81bdd03b917697629e7c",
+   "match": {
+    "names": [
+     "brave",
+     "bravebrowser"
+    ],
+    "exes": [
+     "brave"
+    ]
+   }
+  },
+  {
+   "id": "vivaldi",
+   "name": "Vivaldi",
+   "group": "apps",
+   "ico": "icons/vivaldi.ico",
+   "ico_sha256": "29f5432c3d28689530fc8148d1ba43a569c54e6d88f2534a42fc1101c649775a",
+   "png": "icons/vivaldi.png",
+   "png_sha256": "7ed353c025cb021a98a082cc9439462ce500896754882d1233e0f0328890fd25",
+   "match": {
+    "names": [
+     "vivaldi"
+    ],
+    "exes": [
+     "vivaldi"
+    ]
+   }
+  },
+  {
+   "id": "torbrowser",
+   "name": "Tor Browser",
+   "group": "apps",
+   "ico": "icons/torbrowser.ico",
+   "ico_sha256": "d5c33368490fa4690ff015aa72e82103dbd331fb1e6f8fab43157217ce1f4a1b",
+   "png": "icons/torbrowser.png",
+   "png_sha256": "0200de4b1568256a7317880b2a746a98b045d1b3e6f753f6b6a597de54b43cf7",
+   "match": {
+    "names": [
+     "torbrowser"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "gemini",
+   "name": "Gemini",
+   "group": "apps",
+   "ico": "icons/gemini.ico",
+   "ico_sha256": "76a559caf513d2a30f421d43d1feae87e4e3e0be5f987c6f176aca9fa93de7f4",
+   "png": "icons/gemini.png",
+   "png_sha256": "d8c494a09a091a6dc74b1fdf306f531afbc9914d581e320b16abe315abee7fd6",
+   "match": {
+    "names": [
+     "gemini",
+     "googlegemini"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "chatgpt",
+   "name": "ChatGPT",
+   "group": "apps",
+   "ico": "icons/chatgpt.ico",
+   "ico_sha256": "856753d9d6f9ea4c7286bc3866cfc3471ac07b3f7d16f7cadd1a38afaed4f38e",
+   "png": "icons/chatgpt.png",
+   "png_sha256": "fa9626201e12e6260aaff4c1f0a76ca836284387761a02a5bb063fb2d7a75cec",
+   "match": {
+    "names": [
+     "chatgpt",
+     "openai"
+    ],
+    "exes": [
+     "chatgpt"
+    ]
+   }
+  },
+  {
+   "id": "claude",
+   "name": "Claude",
+   "group": "apps",
+   "ico": "icons/claude.ico",
+   "ico_sha256": "f2fedbfb959026a1fb30ba9bb19e2c94881f3ac4711efb08be811390e978bb24",
+   "png": "icons/claude.png",
+   "png_sha256": "4b1c7bb5a6f617443ab87a4bffeeae3fe487b7246cb97e6f44520b927fc82f36",
+   "match": {
+    "names": [
+     "claude"
+    ],
+    "exes": [
+     "claude"
+    ]
+   }
+  },
+  {
+   "id": "perplexity",
+   "name": "Perplexity",
+   "group": "apps",
+   "ico": "icons/perplexity.ico",
+   "ico_sha256": "e9827af05ebd3ca92edf305def98390306988aa452829eaf591c2f1d0b59f52a",
+   "png": "icons/perplexity.png",
+   "png_sha256": "b56860beba95d895b0beb50c396004d0ab772368501478cd7d3e536964871a6e",
+   "match": {
+    "names": [
+     "perplexity"
+    ],
+    "exes": [
+     "perplexity"
+    ]
+   }
+  },
+  {
+   "id": "deepseek",
+   "name": "DeepSeek",
+   "group": "apps",
+   "ico": "icons/deepseek.ico",
+   "ico_sha256": "9349356a1aa7a969db89041c441756e6f31f447ccb72a30ddd99838579a5f72c",
+   "png": "icons/deepseek.png",
+   "png_sha256": "593420fa9026257774705ae8f8bfb471c712e84b1198a01d51183ecdcdfae090",
+   "match": {
+    "names": [
+     "deepseek"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "whatsapp",
+   "name": "WhatsApp",
+   "group": "apps",
+   "ico": "icons/whatsapp.ico",
+   "ico_sha256": "0cc8a738bd221dc4415dfd81bcbea74bd7a67e60d748356bef5b56d1cd7183a7",
+   "png": "icons/whatsapp.png",
+   "png_sha256": "9cdef50d4ee13913e32c8be46fc40a8680b41c502d60e08bd99df3c2eaf8bcf7",
+   "match": {
+    "names": [
+     "whatsapp"
+    ],
+    "exes": [
+     "whatsapp"
+    ]
+   }
+  },
+  {
+   "id": "viber",
+   "name": "Viber",
+   "group": "apps",
+   "ico": "icons/viber.ico",
+   "ico_sha256": "0b6573368b44ecb68fe1329ef9d91c3736c880f3a0495dfa6aab4e539158d5da",
+   "png": "icons/viber.png",
+   "png_sha256": "3f8798cbb7784c04b3382b5ba185c98721ce0e6ce43af7f5db2c967ae6516f04",
+   "match": {
+    "names": [
+     "viber"
+    ],
+    "exes": [
+     "viber"
+    ]
+   }
+  },
+  {
+   "id": "signal",
+   "name": "Signal",
+   "group": "apps",
+   "ico": "icons/signal.ico",
+   "ico_sha256": "92b7c679f9a8354e9d92653e531c2c055e7b28b96851f0c7ba633eb13fe89cc2",
+   "png": "icons/signal.png",
+   "png_sha256": "ed5432937280743109c10f24bedbe2ac227470c3241f4d09b99741abde318a1e",
+   "match": {
+    "names": [
+     "signal"
+    ],
+    "exes": [
+     "signal"
+    ]
+   }
+  },
+  {
+   "id": "skype",
+   "name": "Skype",
+   "group": "apps",
+   "ico": "icons/skype.ico",
+   "ico_sha256": "300aece686e30cde09aa96ce836a8fedb89c0e78d1601a51249c07a4d0aadc68",
+   "png": "icons/skype.png",
+   "png_sha256": "cc086ca3215c6ea3a82c50cfcb2d4615ddd71fb7be55b4b1a24d965ff01cb082",
+   "match": {
+    "names": [
+     "skype"
+    ],
+    "exes": [
+     "skype"
+    ]
+   }
+  },
+  {
+   "id": "zoom",
+   "name": "Zoom",
+   "group": "apps",
+   "ico": "icons/zoom.ico",
+   "ico_sha256": "c2cc86a8a0dcf3fb1130e03e1769c772c40cf8819b17375d6eac406b15540459",
+   "png": "icons/zoom.png",
+   "png_sha256": "9bb911371437b2371372b441f1ad4a05952203b790d2c9656c80baaf5e0ce8af",
+   "match": {
+    "names": [
+     "zoom",
+     "zoomworkplace",
+     "zoomvideomeetings",
+     "zoomus"
+    ],
+    "exes": [
+     "zoom"
+    ]
+   }
+  },
+  {
+   "id": "slack",
+   "name": "Slack",
+   "group": "apps",
+   "ico": "icons/slack.ico",
+   "ico_sha256": "e25d8df4cc80e2ee18af4563fc08474691b1936be0cbd0a4237eff24643b3e8a",
+   "png": "icons/slack.png",
+   "png_sha256": "eef9fe6edb77385908cb133dc15c6acabcf92fe916d02a3499ece6c4e5367712",
+   "match": {
+    "names": [
+     "slack"
+    ],
+    "exes": [
+     "slack"
+    ]
+   }
+  },
+  {
+   "id": "vk",
+   "name": "VK",
+   "group": "apps",
+   "ico": "icons/vk.ico",
+   "ico_sha256": "11049c5e1828a7be0ac3047bdbd427e82af5034bc3835904a83b7048ee70d41d",
+   "png": "icons/vk.png",
+   "png_sha256": "ace68a9afd32bae5f29494708181ddfeeea8e84cbf9addd4dd9c87b31231d093",
+   "match": {
+    "names": [
+     "vk",
+     "vkontakte",
+     "vkмессенджер",
+     "vkmessenger"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "yandexmusic",
+   "name": "Яндекс Музыка",
+   "group": "apps",
+   "ico": "icons/yandexmusic.ico",
+   "ico_sha256": "d14e06a7271c1d369ee5327e8cbca2aef84b61ee82cf2ba4b6e6267b0d3e7231",
+   "png": "icons/yandexmusic.png",
+   "png_sha256": "408d975e11a33733433b70ac8611a97bf4f6b4720289962d310e5186d7f13412",
+   "match": {
+    "names": [
+     "яндексмузыка",
+     "yandexmusic",
+     "yandexмузыка",
+     "yandexdesktopmusic"
+    ],
+    "exes": [
+     "яндексмузыка",
+     "yandexmusic"
+    ]
+   }
+  },
+  {
+   "id": "pulsesync",
+   "name": "PulseSync",
+   "group": "apps",
+   "ico": "icons/pulsesync.ico",
+   "ico_sha256": "6efb7d630928bb0c605628062a74d13874e5c9a5dc06d68708e7f1c2264ac110",
+   "png": "icons/pulsesync.png",
+   "png_sha256": "9c39feb42ecd167e862ca3f0cd60d66673491db2f5216f1ff6ab439f4fb9ba32",
+   "match": {
+    "names": [
+     "pulsesync"
+    ],
+    "exes": [
+     "pulsesync"
+    ]
+   }
+  },
+  {
+   "id": "spotify",
+   "name": "Spotify",
+   "group": "apps",
+   "ico": "icons/spotify.ico",
+   "ico_sha256": "a98ef7c9eccf1f3242211c8d22bcadcfe0bee772f0b633aba5f9726eb2f3ac08",
+   "png": "icons/spotify.png",
+   "png_sha256": "5b3cd53ca0a4ce1f687b7b8ea7f271e285311d56c6479be691bb528e3e71376e",
+   "match": {
+    "names": [
+     "spotify"
+    ],
+    "exes": [
+     "spotify"
+    ]
+   }
+  },
+  {
+   "id": "applemusic",
+   "name": "Apple Music",
+   "group": "apps",
+   "ico": "icons/applemusic.ico",
+   "ico_sha256": "694bcdad4f10f79b20fd558d7da6d151d4dcd3fedd258a605daba062e653640e",
+   "png": "icons/applemusic.png",
+   "png_sha256": "2a49e78a7d69fa99d95a428e0a47923ab3ae8120da286b78c8a5d22b988a7a57",
+   "match": {
+    "names": [
+     "applemusic"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "youtube",
+   "name": "YouTube",
+   "group": "apps",
+   "ico": "icons/youtube.ico",
+   "ico_sha256": "3266c37e04c64debae35f0ac5909823079e9976b94fba6bce9a1ebd2cacaa9c9",
+   "png": "icons/youtube.png",
+   "png_sha256": "34a23a75e166467d95e18a08a18983c19ded81c42904d078f1f02b89ccdbbce4",
+   "match": {
+    "names": [
+     "youtube"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "youtubemusic",
+   "name": "YouTube Music",
+   "group": "apps",
+   "ico": "icons/youtubemusic.ico",
+   "ico_sha256": "c29f0bae290a51f37eb0b241a165b0f56d7fbb0b7e3767c5b9a945193eaa4450",
+   "png": "icons/youtubemusic.png",
+   "png_sha256": "e96bcbe2f81a7f5b3a5996c99583e14ef134ff82fcb497b70ad391d8e3a48d59",
+   "match": {
+    "names": [
+     "youtubemusic"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "twitch",
+   "name": "Twitch",
+   "group": "apps",
+   "ico": "icons/twitch.ico",
+   "ico_sha256": "a208f4d9b0d859e0ef4305785730937f0e3c03d1d7baeb5c47f2b340b34b3a8d",
+   "png": "icons/twitch.png",
+   "png_sha256": "4fd3dc71a668c09d51d6fa663966ae46f25c44b1ec89e3bc9ddf569543fd1aea",
+   "match": {
+    "names": [
+     "twitch"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "netflix",
+   "name": "Netflix",
+   "group": "apps",
+   "ico": "icons/netflix.ico",
+   "ico_sha256": "2819c6456210f54b75cee4b312e12d024db2fbf921e90958db686aa42bcf4a68",
+   "png": "icons/netflix.png",
+   "png_sha256": "c02f3b25c2bf2ecc1c1968a9114dfd7b9f7da75d6b35a6fb39894f3c86eda89f",
+   "match": {
+    "names": [
+     "netflix"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "kinopoisk",
+   "name": "Кинопоиск",
+   "group": "apps",
+   "ico": "icons/kinopoisk.ico",
+   "ico_sha256": "4ca4235ae911db127dda726e3f188caa9662b2bf007817eee15ab51447c3e915",
+   "png": "icons/kinopoisk.png",
+   "png_sha256": "3d2af06dedf76c4b35f185b418680f9337f4ed1e8608cc0cae66100be0120671",
+   "match": {
+    "names": [
+     "кинопоиск",
+     "kinopoisk"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "vlc",
+   "name": "VLC",
+   "group": "apps",
+   "ico": "icons/vlc.ico",
+   "ico_sha256": "0274356d81991e106707fde7c7d3388c2295c442b00c4366bbf0414dbfaa62b9",
+   "png": "icons/vlc.png",
+   "png_sha256": "c02573af07bee8930db9e9cb3173a049540685a6444d43583f9e4ea5d31f5d80",
+   "match": {
+    "names": [
+     "vlc",
+     "vlcmediaplayer"
+    ],
+    "exes": [
+     "vlc"
+    ]
+   }
+  },
+  {
+   "id": "obs",
+   "name": "OBS Studio",
+   "group": "apps",
+   "ico": "icons/obs.ico",
+   "ico_sha256": "9605a31e8d35af051ab970a20d4979012e1f9114dc79c3cd0ea513010e24c4f0",
+   "png": "icons/obs.png",
+   "png_sha256": "d0bc30b12dac4dd5686fb6b28882475944ecc6ccf750257ca5e2d11b6514865d",
+   "match": {
+    "names": [
+     "obsstudio",
+     "obs"
+    ],
+    "exes": [
+     "obs64",
+     "obs32",
+     "obs"
+    ]
+   }
+  },
+  {
+   "id": "anilibrix",
+   "name": "AniLibrix",
+   "group": "apps",
+   "ico": "icons/anilibrix.ico",
+   "ico_sha256": "57718c6d8bb9da2605c26733165cac18d26b638ac2398ea9af883c7d6fdff6df",
+   "png": "icons/anilibrix.png",
+   "png_sha256": "380a2ce384894df9246c0693fb72f65ca5d64b2adc56cc4818c71e04ba7165c8",
+   "match": {
+    "names": [
+     "anilibrix",
+     "анилибрикс"
+    ],
+    "exes": [
+     "anilibrix"
+    ]
+   }
+  },
+  {
+   "id": "anilibria",
+   "name": "AniLibria",
+   "group": "apps",
+   "ico": "icons/anilibria.ico",
+   "ico_sha256": "b696aec6b729f640d0c4755880d345dfbe9fce1091d4983f05b409f3e20b64b3",
+   "png": "icons/anilibria.png",
+   "png_sha256": "58e2e37da1a03b33f787ae4c18dabbc6a5042cbce410b9709264831fcd6eba12",
+   "match": {
+    "names": [
+     "anilibria",
+     "анилибрия",
+     "anilibriatv"
+    ],
+    "exes": [
+     "anilibria"
+    ]
+   }
+  },
+  {
+   "id": "taiga",
+   "name": "Taiga",
+   "group": "apps",
+   "ico": "icons/taiga.ico",
+   "ico_sha256": "895e1ce1e0db0f01029d46541ab31335e9fd3bade5017e4cef4988c579192f43",
+   "png": "icons/taiga.png",
+   "png_sha256": "414d8377e76e839845fe34389d8fb0696f4132e65c5135796f95d1c4f2326467",
+   "match": {
+    "names": [
+     "taiga"
+    ],
+    "exes": [
+     "taiga"
+    ]
+   }
+  },
+  {
+   "id": "steam",
+   "name": "Steam",
+   "group": "games",
+   "ico": "icons/steam.ico",
+   "ico_sha256": "6b48fa4a1e36e4bbef9abbf83fc83a58c1566b13f8624c6c510fc0818c3ba398",
+   "png": "icons/steam.png",
+   "png_sha256": "563a860ca7e13544b6bd86f3942ff4d600730f015a212c34db32159cfc628664",
+   "match": {
+    "names": [
+     "steam"
+    ],
+    "exes": [
+     "steam"
+    ]
+   }
+  },
+  {
+   "id": "epicgames",
+   "name": "Epic Games",
+   "group": "games",
+   "ico": "icons/epicgames.ico",
+   "ico_sha256": "071fd9d21841ac7dbe4d10400b84e4de27f1591f7e9efb2835fb7a21c2986b28",
+   "png": "icons/epicgames.png",
+   "png_sha256": "65fbdb6a935cf80030083a282a17d26cb1c59f8638a0e5eaa3b6eb8dd232d360",
+   "match": {
+    "names": [
+     "epicgameslauncher",
+     "epicgames"
+    ],
+    "exes": [
+     "epicgameslauncher"
+    ]
+   }
+  },
+  {
+   "id": "roblox",
+   "name": "Roblox",
+   "group": "games",
+   "ico": "icons/roblox.ico",
+   "ico_sha256": "3441c901ed3bc8014dd4a712bd963d2c7cff90ad82131aa51f818f44748d4691",
+   "png": "icons/roblox.png",
+   "png_sha256": "59d41666e367dc0901c6037e4b556b3dd77e5ba1ab8b08f848386b5303eec061",
+   "match": {
+    "names": [
+     "roblox",
+     "robloxplayer",
+     "robloxstudio"
+    ],
+    "exes": [
+     "robloxplayerbeta",
+     "robloxplayerlauncher",
+     "robloxstudiobeta"
+    ]
+   }
+  },
+  {
+   "id": "minecraft",
+   "name": "Minecraft",
+   "group": "games",
+   "ico": "icons/minecraft.ico",
+   "ico_sha256": "d15e946aed69e7890f8eb34d3522b02720b8bd43f97b99093f4cf927c9b05d12",
+   "png": "icons/minecraft.png",
+   "png_sha256": "eaa191699ab72db1879800b1b60d572414e469278419785cc4305f0a8d2fe382",
+   "match": {
+    "names": [
+     "minecraft",
+     "minecraftlauncher",
+     "tlauncher",
+     "prismlauncher"
+    ],
+    "exes": [
+     "minecraftlauncher",
+     "tlauncher",
+     "prismlauncher"
+    ]
+   }
+  },
+  {
+   "id": "fortnite",
+   "name": "Fortnite",
+   "group": "games",
+   "ico": "icons/fortnite.ico",
+   "ico_sha256": "3ead09c96af449cd597f66f6b9c74b4fe851b9399adeb5e00878ca0f8800a36e",
+   "png": "icons/fortnite.png",
+   "png_sha256": "1c2661729fea33e9ce3abe506804e58755c02005cd58ea879d4ffd06ca952969",
+   "match": {
+    "names": [
+     "fortnite"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "valorant",
+   "name": "Valorant",
+   "group": "games",
+   "ico": "icons/valorant.ico",
+   "ico_sha256": "e943c9ffcbf215328da85bacc04582090173d836a27d5ec6ac2a66f47e4f6df6",
+   "png": "icons/valorant.png",
+   "png_sha256": "68ac338520c47353cc8a818628606801b7b748d8063854d189e9fd6a885c0008",
+   "match": {
+    "names": [
+     "valorant"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "lol",
+   "name": "League of Legends",
+   "group": "games",
+   "ico": "icons/lol.ico",
+   "ico_sha256": "2d64e8ae8756758e49181b0c78e8c726481314155a54228c54a94d6d01aed544",
+   "png": "icons/lol.png",
+   "png_sha256": "bd0618bf6f6b863698467192a539e2f491fe17a11c8c29aa494bb20339139229",
+   "match": {
+    "names": [
+     "leagueoflegends"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "riot",
+   "name": "Riot Client",
+   "group": "games",
+   "ico": "icons/riot.ico",
+   "ico_sha256": "dd0da360f0fbef5f40e5a50cf402e4c395227ad3295b2a29778b9d2768a9ee71",
+   "png": "icons/riot.png",
+   "png_sha256": "f2ab874e486f737a240887868514945e231da09ef108c2e845ac88fcb7c08277",
+   "match": {
+    "names": [
+     "riotclient",
+     "riotgames"
+    ],
+    "exes": [
+     "riotclientservices"
+    ]
+   }
+  },
+  {
+   "id": "battlenet",
+   "name": "Battle.net",
+   "group": "games",
+   "ico": "icons/battlenet.ico",
+   "ico_sha256": "eee6cb110fae78a9748812811d2d9e306bcd22aa4acac886234e2c4e2f01b8bc",
+   "png": "icons/battlenet.png",
+   "png_sha256": "8890b55b59527d201611e7a129c17676d6e573b928d4883e20723188b66421aa",
+   "match": {
+    "names": [
+     "battlenet",
+     "battledotnet"
+    ],
+    "exes": [
+     "battlenet",
+     "battlenetlauncher"
+    ]
+   }
+  },
+  {
+   "id": "ea",
+   "name": "EA app",
+   "group": "games",
+   "ico": "icons/ea.ico",
+   "ico_sha256": "cf4ec95ad5dc35dc1631fc6d0f9386db29bc0e455ecbb7ceef62db3b4bfd2538",
+   "png": "icons/ea.png",
+   "png_sha256": "50ae36c3dbf94ace6ed430d05283ba6990a751ee3778e3216d6c9c103dbff4b7",
+   "match": {
+    "names": [
+     "eaapp",
+     "ea",
+     "origin"
+    ],
+    "exes": [
+     "eadesktop",
+     "origin"
+    ]
+   }
+  },
+  {
+   "id": "ubisoft",
+   "name": "Ubisoft Connect",
+   "group": "games",
+   "ico": "icons/ubisoft.ico",
+   "ico_sha256": "a5e90a51864e0af9ee8a04745b08caa053494b28421dce0365cc07322218f467",
+   "png": "icons/ubisoft.png",
+   "png_sha256": "8d3b4fdcab5954f20ed25a539799127c8e9ee0b6b1092ce810c679783e1160de",
+   "match": {
+    "names": [
+     "ubisoftconnect",
+     "uplay",
+     "ubisoft"
+    ],
+    "exes": [
+     "upc",
+     "uplay"
+    ]
+   }
+  },
+  {
+   "id": "gog",
+   "name": "GOG Galaxy",
+   "group": "games",
+   "ico": "icons/gog.ico",
+   "ico_sha256": "51047934a3ddd72371c5e4be44dfcd47b7df1e41124b5655a9d18e35bf7e128f",
+   "png": "icons/gog.png",
+   "png_sha256": "b27825119e35bb93b631fea35204d3c60f47e7e25ef1fec2e0111b18d91c07be",
+   "match": {
+    "names": [
+     "goggalaxy",
+     "gog"
+    ],
+    "exes": [
+     "galaxyclient"
+    ]
+   }
+  },
+  {
+   "id": "rockstar",
+   "name": "Rockstar Games",
+   "group": "games",
+   "ico": "icons/rockstar.ico",
+   "ico_sha256": "ead2d53af9133a7ddd9519fb467cb1750093da4c766017bce307df5d63c154ae",
+   "png": "icons/rockstar.png",
+   "png_sha256": "cf82a352d42149f98d161e9a1ece01b9e1a08737d38d32ded2376099dbca6513",
+   "match": {
+    "names": [
+     "rockstargameslauncher",
+     "rockstargames"
+    ],
+    "exes": [
+     "launcher"
+    ]
+   }
+  },
+  {
+   "id": "cs2",
+   "name": "Counter-Strike 2",
+   "group": "games",
+   "ico": "icons/cs2.ico",
+   "ico_sha256": "475bb754165963c41eac3aefa0d65ad7843517c01ada06c6867d47ad727f43d6",
+   "png": "icons/cs2.png",
+   "png_sha256": "d1fc1f6f7664b26493d3f5cb89ddf207013c7bb6cf2be07b9b7c14000aea33d4",
+   "match": {
+    "names": [
+     "counterstrike2",
+     "counterstrike",
+     "cs2"
+    ],
+    "exes": [
+     "cs2"
+    ]
+   }
+  },
+  {
+   "id": "dota2",
+   "name": "Dota 2",
+   "group": "games",
+   "ico": "icons/dota2.ico",
+   "ico_sha256": "731666f3ae5ab31f55c6243e413ea391a5472af0732012d9dbd8366da60fe606",
+   "png": "icons/dota2.png",
+   "png_sha256": "4cc390c9479a5fdca658cd70e20486fbedd1d57eca5f9018b40e87502811d1b0",
+   "match": {
+    "names": [
+     "dota2"
+    ],
+    "exes": [
+     "dota2"
+    ]
+   }
+  },
+  {
+   "id": "xbox",
+   "name": "Xbox",
+   "group": "games",
+   "ico": "icons/xbox.ico",
+   "ico_sha256": "0bca5be175f36ad2e349156e3607b246e0576a5f2bc0566edb45f4f452b06322",
+   "png": "icons/xbox.png",
+   "png_sha256": "3ac1e95fe17a7b92bb19d1a2c0815c8d5a4d09b2389e344a0cc86d9ccd69310e",
+   "match": {
+    "names": [
+     "xbox",
+     "xboxapp",
+     "gamingapp"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "playstation",
+   "name": "PS Remote Play",
+   "group": "games",
+   "ico": "icons/playstation.ico",
+   "ico_sha256": "e872a8ba413f6ec47519ca1798adc7d56558ff867b945a691ea05bfadd9c9a56",
+   "png": "icons/playstation.png",
+   "png_sha256": "51ea9c5e885061aacf09548fb6565d9d282e81e3a38c6c71fea582ba1a2d70a3",
+   "match": {
+    "names": [
+     "psremoteplay",
+     "playstation",
+     "playstationplus"
+    ],
+    "exes": [
+     "remoteplay"
+    ]
+   }
+  },
+  {
+   "id": "worldoftanks",
+   "name": "World of Tanks",
+   "group": "games",
+   "ico": "icons/worldoftanks.ico",
+   "ico_sha256": "b4cdc80b694e1bd41cfb0214fdcb1c67f645f38ad68bc956cd096b66f97b5b4d",
+   "png": "icons/worldoftanks.png",
+   "png_sha256": "145ad345b9c76046d76f816ae39ed91c4b38e4b572d9add73e30baa022241c55",
+   "match": {
+    "names": [
+     "worldoftanks",
+     "миртанков",
+     "wargaminggamecenter",
+     "lestagamecenter",
+     "wgc"
+    ],
+    "exes": [
+     "worldoftanks",
+     "wgc",
+     "lgc"
+    ]
+   }
+  },
+  {
+   "id": "faceit",
+   "name": "FACEIT",
+   "group": "games",
+   "ico": "icons/faceit.ico",
+   "ico_sha256": "efa1ed7dae80de81bf42192c37d547b966700818549fa86322da524e158eb367",
+   "png": "icons/faceit.png",
+   "png_sha256": "1c0cec7ec5057fd28bdbb20cc476e789af7fbb81ba0d526e68b0816f06197abb",
+   "match": {
+    "names": [
+     "faceit",
+     "faceitac"
+    ],
+    "exes": [
+     "faceit"
+    ]
+   }
+  },
+  {
+   "id": "curseforge",
+   "name": "CurseForge",
+   "group": "games",
+   "ico": "icons/curseforge.ico",
+   "ico_sha256": "dc1b76c5db468325660f5faf39ad8f26ef721d1c75d21548e9d2210609ba500c",
+   "png": "icons/curseforge.png",
+   "png_sha256": "712249ea4685384c364243edbda8af23e1382451c518bd9109a00d00cb867eec",
+   "match": {
+    "names": [
+     "curseforge"
+    ],
+    "exes": [
+     "curseforge"
+    ]
+   }
+  },
+  {
+   "id": "modrinth",
+   "name": "Modrinth",
+   "group": "games",
+   "ico": "icons/modrinth.ico",
+   "ico_sha256": "b2f343b1c35e13e6a0abcf6660c438080d148f2f1deaf610e7b5df09e2447395",
+   "png": "icons/modrinth.png",
+   "png_sha256": "ecdc331d1610e14175dfc94fa4718719b57901ef06aaae9ca5699915d2fac5ed",
+   "match": {
+    "names": [
+     "modrinth",
+     "modrinthapp"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "r2modman",
+   "name": "r2modman",
+   "group": "games",
+   "ico": "icons/r2modman.ico",
+   "ico_sha256": "27596e1ac087438894a41eb6a4d3e8e373b90d530d53f76ba7f72bb65b28c949",
+   "png": "icons/r2modman.png",
+   "png_sha256": "e9b6d5b61b3a811fecf1dd69683f3eff86a570d20e1a4d40db52d386c595386a",
+   "match": {
+    "names": [
+     "r2modman",
+     "thunderstoremodmanager"
+    ],
+    "exes": [
+     "r2modman"
+    ]
+   }
+  },
+  {
+   "id": "wemod",
+   "name": "WeMod",
+   "group": "games",
+   "ico": "icons/wemod.ico",
+   "ico_sha256": "a805d2a171dbc04e698269e2d9c1489c13907184b188fdab2c93263abdfbb68a",
+   "png": "icons/wemod.png",
+   "png_sha256": "aa31c802bf4f04d3fe894db2759ed92bca66cfd7b8497e8422d3278016cb1cdc",
+   "match": {
+    "names": [
+     "wemod"
+    ],
+    "exes": [
+     "wemod"
+    ]
+   }
+  },
+  {
+   "id": "gearup",
+   "name": "GearUP",
+   "group": "games",
+   "ico": "icons/gearup.ico",
+   "ico_sha256": "2f00a2a28b4c9f2a14c99ea932afde3bac82220616b961aa7159d357970aa0da",
+   "png": "icons/gearup.png",
+   "png_sha256": "06078dd0732fff74dbece191483f2531862475e232c56368a00241e167c7cf82",
+   "match": {
+    "names": [
+     "gearup",
+     "gearupbooster"
+    ],
+    "exes": [
+     "gearupbooster"
+    ]
+   }
+  },
+  {
+   "id": "nucleus",
+   "name": "Nucleus Co-op",
+   "group": "games",
+   "ico": "icons/nucleus.ico",
+   "ico_sha256": "c4a5a8cd16f239ec348e0d3fbc5745cdb443b21e763b4bc62bf837bd8487304d",
+   "png": "icons/nucleus.png",
+   "png_sha256": "f50ce6b24b3e667f5399a1585774842b218e413157166499b6c238ade034825c",
+   "match": {
+    "names": [
+     "nucleuscoop"
+    ],
+    "exes": [
+     "nucleuscoop"
+    ]
+   }
+  },
+  {
+   "id": "ds4windows",
+   "name": "DS4Windows",
+   "group": "games",
+   "ico": "icons/ds4windows.ico",
+   "ico_sha256": "440cf1bd2e9d3e0cab47bdff365d6dd3070f17a21d22da4a02e963eee985bd47",
+   "png": "icons/ds4windows.png",
+   "png_sha256": "784df31d234521b720b8ecfd6b3ee959560a50b9e5e7be2952b8e89a84a73e86",
+   "match": {
+    "names": [
+     "ds4windows",
+     "dsx",
+     "dualsensex"
+    ],
+    "exes": [
+     "ds4windows",
+     "dsx"
+    ]
+   }
+  },
+  {
+   "id": "nvidia",
+   "name": "NVIDIA",
+   "group": "system",
+   "ico": "icons/nvidia.ico",
+   "ico_sha256": "4a39bf6a8b1611fa3e7a9898162c4f721a8480a41937b98fc84212348cb9f2a1",
+   "png": "icons/nvidia.png",
+   "png_sha256": "4e2f6e786ec1604f8829116b7aa540e610825948b980ef41ec0a0b70e90b77e2",
+   "match": {
+    "names": [
+     "nvidiaapp",
+     "geforceexperience",
+     "nvidia",
+     "nvidiacontrolpanel"
+    ],
+    "exes": [
+     "nvidiaapp"
+    ]
+   }
+  },
+  {
+   "id": "amd",
+   "name": "AMD Adrenalin",
+   "group": "system",
+   "ico": "icons/amd.ico",
+   "ico_sha256": "25eac9552326f8b5d0917ca9a0d93e595a52c08ddfc00d4a1b687297753e81d6",
+   "png": "icons/amd.png",
+   "png_sha256": "d7f66cd0a620c296b19a22c013d77e3e33a34dee95a4feda8c3ef36b11a79322",
+   "match": {
+    "names": [
+     "amdsoftware",
+     "amdradeonsoftware",
+     "amdadrenalin",
+     "radeonsoftware"
+    ],
+    "exes": [
+     "radeonsoftware"
+    ]
+   }
+  },
+  {
+   "id": "msicenter",
+   "name": "MSI Center",
+   "group": "system",
+   "ico": "icons/msicenter.ico",
+   "ico_sha256": "a3a79b8177d5683b2f7928adc71f0e89648fb9c04a33c397164e1494c09b4c01",
+   "png": "icons/msicenter.png",
+   "png_sha256": "a218f890a4a0f50c61bfd7f9363500386f571dcdede917f9e21552f8bba92b02",
+   "match": {
+    "names": [
+     "msicenter",
+     "dragoncenter",
+     "msi"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "afterburner",
+   "name": "MSI Afterburner",
+   "group": "system",
+   "ico": "icons/afterburner.ico",
+   "ico_sha256": "05c8858353be1bb70ebd9d3108afea18e66d1a5a1dd202b3bee518a023222747",
+   "png": "icons/afterburner.png",
+   "png_sha256": "4b1bd0abf75480639c10db324fb7d04695cf85e525b57daa28587bf373f28f38",
+   "match": {
+    "names": [
+     "msiafterburner",
+     "afterburner"
+    ],
+    "exes": [
+     "msiafterburner"
+    ]
+   }
+  },
+  {
+   "id": "steelseries",
+   "name": "SteelSeries GG",
+   "group": "system",
+   "ico": "icons/steelseries.ico",
+   "ico_sha256": "0ca6a64396793c640485661be50535cfc91689e84662c18d329fa8f70ae720f5",
+   "png": "icons/steelseries.png",
+   "png_sha256": "2c3b6152ace4a9cec44c6fb7fcc28b8510ee9234e2c6d51ebcb3be79189d6ff2",
+   "match": {
+    "names": [
+     "steelseriesgg",
+     "steelseries",
+     "gg"
+    ],
+    "exes": [
+     "steelseriesgg"
+    ]
+   }
+  },
+  {
+   "id": "logitech",
+   "name": "Logitech G HUB",
+   "group": "system",
+   "ico": "icons/logitech.ico",
+   "ico_sha256": "4b128a7ad094c59626e6b392469ed51c6cda39a67c0da4cc6a08c1b1e7479d8f",
+   "png": "icons/logitech.png",
+   "png_sha256": "e83ee4b8e4c6986dd921e7416d951e3d697b15b86bf5fb8c1032cbb28fb52b68",
+   "match": {
+    "names": [
+     "logitechghub",
+     "ghub",
+     "logitech",
+     "logioptions",
+     "logioptionsplus"
+    ],
+    "exes": [
+     "lghub"
+    ]
+   }
+  },
+  {
+   "id": "logicapture",
+   "name": "Logi Capture",
+   "group": "system",
+   "ico": "icons/logicapture.ico",
+   "ico_sha256": "475046393f265790b9ff4ba32dce513c905005bd663a109990d79a6fcbd6d04a",
+   "png": "icons/logicapture.png",
+   "png_sha256": "6ff60fe62f4476e27991ddd93c60fd20990bf7cb74980ddbc1b4f33da52dbc57",
+   "match": {
+    "names": [
+     "logicapture",
+     "logitechcapture"
+    ],
+    "exes": [
+     "logicapture"
+    ]
+   }
+  },
+  {
+   "id": "razer",
+   "name": "Razer Synapse",
+   "group": "system",
+   "ico": "icons/razer.ico",
+   "ico_sha256": "f4b675f565c12d02421a8b99f66659b17fc1ccd7d812f163cc66ffbe417b7845",
+   "png": "icons/razer.png",
+   "png_sha256": "efe28de3f762ea94540adfbe79d157e60a325c399cb564d4532bb986f864021b",
+   "match": {
+    "names": [
+     "razersynapse",
+     "razer"
+    ],
+    "exes": [
+     "razersynapse"
+    ]
+   }
+  },
+  {
+   "id": "asus",
+   "name": "Armoury Crate",
+   "group": "system",
+   "ico": "icons/asus.ico",
+   "ico_sha256": "c3649400543432b90863630887e5edd4fae3f8e2622f7556e7d1d57ccf6d44bd",
+   "png": "icons/asus.png",
+   "png_sha256": "e049bc16da07c739a0e7ee97164638807bf62dbf26ad1b9480261dc5401f6543",
+   "match": {
+    "names": [
+     "armourycrate",
+     "asus",
+     "myasus"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "redragon",
+   "name": "Redragon",
+   "group": "system",
+   "ico": "icons/redragon.ico",
+   "ico_sha256": "c2986ec850cce7eb1b8af4b786cc56e3e8fd28c47e3c87a0adf27d4dbe5a8a59",
+   "png": "icons/redragon.png",
+   "png_sha256": "561fcba5062ad014946ff9e5d7e6c6435dd5c8c8ab4ddf875ba4d6dcdefd4d4d",
+   "match": {
+    "names": [
+     "redragon",
+     "redragonm994"
+    ],
+    "exes": [
+     "oemdrv"
+    ]
+   }
+  },
+  {
+   "id": "taskmgr",
+   "name": "Диспетчер задач",
+   "group": "system",
+   "ico": "icons/taskmgr.ico",
+   "ico_sha256": "a0cc41b7008d0264c254cbae483cd495ea965491073a2c3cae4ced86d34010c5",
+   "png": "icons/taskmgr.png",
+   "png_sha256": "bc4a6536f82624934a7f9cbbd7418a33e2a4efacf5514125ae36b93c63651abb",
+   "match": {
+    "names": [
+     "taskmanager",
+     "диспетчерзадач"
+    ],
+    "exes": [
+     "taskmgr"
+    ]
+   }
+  },
+  {
+   "id": "explorer",
+   "name": "Проводник",
+   "group": "system",
+   "ico": "icons/explorer.ico",
+   "ico_sha256": "08052544db51c9eeac72a7572488f46b83bb1398704abf0c4f418821a9e679de",
+   "png": "icons/explorer.png",
+   "png_sha256": "b5075f2250c4561b79d4256af5747a1289a0699636c9fdb0253d97ac266bb5b5",
+   "match": {
+    "names": [
+     "fileexplorer",
+     "проводник",
+     "explorer",
+     "windowsexplorer"
+    ],
+    "exes": [
+     "explorer"
+    ]
+   }
+  },
+  {
+   "id": "files",
+   "name": "Files",
+   "group": "system",
+   "ico": "icons/files.ico",
+   "ico_sha256": "067d116522698641e1ce885f77745934db8374f12147e85af92315e93cef8dcd",
+   "png": "icons/files.png",
+   "png_sha256": "2eba23dec03eef4f4ab09bc0df861deccec8fdfc5e874bf0700ed48c953931b1",
+   "match": {
+    "names": [
+     "files",
+     "filesapp"
+    ],
+    "exes": [
+     "files"
+    ]
+   }
+  },
+  {
+   "id": "calculator",
+   "name": "Калькулятор",
+   "group": "system",
+   "ico": "icons/calculator.ico",
+   "ico_sha256": "a65b0c5dc4eb030dec5370eefc9801aa549a20ae2435529ec6cc1c53543799fb",
+   "png": "icons/calculator.png",
+   "png_sha256": "659a1525878c12bbe45394ba7d3952421e38eddc739ae7b2a7f54bdc5ecc6e41",
+   "match": {
+    "names": [
+     "калькулятор",
+     "calculator",
+     "windowscalculator"
+    ],
+    "exes": [
+     "calc"
+    ]
+   }
+  },
+  {
+   "id": "store",
+   "name": "Microsoft Store",
+   "group": "system",
+   "ico": "icons/store.ico",
+   "ico_sha256": "ef988ecb2693a10ac8b367cef6fd75260db1c42ce3d6e28efd5e7fb178602f54",
+   "png": "icons/store.png",
+   "png_sha256": "4c5a1a36911ffc080ca6121ddb8039ed31f1148c3e3db2135bb9934d02e651d9",
+   "match": {
+    "names": [
+     "microsoftstore",
+     "windowsstore",
+     "store"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "todo",
+   "name": "Microsoft To Do",
+   "group": "system",
+   "ico": "icons/todo.ico",
+   "ico_sha256": "20c233e19ecf76e41ac2308b7138a0afd92d5adaa3ba1c57491cf0f6896cc089",
+   "png": "icons/todo.png",
+   "png_sha256": "803adb26963ae0ef995dc640afb0f31bce68f289ffbac810de665d100e51bfe7",
+   "match": {
+    "names": [
+     "microsofttodo",
+     "todo",
+     "todos"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "alarms",
+   "name": "Будильники и часы",
+   "group": "system",
+   "ico": "icons/alarms.ico",
+   "ico_sha256": "dfda941e0a4e6516c8c89bb65e22e74d39659299d2b4942baf7dd0de0adff27f",
+   "png": "icons/alarms.png",
+   "png_sha256": "3eb4c44b6d5b9177b8bbfd10950e06a5ad8d497b24983686513651b67c054e0c",
+   "match": {
+    "names": [
+     "alarmsclock",
+     "alarms",
+     "windowsalarms",
+     "будильникиичасы",
+     "часы"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "shutdown",
+   "name": "Выключение",
+   "group": "system",
+   "ico": "icons/shutdown.ico",
+   "ico_sha256": "1bb8ab23d1e74417d7029b8556111fa87b42c1d52761c84301f32b7699f89feb",
+   "png": "icons/shutdown.png",
+   "png_sha256": "61cdad44062951b6ca7a5678f84ad6b83d71918dcdc7a58ac02a03cc784da04e",
+   "match": {
+    "names": [
+     "shutdown",
+     "shutdownpctimer",
+     "выключение"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "uninstall",
+   "name": "Удаление программ",
+   "group": "system",
+   "ico": "icons/uninstall.ico",
+   "ico_sha256": "00557f5839084bf7dc98eaa7d979db035776107c719cbb724f4259f82ddf54eb",
+   "png": "icons/uninstall.png",
+   "png_sha256": "8aba66bf04f58d7349a0d95f336088b655bc9ac0c7ebd096ae54b102d1b2310a",
+   "match": {
+    "names": [
+     "установкаиудалениепрограмм",
+     "удалениепрограмм",
+     "uninstall",
+     "addremoveprograms",
+     "programsandfeatures"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "wintoys",
+   "name": "Wintoys",
+   "group": "system",
+   "ico": "icons/wintoys.ico",
+   "ico_sha256": "b110ff5459a43630551a601fd8a2ccdb8c6b087ed47fab69c18f6f27e73934b0",
+   "png": "icons/wintoys.png",
+   "png_sha256": "bd860de045a9363bd1b27573b7a350a80144e6f56c140b42e682152a0086a78c",
+   "match": {
+    "names": [
+     "wintoys"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "eartrumpet",
+   "name": "EarTrumpet",
+   "group": "system",
+   "ico": "icons/eartrumpet.ico",
+   "ico_sha256": "a70ca4683e0ee433bedca91589937f64ee94668b0bd9029e325545b2dd3f2b8e",
+   "png": "icons/eartrumpet.png",
+   "png_sha256": "29aa06c6a1f4751f56c44d884d3ea0c2b91f57067f7d8ac6856cfb91de3db309",
+   "match": {
+    "names": [
+     "eartrumpet"
+    ],
+    "exes": [
+     "eartrumpet"
+    ]
+   }
+  },
+  {
+   "id": "start11",
+   "name": "Start11",
+   "group": "system",
+   "ico": "icons/start11.ico",
+   "ico_sha256": "935e16c640a03086375542c54a90b2a4684b91e379b697308f86e26475957088",
+   "png": "icons/start11.png",
+   "png_sha256": "22fa979a377044ffb0a692b204ba1408895f812227d3d460934ba50e2b81f146",
+   "match": {
+    "names": [
+     "start11",
+     "start11config"
+    ],
+    "exes": [
+     "start11config"
+    ]
+   }
+  },
+  {
+   "id": "forcedeleter",
+   "name": "Wise Force Deleter",
+   "group": "system",
+   "ico": "icons/forcedeleter.ico",
+   "ico_sha256": "14e3561e794b66a056cf71d6fcee654784ecff0eb6dd8121a523927c1b429c75",
+   "png": "icons/forcedeleter.png",
+   "png_sha256": "fadc27bb2d146e85d705a15bb86841490a13de68fa8fd786f8c5c832f2a7abde",
+   "match": {
+    "names": [
+     "wiseforcedeleter",
+     "forcedeleter"
+    ],
+    "exes": [
+     "wiseforcedeleter"
+    ]
+   }
+  },
+  {
+   "id": "speedtest",
+   "name": "Speedtest",
+   "group": "system",
+   "ico": "icons/speedtest.ico",
+   "ico_sha256": "194536bf4a96f4fac9c2415542ff0d83aebfba3eb70dc616d26bd51f9d185c56",
+   "png": "icons/speedtest.png",
+   "png_sha256": "3e41c01f2bfcd91c3889efc033cae339746ba32598c043b24208721b079d71bc",
+   "match": {
+    "names": [
+     "speedtest",
+     "speedtestbyookla"
+    ],
+    "exes": [
+     "speedtest"
+    ]
+   }
+  },
+  {
+   "id": "spacedesk",
+   "name": "spacedesk",
+   "group": "system",
+   "ico": "icons/spacedesk.ico",
+   "ico_sha256": "6fbe5515b87ee8af8435b933b330190e17223002c3be55a6a2f166dfc09096dd",
+   "png": "icons/spacedesk.png",
+   "png_sha256": "976b82285ed9a2c872893a60fb8babdfbc46c7e6943c1be8d3a3067b2639e4c7",
+   "match": {
+    "names": [
+     "spacedesk"
+    ],
+    "exes": [
+     "spacedesk",
+     "spacedeskconsole"
+    ]
+   }
+  },
+  {
+   "id": "kdeconnect",
+   "name": "KDE Connect",
+   "group": "system",
+   "ico": "icons/kdeconnect.ico",
+   "ico_sha256": "6dd897bf4757649927b947f8de2a29e8a8154e6b23465c6ed2383ed427b5659e",
+   "png": "icons/kdeconnect.png",
+   "png_sha256": "abca339fe735b4ce9726d8d0ee88a8dbb063e37d302fa9a8ec2ba96d7704a80f",
+   "match": {
+    "names": [
+     "kdeconnect"
+    ],
+    "exes": [
+     "kdeconnectapp"
+    ]
+   }
+  },
+  {
+   "id": "localsend",
+   "name": "LocalSend",
+   "group": "system",
+   "ico": "icons/localsend.ico",
+   "ico_sha256": "f38c7abc004c3b8e2c8197594aa0904d0afb7521e97668fd5313eb10ad92974c",
+   "png": "icons/localsend.png",
+   "png_sha256": "22ef7d96c872198f8fdf82a08b3d5af8ef15f87fee0db65442975efb9d31b3a6",
+   "match": {
+    "names": [
+     "localsend"
+    ],
+    "exes": [
+     "localsendapp"
+    ]
+   }
+  },
+  {
+   "id": "adb",
+   "name": "ADB AppControl",
+   "group": "system",
+   "ico": "icons/adb.ico",
+   "ico_sha256": "56eec9d630d0fc6aa30944b2892a39cfe6ff233f41b0c4173c64481b0048f15c",
+   "png": "icons/adb.png",
+   "png_sha256": "3b320ace2bc2122f986f91718243182a8301bf40ac5a9f048e802845d24e3ec4",
+   "match": {
+    "names": [
+     "adbappcontrol",
+     "adb"
+    ],
+    "exes": [
+     "adbappcontrol"
+    ]
+   }
+  },
+  {
+   "id": "anydesk",
+   "name": "AnyDesk",
+   "group": "system",
+   "ico": "icons/anydesk.ico",
+   "ico_sha256": "5334869f0438415a14daf2425c4ac5ffd7dbfc773b0630338dac1aa5a91591f1",
+   "png": "icons/anydesk.png",
+   "png_sha256": "d6f6a3e6914d3c69b4d5b7792bca8343f9f895945a877ff0f4954a2de1676da7",
+   "match": {
+    "names": [
+     "anydesk"
+    ],
+    "exes": [
+     "anydesk"
+    ]
+   }
+  },
+  {
+   "id": "teamviewer",
+   "name": "TeamViewer",
+   "group": "system",
+   "ico": "icons/teamviewer.ico",
+   "ico_sha256": "dbb6dbbc4be8c5200d94beca45fbb654c764ad14b6b1894253bb8d1140c7ba24",
+   "png": "icons/teamviewer.png",
+   "png_sha256": "59950a25b61d4c3dc3fba3bec33088153cef94ef76dbf9f21d739467cd662d1a",
+   "match": {
+    "names": [
+     "teamviewer"
+    ],
+    "exes": [
+     "teamviewer"
+    ]
+   }
+  },
+  {
+   "id": "qbittorrent",
+   "name": "qBittorrent",
+   "group": "system",
+   "ico": "icons/qbittorrent.ico",
+   "ico_sha256": "7fdc22873bc07fa8c4bcb19c783c94cf70a7dd7ed5ab77f83ae549b5668c5cd9",
+   "png": "icons/qbittorrent.png",
+   "png_sha256": "ecbe79e4ee12db0cba43030257c41a7e2e37c3188a315af0ce8dfbcbc910d565",
+   "match": {
+    "names": [
+     "qbittorrent"
+    ],
+    "exes": [
+     "qbittorrent"
+    ]
+   }
+  },
+  {
+   "id": "zapret",
+   "name": "Zapret",
+   "group": "system",
+   "ico": "icons/zapret.ico",
+   "ico_sha256": "e41ad102f0f1cdb574a6285072f995cff77ea8278e5f697bce66a3f1b3267208",
+   "png": "icons/zapret.png",
+   "png_sha256": "e1b7098dcbda97f6dcdddb69be02cfcbe27e11c8b30ea77e0e78d33785dec87b",
+   "match": {
+    "names": [
+     "zapret",
+     "zapretdiscordyoutube"
+    ],
+    "exes": [
+     "zapret"
+    ]
+   }
+  },
+  {
+   "id": "nekobox",
+   "name": "NekoBox",
+   "group": "system",
+   "ico": "icons/nekobox.ico",
+   "ico_sha256": "7aed9282e6eb7a39543ce72cd106e0ceea5b8169aa98cdb8c185af6b31ff85ee",
+   "png": "icons/nekobox.png",
+   "png_sha256": "6bf595e16de9d74f792b4c457991700bd4e4347ed9dece68eec7d38e4b3ce667",
+   "match": {
+    "names": [
+     "nekobox",
+     "nekoray"
+    ],
+    "exes": [
+     "nekobox",
+     "nekoray"
+    ]
+   }
+  },
+  {
+   "id": "protonvpn",
+   "name": "Proton VPN",
+   "group": "system",
+   "ico": "icons/protonvpn.ico",
+   "ico_sha256": "7900063a21785c0f052a1eb7f5e92a8d137c60a432be975a07d501edee9cb265",
+   "png": "icons/protonvpn.png",
+   "png_sha256": "067b97021cfd8d7c9216789ff7e1f0d9231414c2fb9301878698524e8aa70f82",
+   "match": {
+    "names": [
+     "protonvpn"
+    ],
+    "exes": [
+     "protonvpn"
+    ]
+   }
+  },
+  {
+   "id": "nordvpn",
+   "name": "NordVPN",
+   "group": "system",
+   "ico": "icons/nordvpn.ico",
+   "ico_sha256": "7bbd11514d4110d50bd286ad78b7b5458376df0c3f1488c9b935d9800f2995dc",
+   "png": "icons/nordvpn.png",
+   "png_sha256": "5fcbf1baf45187e59702be81f469a8ee623e2822a49a342995866a9af0622251",
+   "match": {
+    "names": [
+     "nordvpn"
+    ],
+    "exes": [
+     "nordvpn"
+    ]
+   }
+  },
+  {
+   "id": "wireguard",
+   "name": "WireGuard",
+   "group": "system",
+   "ico": "icons/wireguard.ico",
+   "ico_sha256": "e2b24cba98441786de9b516bb203d078637271cfd88eafe2ec6498e4aa1bdc23",
+   "png": "icons/wireguard.png",
+   "png_sha256": "fde7399cb98ab92aa8d815436f6518468b49e732dc9ab18aee32a7c9e73d35ef",
+   "match": {
+    "names": [
+     "wireguard"
+    ],
+    "exes": [
+     "wireguard"
+    ]
+   }
+  },
+  {
+   "id": "edrawmind",
+   "name": "EdrawMind",
+   "group": "work",
+   "ico": "icons/edrawmind.ico",
+   "ico_sha256": "cfeb397ff431aa638750d9438e0a2a466a2f895219405ca5e8c306fc0a3fb0a4",
+   "png": "icons/edrawmind.png",
+   "png_sha256": "5ff5a86b6851e4f1a58b995c39b1350e1a0d2cddb85be94ae1ef016c1eefa144",
+   "match": {
+    "names": [
+     "edrawmind",
+     "wondershareedrawmind"
+    ],
+    "exes": [
+     "edrawmind"
+    ]
+   }
+  },
+  {
+   "id": "pionex",
+   "name": "Pionex",
+   "group": "work",
+   "ico": "icons/pionex.ico",
+   "ico_sha256": "a5396e64f53fda22030321d0218b2885ab6e92b40e138f396c36d37b1a82530f",
+   "png": "icons/pionex.png",
+   "png_sha256": "44f2062475d402c99b7d2bb70022786810a0200512f6cd8595910c29ef22e592",
+   "match": {
+    "names": [
+     "pionex"
+    ],
+    "exes": [
+     "pionex"
+    ]
+   }
+  },
+  {
+   "id": "notion",
+   "name": "Notion",
+   "group": "work",
+   "ico": "icons/notion.ico",
+   "ico_sha256": "9f3d3ae46c82e73a65708f1f139438ca69c2ade77c3eb19bc2fd359737ce8e83",
+   "png": "icons/notion.png",
+   "png_sha256": "e1c9fc74549d06e12360a66c0b0da23e2c3e67d49b5e7f8ab11bdae7939b89f7",
+   "match": {
+    "names": [
+     "notion"
+    ],
+    "exes": [
+     "notion"
+    ]
+   }
+  },
+  {
+   "id": "obsidian",
+   "name": "Obsidian",
+   "group": "work",
+   "ico": "icons/obsidian.ico",
+   "ico_sha256": "9edd827a4f3b68f21db77c60dfa6fbd51a83da44a0cc7c7d029b8363878a595b",
+   "png": "icons/obsidian.png",
+   "png_sha256": "ebc6c6a49b851e236c55ea30e6f37dc6f7ff4b37fadd00e9e0406f638b94e9bd",
+   "match": {
+    "names": [
+     "obsidian"
+    ],
+    "exes": [
+     "obsidian"
+    ]
+   }
+  },
+  {
+   "id": "standardnotes",
+   "name": "Standard Notes",
+   "group": "work",
+   "ico": "icons/standardnotes.ico",
+   "ico_sha256": "a16dc0b53955a4eb9981384b6b6f83a1ab858caa0d994074e6693590e5e7d8e9",
+   "png": "icons/standardnotes.png",
+   "png_sha256": "3339d046ab176218e5bbdb8bf59341875933dda3166da7ce08c4cea4788722d0",
+   "match": {
+    "names": [
+     "standardnotes"
+    ],
+    "exes": [
+     "standardnotes"
+    ]
+   }
+  },
+  {
+   "id": "simplenote",
+   "name": "Simplenote",
+   "group": "work",
+   "ico": "icons/simplenote.ico",
+   "ico_sha256": "77da7f039ea865cd48efb88d89f7bff71acf23d8ef862c086069ac7025b3315c",
+   "png": "icons/simplenote.png",
+   "png_sha256": "55470f2f2f5ba5839066b0f73c7c389ef67bc1a1334a50b00cc81a056679205c",
+   "match": {
+    "names": [
+     "simplenote"
+    ],
+    "exes": [
+     "simplenote"
+    ]
+   }
+  },
+  {
+   "id": "craft",
+   "name": "Craft",
+   "group": "work",
+   "ico": "icons/craft.ico",
+   "ico_sha256": "c7a760c1860b67985a8e8fec6edaff136625147e54abb73eb1fb04e4fe30fda8",
+   "png": "icons/craft.png",
+   "png_sha256": "18deaa83ceab0d8b64a9434c58cba3ce9cd3544e5580bf613567f8796885cc88",
+   "match": {
+    "names": [
+     "craft",
+     "craftdocs"
+    ],
+    "exes": [
+     "craft"
+    ]
+   }
+  },
+  {
+   "id": "miro",
+   "name": "Miro",
+   "group": "work",
+   "ico": "icons/miro.ico",
+   "ico_sha256": "276c440c42e1f030580c182327363251410f31cdbbb588401a5539d1ca555a92",
+   "png": "icons/miro.png",
+   "png_sha256": "8211c665f11f63181b49ef6c637ac3e0953e7aa88683cc9e21c1d4d36be536e5",
+   "match": {
+    "names": [
+     "miro"
+    ],
+    "exes": [
+     "miro"
+    ]
+   }
+  },
+  {
+   "id": "todoist",
+   "name": "Todoist",
+   "group": "work",
+   "ico": "icons/todoist.ico",
+   "ico_sha256": "81f5fd59628e8960dd9aca24c3dad91f950d45eff64d0327434649b933af8eb2",
+   "png": "icons/todoist.png",
+   "png_sha256": "01e7aa2e9ee0901318268e5b1bf34bbe000420ad8961beb2fb61a32813c8c366",
+   "match": {
+    "names": [
+     "todoist"
+    ],
+    "exes": [
+     "todoist"
+    ]
+   }
+  },
+  {
+   "id": "ticktick",
+   "name": "TickTick",
+   "group": "work",
+   "ico": "icons/ticktick.ico",
+   "ico_sha256": "2a68df92d43161688c450ce21b02c80d5dcf0515dc865e223fd5840718b0c3c8",
+   "png": "icons/ticktick.png",
+   "png_sha256": "70d4cdf98d34ae952cd28b51734fc31fe7e3f74996c17d8e40a80ddfa44db611",
+   "match": {
+    "names": [
+     "ticktick"
+    ],
+    "exes": [
+     "ticktick"
+    ]
+   }
+  },
+  {
+   "id": "evernote",
+   "name": "Evernote",
+   "group": "work",
+   "ico": "icons/evernote.ico",
+   "ico_sha256": "7c01b0f63a031c10fbb21365d4d377153964fe3b4c4dbf2c26d757dc4fd3fcf8",
+   "png": "icons/evernote.png",
+   "png_sha256": "892ce11d987ff81ca4577dadbb49b0e566db9b74b7075812e3e59ae156513db1",
+   "match": {
+    "names": [
+     "evernote"
+    ],
+    "exes": [
+     "evernote"
+    ]
+   }
+  },
+  {
+   "id": "dropbox",
+   "name": "Dropbox",
+   "group": "work",
+   "ico": "icons/dropbox.ico",
+   "ico_sha256": "f6550c88653c21de9cc310f3bedd21c665766ce3cd7c8c275a5fb1e4ff2d3800",
+   "png": "icons/dropbox.png",
+   "png_sha256": "3cad8d4139348e4ebafa92467978b88a6b313adb8bd1b764daa84243f4c28a3e",
+   "match": {
+    "names": [
+     "dropbox"
+    ],
+    "exes": [
+     "dropbox"
+    ]
+   }
+  },
+  {
+   "id": "googledrive",
+   "name": "Google Drive",
+   "group": "work",
+   "ico": "icons/googledrive.ico",
+   "ico_sha256": "9ed43a57c28753a0c826bd58970d36b1c1f4c35ca18f1c8d8aba270391c15a30",
+   "png": "icons/googledrive.png",
+   "png_sha256": "810251b8d4d9e5bb453e6901b598b28ddd34cbd9f7cfd12b4202901c075a9bac",
+   "match": {
+    "names": [
+     "googledrive",
+     "drive"
+    ],
+    "exes": [
+     "googledrivefs"
+    ]
+   }
+  },
+  {
+   "id": "gmail",
+   "name": "Gmail",
+   "group": "work",
+   "ico": "icons/gmail.ico",
+   "ico_sha256": "be8a3993c1d5dc9751c95a6aba3a050f314c345240103928b3d509ac8ee0fdb1",
+   "png": "icons/gmail.png",
+   "png_sha256": "97a5e147369195f1e22f153a5466b81b9c35521699f0044c8e5b3544776ca767",
+   "match": {
+    "names": [
+     "gmail"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "vscode",
+   "name": "VS Code",
+   "group": "work",
+   "ico": "icons/vscode.ico",
+   "ico_sha256": "2de55550966f550ee340b8944ce014ba0cc675d85d2731940460ef791d2c9d29",
+   "png": "icons/vscode.png",
+   "png_sha256": "7ca43e93920d16d3ac92a253001e95170ef6a405f528ba7f407e00bcfc547a5e",
+   "match": {
+    "names": [
+     "visualstudiocode",
+     "vscode",
+     "code"
+    ],
+    "exes": [
+     "code"
+    ]
+   }
+  },
+  {
+   "id": "cursor",
+   "name": "Cursor",
+   "group": "work",
+   "ico": "icons/cursor.ico",
+   "ico_sha256": "6de75635fe7781e94fc1c7d7a743b6dcc60a0fe5373f3cf7e97b6d87ddc863bf",
+   "png": "icons/cursor.png",
+   "png_sha256": "c4f13ec577e91cd1ec0de62fe4d76f9fb673b9526d5ee5394c2d415491d3ec62",
+   "match": {
+    "names": [
+     "cursor",
+     "cursorai"
+    ],
+    "exes": [
+     "cursor"
+    ]
+   }
+  },
+  {
+   "id": "pycharm",
+   "name": "PyCharm",
+   "group": "work",
+   "ico": "icons/pycharm.ico",
+   "ico_sha256": "3b5506e8e99edf81a49d9b5f8cb4fc74186146d7fa4ce385c1e0c3e427d1f229",
+   "png": "icons/pycharm.png",
+   "png_sha256": "9ed13f740fe9aa2a24b87c43cf1974210f0c08573e042ae8896ba2069aadb172",
+   "match": {
+    "names": [
+     "pycharm",
+     "pycharmcommunityedition",
+     "pycharmprofessional"
+    ],
+    "exes": [
+     "pycharm64"
+    ]
+   }
+  },
+  {
+   "id": "jetbrains",
+   "name": "JetBrains Toolbox",
+   "group": "work",
+   "ico": "icons/jetbrains.ico",
+   "ico_sha256": "5aa20db0501d7894239d9db858b8d0e7378037b11a01043cb6b79944c8174107",
+   "png": "icons/jetbrains.png",
+   "png_sha256": "9044e3d1b14af804894961472ec8d0b9ac64f162df8adf5eae02386ed33a01ad",
+   "match": {
+    "names": [
+     "jetbrainstoolbox",
+     "jetbrains"
+    ],
+    "exes": [
+     "jetbrainstoolbox"
+    ]
+   }
+  },
+  {
+   "id": "github",
+   "name": "GitHub Desktop",
+   "group": "work",
+   "ico": "icons/github.ico",
+   "ico_sha256": "ad2a404745f021ff7da35474a3856eefa8aa29c3d184c8088655ed0d442fab9a",
+   "png": "icons/github.png",
+   "png_sha256": "ac803ef51a435fe96996d8c6cec4fcf0ca31bd9a683a34bae3f335b562e5b41c",
+   "match": {
+    "names": [
+     "githubdesktop",
+     "github"
+    ],
+    "exes": [
+     "githubdesktop"
+    ]
+   }
+  },
+  {
+   "id": "docker",
+   "name": "Docker Desktop",
+   "group": "work",
+   "ico": "icons/docker.ico",
+   "ico_sha256": "c1cbdad625881360bb085186d8f94efdc66c77f3c8a0d4d007c3da77b8b05bc8",
+   "png": "icons/docker.png",
+   "png_sha256": "0f72d890d608ace60218389b4f92a8effd0cf31b4a218b1464eedab071254712",
+   "match": {
+    "names": [
+     "dockerdesktop",
+     "docker",
+     "dockerforwindows"
+    ],
+    "exes": [
+     "dockerdesktop"
+    ]
+   }
+  },
+  {
+   "id": "termius",
+   "name": "Termius",
+   "group": "work",
+   "ico": "icons/termius.ico",
+   "ico_sha256": "ffd5a3836cf42206c02cb8b62ade0fb18ef413d839adb657311c188cf24b22b9",
+   "png": "icons/termius.png",
+   "png_sha256": "4f9eea5db2c1c06d915aa244639314cefbe4b49b4ad3d297377b4e587b9439f6",
+   "match": {
+    "names": [
+     "termius"
+    ],
+    "exes": [
+     "termius"
+    ]
+   }
+  },
+  {
+   "id": "dolphinanty",
+   "name": "Dolphin Anty",
+   "group": "work",
+   "ico": "icons/dolphinanty.ico",
+   "ico_sha256": "94630f925c1096a76f3d5f292a835753a6ba389c3ce58a2e37a36f73b9b95483",
+   "png": "icons/dolphinanty.png",
+   "png_sha256": "dd07756fb6bb417443855db8ac3db41b44cb7058ee575bc8e444d029d92c91fe",
+   "match": {
+    "names": [
+     "dolphinanty",
+     "dolphin",
+     "anty"
+    ],
+    "exes": [
+     "dolphinanty"
+    ]
+   }
+  },
+  {
+   "id": "figma",
+   "name": "Figma",
+   "group": "creative",
+   "ico": "icons/figma.ico",
+   "ico_sha256": "59a525a671a07b24fb215fe22884659a7f5cef6dfc33888142fc128ebf6e5d1d",
+   "png": "icons/figma.png",
+   "png_sha256": "6e79b98f7bccb9697a8f8305df0fa4e89bbe8ad99bd26374e7c397e25537d8d9",
+   "match": {
+    "names": [
+     "figma"
+    ],
+    "exes": [
+     "figma"
+    ]
+   }
+  },
+  {
+   "id": "canva",
+   "name": "Canva",
+   "group": "creative",
+   "ico": "icons/canva.ico",
+   "ico_sha256": "a002f6017940f49f20a6b3edf45d0ffc8c22a126e0c18e80f0fb2bbc8c160396",
+   "png": "icons/canva.png",
+   "png_sha256": "18e19c069818a59c9cdc36ff7a5240259c44a0e6600412b2513c4208a8d3b237",
+   "match": {
+    "names": [
+     "canva"
+    ],
+    "exes": [
+     "canva"
+    ]
+   }
+  },
+  {
+   "id": "blender",
+   "name": "Blender",
+   "group": "creative",
+   "ico": "icons/blender.ico",
+   "ico_sha256": "0f64cc4db1c6bab8a8c2f5ef7113d8d77e742d6d795870e5d4b49d8f3967809d",
+   "png": "icons/blender.png",
+   "png_sha256": "1dcef289c92d9d53ec7cd025bdcf64df53cf1eb3618ea1847f2ab5cb88e86dbd",
+   "match": {
+    "names": [
+     "blender"
+    ],
+    "exes": [
+     "blender",
+     "blenderlauncher"
+    ]
+   }
+  },
+  {
+   "id": "photoshop",
+   "name": "Photoshop",
+   "group": "creative",
+   "ico": "icons/photoshop.ico",
+   "ico_sha256": "6d3f305a58cc29d66dcee5f636bc1d874823b826bd292ce8ea5823d8a4804227",
+   "png": "icons/photoshop.png",
+   "png_sha256": "8c66de05b7a1239380cf954537f4ac8d2440382ad47f8a2c70532e329758555c",
+   "match": {
+    "names": [
+     "adobephotoshop",
+     "photoshop"
+    ],
+    "exes": [
+     "photoshop"
+    ]
+   }
+  },
+  {
+   "id": "premiere",
+   "name": "Premiere Pro",
+   "group": "creative",
+   "ico": "icons/premiere.ico",
+   "ico_sha256": "d6347d9ced1462a4620ff6012efacd56828ac3585791d1ae50f76437e6cfaceb",
+   "png": "icons/premiere.png",
+   "png_sha256": "fd97c5e2cb9ff97f176d005875342457425c5cae16c2bfc33320c3140add87ca",
+   "match": {
+    "names": [
+     "adobepremierepro",
+     "premierepro"
+    ],
+    "exes": [
+     "adobepremierepro"
+    ]
+   }
+  },
+  {
+   "id": "aftereffects",
+   "name": "After Effects",
+   "group": "creative",
+   "ico": "icons/aftereffects.ico",
+   "ico_sha256": "933a3a5cb1fd8c4b41a5ba7ad47fd19a6a3f3e64347fe65701d3057aa17c0baa",
+   "png": "icons/aftereffects.png",
+   "png_sha256": "99a1428204606701ded3211ca56694463b1a29cb9fa01dc9561faff1187a8f3b",
+   "match": {
+    "names": [
+     "adobeaftereffects",
+     "aftereffects"
+    ],
+    "exes": [
+     "afterfx"
+    ]
+   }
+  }
+ ],
+ "tiles": [
+  {
+   "id": "glyphix",
+   "file": "tiles/glyphix.png",
+   "sha256": "c192b4a803c242d897c248e025d3fa62275a187d153b082c92f6efda92ca4449",
+   "file_noname": "tiles_noname/glyphix.png",
+   "sha256_noname": "47de7901cdcd7f993549b3d28443df35067ae78abfc89a5b83bed5785a88a9d3"
+  },
+  {
+   "id": "telegram",
+   "file": "tiles/telegram.png",
+   "sha256": "a77c850e5c1c6e4c0c4ba03be67e54a828996658df1f3deea9c1d09bb44f95d4",
+   "file_noname": "tiles_noname/telegram.png",
+   "sha256_noname": "fb2aa97e1ba7ecb3948b02199e7db1f0fec4a7bdddc8f74ce5fccbf281f282c6"
+  },
+  {
+   "id": "discord",
+   "file": "tiles/discord.png",
+   "sha256": "5a13efceced3fb63360db9ea3b3bc095310daea1369c758b5f32033baf2aa08c",
+   "file_noname": "tiles_noname/discord.png",
+   "sha256_noname": "a613c045c721b8e495395c5b018d5d646a44b000b97b3912023b40c1ee312829"
+  },
+  {
+   "id": "chrome",
+   "file": "tiles/chrome.png",
+   "sha256": "8dc246d2c654bbdfc6be4f37c80d86a5f0a6e144b7c199e57e2dc12c5aa5d502",
+   "file_noname": "tiles_noname/chrome.png",
+   "sha256_noname": "398fd2b3c9290ff8df7dfbf7a8b102066bd1a81fc16dec95b54a1e7b2ff6c368"
+  },
+  {
+   "id": "firefox",
+   "file": "tiles/firefox.png",
+   "sha256": "7e2c29ee38b5273119224607456c022acb68fc44958714872996809eb6d5ff41",
+   "file_noname": "tiles_noname/firefox.png",
+   "sha256_noname": "ddda04ec7faab60180806f8cda461cb139ed2cc4b80ac52d89617b2dad9c9f42"
+  },
+  {
+   "id": "edge",
+   "file": "tiles/edge.png",
+   "sha256": "1bda049fbbe05a049e1a618fae523198de34aef7acff13889a21fa0c6e63f238",
+   "file_noname": "tiles_noname/edge.png",
+   "sha256_noname": "6530f41d29edcd3dca1963e1ab0b66ae2b783013745d4a1b711f504847d8bf21"
+  },
+  {
+   "id": "opera",
+   "file": "tiles/opera.png",
+   "sha256": "d49d56ceacf135a7f3016934d60398982411d069d27eab3f6f144661540db64c",
+   "file_noname": "tiles_noname/opera.png",
+   "sha256_noname": "4e9eccf41a961e0b02f6f25264f642b5ed4f9d4d8fd01d7f205ddf6d7ff15a71"
+  },
+  {
+   "id": "operagx",
+   "file": "tiles/operagx.png",
+   "sha256": "3e92ba8ad651b5a39ca6ceadbaa730d655ac48af33a7b35dde4f566608bb8ccf",
+   "file_noname": "tiles_noname/operagx.png",
+   "sha256_noname": "175f4ffe4628ce31fb7a523117d0669b3afbe1914d4ddd6d2c3d63f3e276ac58"
+  },
+  {
+   "id": "brave",
+   "file": "tiles/brave.png",
+   "sha256": "09a313c1f0156aca4a0b365926d00fedfd6b826bfcbb8aaff16d181ad10e7183",
+   "file_noname": "tiles_noname/brave.png",
+   "sha256_noname": "a82b8871a0e1080a1facf79c4fbfe802c59b28e8b2d2cca64d1d29c81e7dbd98"
+  },
+  {
+   "id": "vivaldi",
+   "file": "tiles/vivaldi.png",
+   "sha256": "3c43e48efc2dbb4104f802427ceae02f4634eceff0460dd6207e659bd93ad9e8",
+   "file_noname": "tiles_noname/vivaldi.png",
+   "sha256_noname": "e9c6acc7240c45c2273adc5f11c49df5c9138b1c1392fc5e32a0dbbca3b5d7c8"
+  },
+  {
+   "id": "torbrowser",
+   "file": "tiles/torbrowser.png",
+   "sha256": "683d69f4b5dc2a51c13cfd984246363903dabd83811aa3fdd5aaaf83d8da9a89",
+   "file_noname": "tiles_noname/torbrowser.png",
+   "sha256_noname": "60270e625f39704e78d5ce644350e49c8ea799ba1d7d396c0e4ab39d76176a41"
+  },
+  {
+   "id": "gemini",
+   "file": "tiles/gemini.png",
+   "sha256": "2b6224ff31bda4955a03de8b628fdab719a312ca2937eabf9ed1212b564c21f1",
+   "file_noname": "tiles_noname/gemini.png",
+   "sha256_noname": "0acc60366988e5e83a1679e9b29dca5214b863c73fd7d423da0e2efba9c149ff"
+  },
+  {
+   "id": "chatgpt",
+   "file": "tiles/chatgpt.png",
+   "sha256": "fca8caac0f754d775009c1e204ba8b5289edd2c2bbd4162d98b6459e59dc3951",
+   "file_noname": "tiles_noname/chatgpt.png",
+   "sha256_noname": "8d301d30a1f32320585f25fc2c245720538e7ae3b72ba0f0b7687823204bf9d6"
+  },
+  {
+   "id": "claude",
+   "file": "tiles/claude.png",
+   "sha256": "aacfa0887aae635dd148e0ff7b48f06a8c7b4f56baec9269dfa8c326bfd867d1",
+   "file_noname": "tiles_noname/claude.png",
+   "sha256_noname": "6af7fb0a57c1d93ee9cdf120409a0c936780b9c4937432a057649e988143df78"
+  },
+  {
+   "id": "perplexity",
+   "file": "tiles/perplexity.png",
+   "sha256": "33b3a2f620d7f655baa1a37abc3bc3a0fa4a46b3bc4e64732b96ceec5d3d18bd",
+   "file_noname": "tiles_noname/perplexity.png",
+   "sha256_noname": "e4c277ed1c59b305670222ace2f9012e2039a73166b0b6982fb3bc10860d3b49"
+  },
+  {
+   "id": "deepseek",
+   "file": "tiles/deepseek.png",
+   "sha256": "ca03f62a65f2ffcdea0e7a035181ffc935ccc7696125bb294a5e1df63ffb2e14",
+   "file_noname": "tiles_noname/deepseek.png",
+   "sha256_noname": "9bca8a40e44834e8bdcce4d9d80bbdb9dc84611b836a4f3713028b9e4bc5ce15"
+  },
+  {
+   "id": "whatsapp",
+   "file": "tiles/whatsapp.png",
+   "sha256": "5fb97db390979320221d2250f3fff2b9d918f6284b4e7e204df82d45204235a6",
+   "file_noname": "tiles_noname/whatsapp.png",
+   "sha256_noname": "12a6360ce694ae09d868e071b670e7f6e704a25683975a18a4a818a259f09c1e"
+  },
+  {
+   "id": "viber",
+   "file": "tiles/viber.png",
+   "sha256": "7c015f5c672e8da19612b41be1c41082817caad09f1fca6a54ae01050d2765ff",
+   "file_noname": "tiles_noname/viber.png",
+   "sha256_noname": "f32dc4f54b6c54e9bdbcdd5fca138340631cf1e892fb5ce555cda64167dc5015"
+  },
+  {
+   "id": "signal",
+   "file": "tiles/signal.png",
+   "sha256": "ce12b3a66dcb54a035fc989a209a653caa83e251fe8c6aaa6bcf60b364defac2",
+   "file_noname": "tiles_noname/signal.png",
+   "sha256_noname": "4af3934c936c832cf8db16f168de02ca3b100cf03d0f8b9658fe59193f8e93da"
+  },
+  {
+   "id": "skype",
+   "file": "tiles/skype.png",
+   "sha256": "48401df1ae56ccad2a2178a70e2990afa8d42d4db7edf924ec10e908115f8b76",
+   "file_noname": "tiles_noname/skype.png",
+   "sha256_noname": "8197b8ddab5684946a8d643abb39b3bd3e929c9656611e911d5007378fe4de1b"
+  },
+  {
+   "id": "zoom",
+   "file": "tiles/zoom.png",
+   "sha256": "43c15dda1abf793062d62101ec9cb6187a0e90525fccaaeff104f19a48635450",
+   "file_noname": "tiles_noname/zoom.png",
+   "sha256_noname": "9c435c2f7a5d851b2ebf32b1930dab94e038f7e11485d417e8888029e5b05843"
+  },
+  {
+   "id": "slack",
+   "file": "tiles/slack.png",
+   "sha256": "313c14a1c38c6b51297dd47c8fcd2d1ab5656f025f9f9c1ec7a42296c238e70c",
+   "file_noname": "tiles_noname/slack.png",
+   "sha256_noname": "e16d98640b20fce0c5f76ace78068df1173b05dae0fae1b3d85d5d43527ef9dd"
+  },
+  {
+   "id": "vk",
+   "file": "tiles/vk.png",
+   "sha256": "9977b169966752731865be1dfc639f32351e4dcca82a6ab81ab2d2c342d5b86a",
+   "file_noname": "tiles_noname/vk.png",
+   "sha256_noname": "807d426bf3232dfea4e6ec93e84cb408214c244db4131d5fb33d3d4c96ab3828"
+  },
+  {
+   "id": "yandexmusic",
+   "file": "tiles/yandexmusic.png",
+   "sha256": "f813f428e8ee975254b55b688fa05d81999e798431563efaccb083b531210f19",
+   "file_noname": "tiles_noname/yandexmusic.png",
+   "sha256_noname": "b74853953c16c8942cb97907627399627b75cec04be7f2fd6220da1e67927c27"
+  },
+  {
+   "id": "pulsesync",
+   "file": "tiles/pulsesync.png",
+   "sha256": "30876eaa2735a22a5eef902dee194188762bdfb09e69f8f70d44c14f7b2791bc",
+   "file_noname": "tiles_noname/pulsesync.png",
+   "sha256_noname": "db2bf39ebd9a33d935f7e29196eb96e3274ff244f9bba2da24f959ea6dfe7ae5"
+  },
+  {
+   "id": "spotify",
+   "file": "tiles/spotify.png",
+   "sha256": "4086549658451ad6bf9dae3fda5012da74bd17481137bb1848e1fe91a19753de",
+   "file_noname": "tiles_noname/spotify.png",
+   "sha256_noname": "091417e41099f2343a33b2abc6492075a1d36275dbaa7accb9acc74d98d8ea37"
+  },
+  {
+   "id": "applemusic",
+   "file": "tiles/applemusic.png",
+   "sha256": "659b5263de2bc06e13cdd0e904681650d3a0540ed8b4c116c287cf57af125496",
+   "file_noname": "tiles_noname/applemusic.png",
+   "sha256_noname": "22fc165db80ce6df6596c8f71928c2b0fdf8f755b7da1c445a230cec1e2f40a3"
+  },
+  {
+   "id": "youtube",
+   "file": "tiles/youtube.png",
+   "sha256": "ad1720cc7cce8407900a4703fc1b7c2e22d9e4276c2c09fa41a4f5136693378d",
+   "file_noname": "tiles_noname/youtube.png",
+   "sha256_noname": "6a86e86119fce91845b3c38c833ce16d6e9a3308c377847239fc90878517de94"
+  },
+  {
+   "id": "youtubemusic",
+   "file": "tiles/youtubemusic.png",
+   "sha256": "4ea8ee666fc98c93021e1e87b3cb08d22cb826ac2f4d8f0a92de3a74650cd571",
+   "file_noname": "tiles_noname/youtubemusic.png",
+   "sha256_noname": "06fbe88f2e874e442cc632a7a3a5742598fee346cf879abbeb3b6ee2d6ee9059"
+  },
+  {
+   "id": "twitch",
+   "file": "tiles/twitch.png",
+   "sha256": "604cb2a991f173002d250c3916fb0edfa5f0cdbd7db56e9d5bdd8fbcd06e03e0",
+   "file_noname": "tiles_noname/twitch.png",
+   "sha256_noname": "ce092429ff0d042dcd08c015d210599bc623d01e2afa6bd9c8e194689979d950"
+  },
+  {
+   "id": "netflix",
+   "file": "tiles/netflix.png",
+   "sha256": "04cfce6dbae466a063992c45a84d404edfb916fad92a8d3365328e54150485cd",
+   "file_noname": "tiles_noname/netflix.png",
+   "sha256_noname": "d419d981671fe4bfbd2fd99af487053abc8bd8e9951151d11d207c8af3f27467"
+  },
+  {
+   "id": "kinopoisk",
+   "file": "tiles/kinopoisk.png",
+   "sha256": "db10eef14095667ba3a03fb1fe2c3372d1c275821c040db89abf332999cb41d2",
+   "file_noname": "tiles_noname/kinopoisk.png",
+   "sha256_noname": "6fd60435335256bd12ba3b2edec38b03a4f1023541b975ad4687509a190e2391"
+  },
+  {
+   "id": "vlc",
+   "file": "tiles/vlc.png",
+   "sha256": "56de3a8fb36826ddb34f7691e96e44d9c29878d16bfdf61dc6c4092299de5da6",
+   "file_noname": "tiles_noname/vlc.png",
+   "sha256_noname": "b0888fffd1da027ea41d7532d26793e1bbba41ed11119b7b0c81e5073cd8a129"
+  },
+  {
+   "id": "obs",
+   "file": "tiles/obs.png",
+   "sha256": "8bca8ac29baf36d54ca64d6a414d68cb216b213a0b3562061a7d44e481c471e4",
+   "file_noname": "tiles_noname/obs.png",
+   "sha256_noname": "73a18f2ff4a4e85ac81961d07ffbfbc0cc41541ae5724d570bc29a1d25eaf9bc"
+  },
+  {
+   "id": "anilibrix",
+   "file": "tiles/anilibrix.png",
+   "sha256": "c4f0b9cbbceef77a564670a04c4cdd0ddc50e3a870d878f94dc344244df969c2",
+   "file_noname": "tiles_noname/anilibrix.png",
+   "sha256_noname": "c4f0b9cbbceef77a564670a04c4cdd0ddc50e3a870d878f94dc344244df969c2"
+  },
+  {
+   "id": "anilibria",
+   "file": "tiles/anilibria.png",
+   "sha256": "55929fe4614f0759d277ce260c6221f78397645713251f48c63195f0eb0399dd",
+   "file_noname": "tiles_noname/anilibria.png",
+   "sha256_noname": "55929fe4614f0759d277ce260c6221f78397645713251f48c63195f0eb0399dd"
+  },
+  {
+   "id": "taiga",
+   "file": "tiles/taiga.png",
+   "sha256": "0b3a603f092e7498f8007bf2ae759ea1c4e91a032f252b8be7f54ab0038d7db1",
+   "file_noname": "tiles_noname/taiga.png",
+   "sha256_noname": "764f5a81a16fc6ff729ca065c6a991207ea30eba0218eb6afec751c331b3739b"
+  },
+  {
+   "id": "steam",
+   "file": "tiles/steam.png",
+   "sha256": "2e004d58527f4c757186dab613bea435586f140f09fb5919bece7682d94aede5",
+   "file_noname": "tiles_noname/steam.png",
+   "sha256_noname": "beea55b17032e22df70681fa00445e84f633be1a72a1cd4cb014d911b4faaf46"
+  },
+  {
+   "id": "epicgames",
+   "file": "tiles/epicgames.png",
+   "sha256": "3ebc913b588085108a064b3c449e6f604ba4d73d978546cd81440aa7ca87de1e",
+   "file_noname": "tiles_noname/epicgames.png",
+   "sha256_noname": "ca3f75cd8a65b409e1479d0dffb6fc26a6ac7a4597c11484159de149ec7bd485"
+  },
+  {
+   "id": "roblox",
+   "file": "tiles/roblox.png",
+   "sha256": "3251d0dcfa55609bcaad193ef19203f7a93e3b456da1f59d916c98da48471987",
+   "file_noname": "tiles_noname/roblox.png",
+   "sha256_noname": "26103afb0d8f6d169b6e5b44581a874c1b50cdc38196bf63d26f71e2075973ca"
+  },
+  {
+   "id": "minecraft",
+   "file": "tiles/minecraft.png",
+   "sha256": "7d387df558d5d4dcf1e555acd90d874eae9783c969e9b7bac1bdeaad2c2cd953",
+   "file_noname": "tiles_noname/minecraft.png",
+   "sha256_noname": "6de5d4aef2501d6ae5df42343c97103821693542d0bd288576c3343689d8ae25"
+  },
+  {
+   "id": "fortnite",
+   "file": "tiles/fortnite.png",
+   "sha256": "7c8d06cd6663583074fd5a9b35164d2338c660ac2479942f799c68b68e5b580f",
+   "file_noname": "tiles_noname/fortnite.png",
+   "sha256_noname": "8a06d7880fbc6559cbb1848d33eb9db8d4c1a55272dcf815d2ee722a57ba9618"
+  },
+  {
+   "id": "valorant",
+   "file": "tiles/valorant.png",
+   "sha256": "646330521071d1fd8f5e02d46ce96554bfeb369000948b71ce4fba8acff74ff8",
+   "file_noname": "tiles_noname/valorant.png",
+   "sha256_noname": "f11060d1495c6923b9bf93331fcec8f7d736869c726e6552c1d7429edf6ee149"
+  },
+  {
+   "id": "lol",
+   "file": "tiles/lol.png",
+   "sha256": "949269fa0aef67fd0afdd431f78e2107d11d1c39c1ec4f75f20cc0108453d4ac",
+   "file_noname": "tiles_noname/lol.png",
+   "sha256_noname": "9fb6ff5de3815d21386817669757d73f1f45e7ef9e18664adf0f795345b641f0"
+  },
+  {
+   "id": "riot",
+   "file": "tiles/riot.png",
+   "sha256": "cc6f73b9d22eefe7c9831a400a1372b046c694af760cc5959fa2822aaeede671",
+   "file_noname": "tiles_noname/riot.png",
+   "sha256_noname": "04f2e1eb525e7a9be708e01da4b5516e507341221aab41250ce5a1938845cbf9"
+  },
+  {
+   "id": "battlenet",
+   "file": "tiles/battlenet.png",
+   "sha256": "8f2848f07eba6c9216225ff8bed76341dd98594b6cc85ef3ac49623d5ca33412",
+   "file_noname": "tiles_noname/battlenet.png",
+   "sha256_noname": "e6f8073012675e0e035b52fc65bab8042e3dcd0d04af4ffbdf75850a4e65d73f"
+  },
+  {
+   "id": "ea",
+   "file": "tiles/ea.png",
+   "sha256": "0821fd0a4925bd1869aef26465f58fe223c10961882526eb8ccf4f64aa67da42",
+   "file_noname": "tiles_noname/ea.png",
+   "sha256_noname": "a77884a3107b0a29c0bd443b595aefb6b4bde90f911e134f20eca874a6890040"
+  },
+  {
+   "id": "ubisoft",
+   "file": "tiles/ubisoft.png",
+   "sha256": "be80b4ec08507a6bc9a30edf122faaedfbbcd7d92d421e10c5dd7a8f0cfe3b77",
+   "file_noname": "tiles_noname/ubisoft.png",
+   "sha256_noname": "6a00b5fb43172059cd7c4cf7535db7af33e98b872a20dede06538f665a6a3c0e"
+  },
+  {
+   "id": "gog",
+   "file": "tiles/gog.png",
+   "sha256": "455feed43af8fd1fd7d6a3daaae34a4f299c473c6ae17ed3b79c23621dc0edfc",
+   "file_noname": "tiles_noname/gog.png",
+   "sha256_noname": "7f593d9cc4a1f3ebafdaf28b01b094f6aeb4fd51d1faf5a950394af9dc5507a6"
+  },
+  {
+   "id": "rockstar",
+   "file": "tiles/rockstar.png",
+   "sha256": "f0bd2787279f01d940e9eddb1bcc5ae735617913d32053c728d5bbd4ca15b2c9",
+   "file_noname": "tiles_noname/rockstar.png",
+   "sha256_noname": "b9e7c6cc39def8423d78c4bb10b66dfdfd5955a2284e21f1df7add36afcc3eb5"
+  },
+  {
+   "id": "cs2",
+   "file": "tiles/cs2.png",
+   "sha256": "6e4bffcf3a0756a5e33a194c5c791205a3ca493c890741bfd7d6905fb01648aa",
+   "file_noname": "tiles_noname/cs2.png",
+   "sha256_noname": "58154494354f8244b473b4177e1a9797f3c6272259221d34c15b904a09a6ac3e"
+  },
+  {
+   "id": "dota2",
+   "file": "tiles/dota2.png",
+   "sha256": "9f72d0498b4838883936185f8eb3ca4ee4bbcde6695d9affa39dbccd0958bde1",
+   "file_noname": "tiles_noname/dota2.png",
+   "sha256_noname": "bb468a4a2679311e3b6b12f5a5a0cda866db3d099f391bad5f00ec2247aa11f6"
+  },
+  {
+   "id": "xbox",
+   "file": "tiles/xbox.png",
+   "sha256": "61c4ace630d65da29bba3cc02668740f8fe24502ed83f19797825e7665d4e332",
+   "file_noname": "tiles_noname/xbox.png",
+   "sha256_noname": "ef89db1b6ed80ce9cc4349716f8c3d15dc6c588a178a8a8b68b9ef3b6c31ede6"
+  },
+  {
+   "id": "playstation",
+   "file": "tiles/playstation.png",
+   "sha256": "bffd178da7adfbb8ad5bd755d49e32ef450ac7642fd8e32feda0de713a3f70da",
+   "file_noname": "tiles_noname/playstation.png",
+   "sha256_noname": "e3ad4c9f459dd2024b28e3e3eaed4db59e6348408075cba908ea6607cf4d5b0d"
+  },
+  {
+   "id": "worldoftanks",
+   "file": "tiles/worldoftanks.png",
+   "sha256": "f619f0f32301faf30e5d48c1385e9752e6ae16f84150200db8c5b0a439e17020",
+   "file_noname": "tiles_noname/worldoftanks.png",
+   "sha256_noname": "e819671834da7a001baf617384087d1d1d9dfcede7e287539a9e9f7708bd38d9"
+  },
+  {
+   "id": "faceit",
+   "file": "tiles/faceit.png",
+   "sha256": "b09a2897b908c2ad142bc2c57ec327ee4552e1258208dc69e7fca10dba66de0d",
+   "file_noname": "tiles_noname/faceit.png",
+   "sha256_noname": "5975068a3677fe046de6530b6cede9dba3513d27b483978c4ce5e5e33554e332"
+  },
+  {
+   "id": "curseforge",
+   "file": "tiles/curseforge.png",
+   "sha256": "a1b25431d39dc2c0c4e4f39c3e8682f123fca034a7bd17402ff4b06cd65464ac",
+   "file_noname": "tiles_noname/curseforge.png",
+   "sha256_noname": "0c6426efbcc3404499c4970741388961846462ea6b37321c945d6c1afb989baa"
+  },
+  {
+   "id": "modrinth",
+   "file": "tiles/modrinth.png",
+   "sha256": "2ba6c9b8948ebf17a8c8071a5a5d9187ba511cdf18a5442b3563a9f7cf5c1602",
+   "file_noname": "tiles_noname/modrinth.png",
+   "sha256_noname": "dd58e29de8e182d760d02ecd96094981207b9735af3278d5044853e56624820f"
+  },
+  {
+   "id": "r2modman",
+   "file": "tiles/r2modman.png",
+   "sha256": "f21081234a79db1e2b70b9fcb560b34d2451ae9e6d8a974992d71107712892fa",
+   "file_noname": "tiles_noname/r2modman.png",
+   "sha256_noname": "63aca82d4f544b1029909bed3c83c8e1f3a0fd1be372019c9ce839d69dd6eeba"
+  },
+  {
+   "id": "wemod",
+   "file": "tiles/wemod.png",
+   "sha256": "a16f147f2bdb0bca4d27ca8d60f35a37f3f83b71aacadb37e79de15482557313",
+   "file_noname": "tiles_noname/wemod.png",
+   "sha256_noname": "d55cd7b4b5f70a398bc91ab0c8f0cf04662b1b090a9d4d257f1ca6d4e5e226e8"
+  },
+  {
+   "id": "gearup",
+   "file": "tiles/gearup.png",
+   "sha256": "721c9c32433c48f5607ab4d6246d94099cde0a691bba1cad1e602a91b7730f80",
+   "file_noname": "tiles_noname/gearup.png",
+   "sha256_noname": "40c0873bd5493b6befa946c01e0859b8ab4bc85af09264b3801002db6823daf8"
+  },
+  {
+   "id": "nucleus",
+   "file": "tiles/nucleus.png",
+   "sha256": "0c2c231011341b881e81ae28ac9e6966346301714df4459d4fcc409b22c33d67",
+   "file_noname": "tiles_noname/nucleus.png",
+   "sha256_noname": "ec9b15b1e93120396ad81a7439ac1652116d7005e03180d52859658fff0752a1"
+  },
+  {
+   "id": "ds4windows",
+   "file": "tiles/ds4windows.png",
+   "sha256": "3bccb8aa246840887624359b09869d8a38d0b39f6bd37e6a8321003fa5f97dfe",
+   "file_noname": "tiles_noname/ds4windows.png",
+   "sha256_noname": "5a8d6515188b465d1380363943f29c04f5adcaeda13db7fb3b329484a79bc44b"
+  },
+  {
+   "id": "nvidia",
+   "file": "tiles/nvidia.png",
+   "sha256": "e845a6c0fdd2ee98beb8a4784cd51583c27d1c265ce51d639622c092ee9f8250",
+   "file_noname": "tiles_noname/nvidia.png",
+   "sha256_noname": "42e4de253e8dc10fa0deff34457c08189768e3bd35fbbeb7a175501142440a71"
+  },
+  {
+   "id": "amd",
+   "file": "tiles/amd.png",
+   "sha256": "363aa307dcfd5128aa3fdfb80c1db7e505206f61c7a737ec6b96eefcf17364fe",
+   "file_noname": "tiles_noname/amd.png",
+   "sha256_noname": "710a5216d4bfc0040c63b410676200a30f320dd35fa806fafce8c12bda4fc3bc"
+  },
+  {
+   "id": "msicenter",
+   "file": "tiles/msicenter.png",
+   "sha256": "3bad76111ba0427ab5870e2f8bdbb650cafcd0b9d16990e6ea2e47056f21c5b6",
+   "file_noname": "tiles_noname/msicenter.png",
+   "sha256_noname": "70908819e53d5ad8082bf1fa6ee4695f97d2df4ae93a2601a2de402b30a3cf3e"
+  },
+  {
+   "id": "afterburner",
+   "file": "tiles/afterburner.png",
+   "sha256": "335980325d2bf77f9bfbc25030833b9c1f7e6cfc87dc17c58fbe58efa8c4ec30",
+   "file_noname": "tiles_noname/afterburner.png",
+   "sha256_noname": "9018152dfb50099683cc38e71eee1d330b8260992d200abe68b032eebea77ca5"
+  },
+  {
+   "id": "steelseries",
+   "file": "tiles/steelseries.png",
+   "sha256": "eb94d2dac54d87322b6aa45b1d8a22f5f4ec468c234e8f93adec95d97c370d61",
+   "file_noname": "tiles_noname/steelseries.png",
+   "sha256_noname": "060ee7ed341ce7f1d1fbc4ab8777ec0f053e3e6cca1e568e011a2bd7c5eeb2bb"
+  },
+  {
+   "id": "logitech",
+   "file": "tiles/logitech.png",
+   "sha256": "13a3e7e8c9017d80ca430abcb58bcdd00d49bb84b69944f77f24a7514d67bfdf",
+   "file_noname": "tiles_noname/logitech.png",
+   "sha256_noname": "7944b1de815d169e758018884c662db6afcc79f6d3680fa4ccab98fb67d68247"
+  },
+  {
+   "id": "logicapture",
+   "file": "tiles/logicapture.png",
+   "sha256": "98836e5d0b3b848422aaaca52ea6a8005cde80eaa08390e4a15b666628048a37",
+   "file_noname": "tiles_noname/logicapture.png",
+   "sha256_noname": "b9a977ce0aae67a946a1231d918e8245b730f1e74ae25cfbb41da07178b6b12f"
+  },
+  {
+   "id": "razer",
+   "file": "tiles/razer.png",
+   "sha256": "41916fa80565b3dc01ce09728bf1cf62a2308db1f1d876fe5361eba298e3c67d",
+   "file_noname": "tiles_noname/razer.png",
+   "sha256_noname": "23fe3486e2ad8bdf9413b1efded255a022e09b5517ac951fe344bd6cf2716b5c"
+  },
+  {
+   "id": "asus",
+   "file": "tiles/asus.png",
+   "sha256": "d27ec865a9671f264cb871cc211a0ed465a18f662260043049414bd9ee7b6887",
+   "file_noname": "tiles_noname/asus.png",
+   "sha256_noname": "fabfa4695c03531242502b63e093018843f5695443964892dba079debf68053f"
+  },
+  {
+   "id": "redragon",
+   "file": "tiles/redragon.png",
+   "sha256": "2a1a0af6e220e328eda14b9b07078a30fc2582ca5b3bec50bf192d58f029ad0a",
+   "file_noname": "tiles_noname/redragon.png",
+   "sha256_noname": "ec227601fb0a6c937eb9320d6414f9410efbd4a790ee05126bf12bc5526f5b24"
+  },
+  {
+   "id": "taskmgr",
+   "file": "tiles/taskmgr.png",
+   "sha256": "02aab53b807928347fdc8a25d3658eb27d73a0e80397846ad5f7eabe59db04ac",
+   "file_noname": "tiles_noname/taskmgr.png",
+   "sha256_noname": "c70f207c6d1b420e000a23d2fbdce346aee51bb193079acc30da99788961c618"
+  },
+  {
+   "id": "explorer",
+   "file": "tiles/explorer.png",
+   "sha256": "bfcac83155c1f07feb22b3891af5926878fd529832adc8e369cf7a1ed61c992f",
+   "file_noname": "tiles_noname/explorer.png",
+   "sha256_noname": "217576e2f8732caf05ee8c5e6bf2e0746ce25c12ee2e96e25d6d4c5c75bf022a"
+  },
+  {
+   "id": "files",
+   "file": "tiles/files.png",
+   "sha256": "0224ab219a4848e224aaa40c4f482d345e020a28a4e3914e44d2dad4853cf7d6",
+   "file_noname": "tiles_noname/files.png",
+   "sha256_noname": "4a84d49f9a8402f9da91f3412134245f086bccd90091aed5e74814c105ecde3a"
+  },
+  {
+   "id": "calculator",
+   "file": "tiles/calculator.png",
+   "sha256": "457184f52f79c05ffa7da7c8d2947b33f21d218c731e7d12ae7c9758fecceca7",
+   "file_noname": "tiles_noname/calculator.png",
+   "sha256_noname": "02611e0257733d5b76c22db970794925c11fdcc53c2070619cc2661c2901e435"
+  },
+  {
+   "id": "store",
+   "file": "tiles/store.png",
+   "sha256": "20b21d798a6b2c526b996f0c3653c31d1fedf6fee09d2fb20a795f631fc638bf",
+   "file_noname": "tiles_noname/store.png",
+   "sha256_noname": "ff0c44bab990f27718fd33c19e70e4346bb55f68eb57de2aa8d9b8198369e2af"
+  },
+  {
+   "id": "todo",
+   "file": "tiles/todo.png",
+   "sha256": "7a0bb5e9751230b3ad7045ee28dcbedd0cf82c29394d8b690d66e2e598a0841e",
+   "file_noname": "tiles_noname/todo.png",
+   "sha256_noname": "c615b923d0428b10d2dcbf2f803068e3c30a7bf0f838c6a5c267dddf7d5dcc29"
+  },
+  {
+   "id": "alarms",
+   "file": "tiles/alarms.png",
+   "sha256": "16f8c6395bf9539b57a905a4ec01ffd629e47ab800e213d1167dc9a4735823ca",
+   "file_noname": "tiles_noname/alarms.png",
+   "sha256_noname": "5df8af8ec27204e1f01b074f684f610d59bc47014e62016e86b746be4003038b"
+  },
+  {
+   "id": "shutdown",
+   "file": "tiles/shutdown.png",
+   "sha256": "ec76f6a5a070c4b687fe7c230567727cc0092e9a87d30db73cc87bd253423b2b",
+   "file_noname": "tiles_noname/shutdown.png",
+   "sha256_noname": "fe75c4b4036006d3b917dc23bd199e69c1cae307ee77939e82cc83250041cb09"
+  },
+  {
+   "id": "uninstall",
+   "file": "tiles/uninstall.png",
+   "sha256": "c346eb33d323d594006279b424bdf96ce8475805d76e7a58dc8872737381d16c",
+   "file_noname": "tiles_noname/uninstall.png",
+   "sha256_noname": "4222c6c0feba7efd25307715d7bb565c6159bb5fc56adb70fea67e7deb023b03"
+  },
+  {
+   "id": "wintoys",
+   "file": "tiles/wintoys.png",
+   "sha256": "3d3545c499a31b979927c064a6d5bfab7b0b37851d4f0a6e96e810ea84f7daab",
+   "file_noname": "tiles_noname/wintoys.png",
+   "sha256_noname": "d487c979619f86ed6b254e6b16d8534c2e33657f5a52b91108312b811c3cb166"
+  },
+  {
+   "id": "eartrumpet",
+   "file": "tiles/eartrumpet.png",
+   "sha256": "7209e6fe977728c7137ca6b0f95e4813c7b16dc1f243d5e43d93e8c857b06a44",
+   "file_noname": "tiles_noname/eartrumpet.png",
+   "sha256_noname": "1cb8220f2ad63410679bd23763460e22fcc39759d3f17e0a3cddf68e107510cd"
+  },
+  {
+   "id": "start11",
+   "file": "tiles/start11.png",
+   "sha256": "0feec6c01f5ba0082185e491b534abb90044d19be64f989d9484d1e897242a64",
+   "file_noname": "tiles_noname/start11.png",
+   "sha256_noname": "a523b9663986fc2be301ab5d0a4abeb8489e3f99bb543d681f0ff6246e0279f6"
+  },
+  {
+   "id": "forcedeleter",
+   "file": "tiles/forcedeleter.png",
+   "sha256": "8842e62b5088688cacb7cb6481e83554eb1f12be24218d91043be04f4de05f35",
+   "file_noname": "tiles_noname/forcedeleter.png",
+   "sha256_noname": "ba69cf4e85f93cca712985050b9861200c47a30a01bdf3d24e4ec3c2bb0fbbe8"
+  },
+  {
+   "id": "speedtest",
+   "file": "tiles/speedtest.png",
+   "sha256": "41987935cf9c4cb5090c97440192c2260fa55a193e4b27afc4ad1a46dcb35559",
+   "file_noname": "tiles_noname/speedtest.png",
+   "sha256_noname": "1ababf4b06bb009cd035dc5ad9efc020c40763a10a24f85c9a89532f0cecdea1"
+  },
+  {
+   "id": "spacedesk",
+   "file": "tiles/spacedesk.png",
+   "sha256": "570d78d00612bb24024adf1bded0650fb0acaabd6668b3e816d786e177c7a437",
+   "file_noname": "tiles_noname/spacedesk.png",
+   "sha256_noname": "ca30e0b78ee1b935b17a56f246548323b199819ec9e28fd1abbd41e10738a23d"
+  },
+  {
+   "id": "kdeconnect",
+   "file": "tiles/kdeconnect.png",
+   "sha256": "834fa09f8941b5f334eea25753fdafea0f633d370be42bb529dfa4a444b1b31b",
+   "file_noname": "tiles_noname/kdeconnect.png",
+   "sha256_noname": "1a167d96c6855bbd69270603ffe3df15463e3c7a3305d95cf21966d18d8932e0"
+  },
+  {
+   "id": "localsend",
+   "file": "tiles/localsend.png",
+   "sha256": "5e96cdce607441220cf61427965a5c67da533242e946c14fbe95ad92b91d4a90",
+   "file_noname": "tiles_noname/localsend.png",
+   "sha256_noname": "358236e5ad52cdeae5a3d9db19d771c5d8c0d811fbc349b8a15b3934e728eb09"
+  },
+  {
+   "id": "adb",
+   "file": "tiles/adb.png",
+   "sha256": "868b14f8922675c297161439dad585bfba559191c68b3c3881c69301b90c2660",
+   "file_noname": "tiles_noname/adb.png",
+   "sha256_noname": "32254da5d8994956242f3e7b9208bcb0473a8072856b8380262506d333011cb8"
+  },
+  {
+   "id": "anydesk",
+   "file": "tiles/anydesk.png",
+   "sha256": "22ff8e3044d7fc78bb842c26445ceef0e9522c789745ef7f450015a448b0d26c",
+   "file_noname": "tiles_noname/anydesk.png",
+   "sha256_noname": "e6573a2a03cf644f9900614f5609be91cd7ab194037fd2cff5a04920e472fdda"
+  },
+  {
+   "id": "teamviewer",
+   "file": "tiles/teamviewer.png",
+   "sha256": "7d0946f3f98caa07d4eb1d5babb0e49da3b725c9352d5d06744340ef6f0f08b2",
+   "file_noname": "tiles_noname/teamviewer.png",
+   "sha256_noname": "994c5df0e949daa1eb6b058309f9ced5a1bf6f52fed32349ce91d99bdf2b5d9d"
+  },
+  {
+   "id": "qbittorrent",
+   "file": "tiles/qbittorrent.png",
+   "sha256": "a7c79a0833c37d9371bf8d1c32739e2874e2c6a7f6faef8cff5f62c0a2ab2550",
+   "file_noname": "tiles_noname/qbittorrent.png",
+   "sha256_noname": "9e34a739bfa27fe4fe4c9f7e8c1f5565ba152f526911863bf9631efab41d4a8a"
+  },
+  {
+   "id": "zapret",
+   "file": "tiles/zapret.png",
+   "sha256": "0fbdf876b81903d0c76faaf2b49ff5d5207fc56917459e8551ff82f9b511d6df",
+   "file_noname": "tiles_noname/zapret.png",
+   "sha256_noname": "e058b91f692b0d406cd2c4ea47ea19cdceb62721b40c76602fb4fd082edb6b61"
+  },
+  {
+   "id": "nekobox",
+   "file": "tiles/nekobox.png",
+   "sha256": "af818e9af6582839cc04331135b5decf30719da5e034359da1f4ef7f4f1008e5",
+   "file_noname": "tiles_noname/nekobox.png",
+   "sha256_noname": "132ccdc755bf12c5a570f831c9a0ac98895327b090406bb6f77f997d50c858a6"
+  },
+  {
+   "id": "protonvpn",
+   "file": "tiles/protonvpn.png",
+   "sha256": "d545026cb029f0c84e73fe1bc0a62acbd3f25f99abe7d822cf154fc367375624",
+   "file_noname": "tiles_noname/protonvpn.png",
+   "sha256_noname": "23433e5e6e7e769c3acc409497921e51b78c6577a2b7f34e9f9b572cd28f5954"
+  },
+  {
+   "id": "nordvpn",
+   "file": "tiles/nordvpn.png",
+   "sha256": "a352bdb484beedec312330936d3a9f293533fb8860a862800e1839a46195c931",
+   "file_noname": "tiles_noname/nordvpn.png",
+   "sha256_noname": "a8f208750b104beb0b74c4196149c811be7a0ecd1c593b850a93e611744a0aba"
+  },
+  {
+   "id": "wireguard",
+   "file": "tiles/wireguard.png",
+   "sha256": "bf2cb9d69c48ddb75bb7bab2341bb94dad072eed52bb7530ecfe00b618c390d6",
+   "file_noname": "tiles_noname/wireguard.png",
+   "sha256_noname": "898dca9ee845aa51596eeefd071dd6a390a9d6708fada7a18b67534042e2de35"
+  },
+  {
+   "id": "edrawmind",
+   "file": "tiles/edrawmind.png",
+   "sha256": "fc331b567d4551b8c9924410e92ad21314074ec2fe8e26a889813df38f1c0e92",
+   "file_noname": "tiles_noname/edrawmind.png",
+   "sha256_noname": "06dc1fe989cda558c32a81e718f33c1e9405a3bca50b8852fa8f97673d0902e8"
+  },
+  {
+   "id": "pionex",
+   "file": "tiles/pionex.png",
+   "sha256": "abb84b0d643674b61c145bd6decd3145e2dc272f60d7ff1571ab44981f065610",
+   "file_noname": "tiles_noname/pionex.png",
+   "sha256_noname": "e773e72556b7f6c1be80236085882bbc1602e7ed2787b30f0571f19e112310f5"
+  },
+  {
+   "id": "notion",
+   "file": "tiles/notion.png",
+   "sha256": "985b0bfb4dd1719cec91638292cb7ae56391eaa4a49e579b37ed2115b97da80f",
+   "file_noname": "tiles_noname/notion.png",
+   "sha256_noname": "db73b8e4d98c4a0b4037d92d28de8103994754a3c1245b52739ca29d16ce4f6d"
+  },
+  {
+   "id": "obsidian",
+   "file": "tiles/obsidian.png",
+   "sha256": "4bb7336d389c4a214b8d58cc5b102ab84134e4e2544b4bd1698caa5c12113e9e",
+   "file_noname": "tiles_noname/obsidian.png",
+   "sha256_noname": "9291446b2ffb6398aea448a90a2c96e326c0ab434021fea03901094b9b3dd587"
+  },
+  {
+   "id": "standardnotes",
+   "file": "tiles/standardnotes.png",
+   "sha256": "0b21078886e88304e0b1ccb8f353871d13d294c1481a75b621333c170c70e1f0",
+   "file_noname": "tiles_noname/standardnotes.png",
+   "sha256_noname": "658d33eccc18f59967a89a0163b6fcf7b78570de29d45be7759d3524465ed44c"
+  },
+  {
+   "id": "simplenote",
+   "file": "tiles/simplenote.png",
+   "sha256": "5fcf8062213000eed91e988ce4639552f087ba0bc0ed3372740ad8db6d66e352",
+   "file_noname": "tiles_noname/simplenote.png",
+   "sha256_noname": "c9955e7932a79f632f3db06cc9fa09b45ce7ead99f78f78ce2d34c475448956a"
+  },
+  {
+   "id": "craft",
+   "file": "tiles/craft.png",
+   "sha256": "70ec95f3f1d1a5c4d548fb9e6d3934af34d3d61d4b9f088e4aaa78fe66fd9c5b",
+   "file_noname": "tiles_noname/craft.png",
+   "sha256_noname": "5783614ae9302e9dc5998d01a5e1ac20eda00b419b0b1165f31a509b6ac3e82e"
+  },
+  {
+   "id": "miro",
+   "file": "tiles/miro.png",
+   "sha256": "b8a29aecdc3818e34d6efec372836afbe86dae7847ca11d818129aa237c1d227",
+   "file_noname": "tiles_noname/miro.png",
+   "sha256_noname": "d73511e9c793c86a0245e61539d16fa550e2e1f89bc15716b6b8f76a7b7c641b"
+  },
+  {
+   "id": "todoist",
+   "file": "tiles/todoist.png",
+   "sha256": "c0261133783544cdd2c44cc0b1e337d2ca4333e807df5f2656fec17307168b48",
+   "file_noname": "tiles_noname/todoist.png",
+   "sha256_noname": "b7e1dc6b1a10ec7392b0885caa3b1852bba25812f3240d32d8d765e7e8c61110"
+  },
+  {
+   "id": "ticktick",
+   "file": "tiles/ticktick.png",
+   "sha256": "fda384aaf94ad89940c72504f83b75b202bb18aa0c18e7df1a2db2e4a9f37bfb",
+   "file_noname": "tiles_noname/ticktick.png",
+   "sha256_noname": "0ffc5203da8cca09bdd3131ee4dc31bbaf571da2e4aa0a9d417370f170f2c146"
+  },
+  {
+   "id": "evernote",
+   "file": "tiles/evernote.png",
+   "sha256": "38c74d543471f30b55e7c7e3b55fac47ef986ea7eb29e948fd5e2e74ceee3a1f",
+   "file_noname": "tiles_noname/evernote.png",
+   "sha256_noname": "b23cb8d80eddc7b3f5d9ef11bfb1916cc1e4492f86c5147fdba8732474f2ffa3"
+  },
+  {
+   "id": "dropbox",
+   "file": "tiles/dropbox.png",
+   "sha256": "c15d2444d1f8843dd3b6aca73ff550d19d9439d6862eabca25172a3c9b73dacb",
+   "file_noname": "tiles_noname/dropbox.png",
+   "sha256_noname": "2d9c224b4fdd02b08b7bdc31af4a5f8ac327ad34584d4265471e29be5189bf74"
+  },
+  {
+   "id": "googledrive",
+   "file": "tiles/googledrive.png",
+   "sha256": "0460f1965936a56cf7c1c0ac7067822166042355c8a4cdd1b46dee06533a593b",
+   "file_noname": "tiles_noname/googledrive.png",
+   "sha256_noname": "4ccd2333ad9939b7f5be6018665b86ed1311b2b8e895c96582e5a4e6f424838b"
+  },
+  {
+   "id": "gmail",
+   "file": "tiles/gmail.png",
+   "sha256": "fd5e34cf2f31f1104b289370a0dab1fd09eed465dea2df01e683cda1d4581948",
+   "file_noname": "tiles_noname/gmail.png",
+   "sha256_noname": "47dc4165cd819548fd35da89b6d292d98b011ec8426e1288dab478b68b4b5ac0"
+  },
+  {
+   "id": "vscode",
+   "file": "tiles/vscode.png",
+   "sha256": "3f66249b6c2dfe89e69a53a3ab6fe20f19efa464a387adac25e382b2f4952b33",
+   "file_noname": "tiles_noname/vscode.png",
+   "sha256_noname": "a61c97cf06dfbf26a4b8ac796a3dd0f6a7ed3d10882ae35cf6edc25bbb589e30"
+  },
+  {
+   "id": "cursor",
+   "file": "tiles/cursor.png",
+   "sha256": "a37a4397d93931dae745a774f72f4c6dd39bdc231dfa530573641cf3cda65451",
+   "file_noname": "tiles_noname/cursor.png",
+   "sha256_noname": "f38f143174c92a59860bb80a09b16fdf07ccafe9f252343baa5645998f8b6f07"
+  },
+  {
+   "id": "pycharm",
+   "file": "tiles/pycharm.png",
+   "sha256": "e5e1ab3efc4a6f7a055d3be55ba6d2cd87cac80677aea6b6add118a1a35bc055",
+   "file_noname": "tiles_noname/pycharm.png",
+   "sha256_noname": "9874d34f9ff11a5295ad9211d065788bdd527812a59b3524ac5051de8f95a20a"
+  },
+  {
+   "id": "jetbrains",
+   "file": "tiles/jetbrains.png",
+   "sha256": "b4c9297cdad0c0bf4a8ce70e9e0279ff29a920d4b103baef6673b531933ece3f",
+   "file_noname": "tiles_noname/jetbrains.png",
+   "sha256_noname": "55c7ac69b91605c0189e7a52e963a199f3cd98adcfacc5bd0a39bc51ed806508"
+  },
+  {
+   "id": "github",
+   "file": "tiles/github.png",
+   "sha256": "4d266c0ae0ec023462f6102a1b7091e57766a258f4773cdb8ae6b395b9758c93",
+   "file_noname": "tiles_noname/github.png",
+   "sha256_noname": "a9ab7564f36c4e3c707bd06e1f65a27de4f970a5241727556827a30abc991ce1"
+  },
+  {
+   "id": "docker",
+   "file": "tiles/docker.png",
+   "sha256": "bdf935fc4092aea9c108a119aad65ed6da2d0b838fc162b18f6df2565105f8bf",
+   "file_noname": "tiles_noname/docker.png",
+   "sha256_noname": "5105879142286bb1c924ebaa6d8de7e19866e12d63dfcffe14f63988f82f945d"
+  },
+  {
+   "id": "termius",
+   "file": "tiles/termius.png",
+   "sha256": "0ab1acd9e37feda0a4f2db2e8acad6ad6a0374ce579277e38e68d696e8501991",
+   "file_noname": "tiles_noname/termius.png",
+   "sha256_noname": "70d836b3099ca9a4ab1a34e8fbae2404032a1c171fc04977cffb60f31c000756"
+  },
+  {
+   "id": "dolphinanty",
+   "file": "tiles/dolphinanty.png",
+   "sha256": "a7650bed116280ce33e209309f1a3f4ed8e7e9119b8395093f58b74cbc00c333",
+   "file_noname": "tiles_noname/dolphinanty.png",
+   "sha256_noname": "d23da32509a4f0cf8f9874624428151cbacdf55d061e939d1f171bc05fb23258"
+  },
+  {
+   "id": "figma",
+   "file": "tiles/figma.png",
+   "sha256": "82eb381edc6c5dc99201eff45dd3bc9c962cdc3f1458f2cd5f8d77c719c73a84",
+   "file_noname": "tiles_noname/figma.png",
+   "sha256_noname": "e856d05e7d0e1acf349d4f81bc59a321020500819566718b5eb631b6b9f03345"
+  },
+  {
+   "id": "canva",
+   "file": "tiles/canva.png",
+   "sha256": "08d8532f96cab2f807ee4fa3c5f339720b949ad36ee2e5fca44412c549b1d3cc",
+   "file_noname": "tiles_noname/canva.png",
+   "sha256_noname": "1bc0790b7d922146a232b220698872b9f567cf556e54558d87c98878b4d4613b"
+  },
+  {
+   "id": "blender",
+   "file": "tiles/blender.png",
+   "sha256": "a35e746d71774d83583d76f874e47ee3f6ccddfa5d33083b8519057dad981e60",
+   "file_noname": "tiles_noname/blender.png",
+   "sha256_noname": "1265ad12a02b0daaf2736ff0cd4509c5ba4f28486b03f2d59844b8cc37f3b23a"
+  },
+  {
+   "id": "photoshop",
+   "file": "tiles/photoshop.png",
+   "sha256": "2222815b7981dbf95a614e2774b16474e899cc8c72db45d8f54924270f07c0f2",
+   "file_noname": "tiles_noname/photoshop.png",
+   "sha256_noname": "ba4a367c8d1d1674ca27aae714101adab126ab14bcab8fc2d4b9205d211daed0"
+  },
+  {
+   "id": "premiere",
+   "file": "tiles/premiere.png",
+   "sha256": "b6c91fe463478d4da14360e089f5c9caedef2d9679f4e9b4812eb383147f255c",
+   "file_noname": "tiles_noname/premiere.png",
+   "sha256_noname": "a1f280904bdd975b74657d39f875d00efd15327d21d20c7a27c62fceadde600e"
+  },
+  {
+   "id": "aftereffects",
+   "file": "tiles/aftereffects.png",
+   "sha256": "58d535d8996dddd9af3097d42f39a5e67e4b1e943df09bf10f79dba58a6a1af8",
+   "file_noname": "tiles_noname/aftereffects.png",
+   "sha256_noname": "e852c7dc39239c8575fd583a7800579cd486bd6757be81106c096fee28d6c427"
+  }
+ ]
+}

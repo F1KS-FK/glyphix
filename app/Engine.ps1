@@ -75,6 +75,73 @@ function Write-Log {
     if ($script:SI_OnLog) { try { & $script:SI_OnLog $Message } catch { } }
 }
 
+# ---------- Фоновые операции (отдельный runspace, UI не замирает) ----------
+# Текст движка передаётся в runspace ЦЕЛИКОМ (строкой) и подключается как scriptblock: фоновая операция не зависит от того, лежит ли
+# Engine.ps1 на диске в этот момент (раньше runspace делал `. <путь>`: если файла по этому пути не было - «The term '...Engine.ps1' is not recognized»).
+$script:SI_BgPrologue = @'
+param($engineText, $codeDir, $queue, $params, $body)
+$ErrorActionPreference = 'Stop'
+. ([scriptblock]::Create($engineText))
+if ($codeDir) { $script:SI_CodeDir = $codeDir }
+$q = $queue
+Set-EngineLogHandler ({ param($m) $q.Enqueue([string]$m) }.GetNewClosure())
+try { & ([scriptblock]::Create($body)) $params }
+catch {
+    $stack = [string]$_.ScriptStackTrace
+    Write-Log ('ОШИБКА: ' + $_.Exception.Message)
+    if ($stack) { Write-Log ('  стек: ' + ($stack -replace "`r?`n", ' <- ')) }
+    [pscustomobject]@{ Error = $_.Exception.Message; Stack = $stack }
+}
+'@
+
+# Запустить $Body (текст scriptblock с param($p)) в новом runspace. Возвращает @{ PS; RS; Async; Queue }; строки журнала идут в Queue.
+# Исходная сессия по умолчанию (CreateDefault: есть все стандартные команды), политика выполнения Bypass, STA (WPF/COM/Shell в движке).
+function Start-EngineJob {
+    param([Parameter(Mandatory)][string]$EngineText, [string]$CodeDir, [Parameter(Mandatory)][string]$Body, [hashtable]$Params, [string]$Prologue)
+    if (-not $EngineText) { throw 'Текст движка пуст: фоновую операцию запустить нельзя' }
+    if (-not $Prologue) { $Prologue = $script:SI_BgPrologue }
+    if ($null -eq $Params) { $Params = @{} }
+    $q = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+    $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { try { $iss.ExecutionPolicy = [Microsoft.PowerShell.ExecutionPolicy]::Bypass } catch { } }      # на других ОС свойство не поддерживается (Open() падает)
+    $rs = [runspacefactory]::CreateRunspace($iss)
+    try { $rs.ApartmentState = [Threading.ApartmentState]::STA } catch { }
+    $rs.ThreadOptions = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
+    $ps = $null
+    try {
+        $rs.Open()
+        $ps = [powershell]::Create()
+        $ps.Runspace = $rs
+        [void]$ps.AddScript($Prologue).AddArgument($EngineText).AddArgument($CodeDir).AddArgument($q).AddArgument($Params).AddArgument($Body)
+        $async = $ps.BeginInvoke()
+    } catch {
+        if ($ps) { try { $ps.Dispose() } catch { } }
+        try { $rs.Dispose() } catch { }
+        throw
+    }
+    return @{ PS = $ps; RS = $rs; Async = $async; Queue = $q }
+}
+
+# Результат задания: последний выведенный объект; если runspace упал - объект с Error и Stack (стек берётся из потока ошибок runspace).
+function Receive-EngineJob {
+    param([Parameter(Mandatory)]$Job)
+    $res = $null
+    try {
+        $out = $Job.PS.EndInvoke($Job.Async)
+        if ($out -and $out.Count -gt 0) { $res = $out[$out.Count - 1] }
+    } catch {
+        $stack = ''
+        try { $stack = (@($Job.PS.Streams.Error | ForEach-Object { [string]$_.ScriptStackTrace }) + [string]$_.ScriptStackTrace | Where-Object { $_ }) -join "`n" } catch { }
+        $msg = $_.Exception.Message
+        if ($_.Exception.InnerException) { $msg = $_.Exception.InnerException.Message }
+        Write-Log ('ОШИБКА фоновой операции: ' + $msg)
+        if ($stack) { Write-Log ('  стек: ' + ($stack -replace "`r?`n", ' <- ')) }
+        $res = [pscustomobject]@{ Error = $msg; Stack = $stack }
+    }
+    try { $Job.PS.Dispose(); $Job.RS.Close(); $Job.RS.Dispose() } catch { }
+    return $res
+}
+
 # ---------- Утилиты ----------
 function Get-Key {
     param([string]$Name)
@@ -410,7 +477,7 @@ function Save-State {
     try {
         if (-not (Test-Path -LiteralPath $script:SI_Home)) { New-Item -ItemType Directory -Path $script:SI_Home -Force | Out-Null }
         $json = ConvertTo-Json -InputObject $State -Depth 5
-        [IO.File]::WriteAllText($script:SI_StateFile, $json, (New-Object System.Text.UTF8Encoding($false)))
+        Save-FileAtomic $script:SI_StateFile ([System.Text.UTF8Encoding]::new($false).GetBytes($json))
     } catch { Write-Log ('не удалось записать state.json: ' + $_.Exception.Message) }
 }
 
@@ -472,13 +539,68 @@ function ConvertFrom-JsonBytes {
     return ($t | ConvertFrom-Json)
 }
 
+# Уникальное имя временного файла рядом с $Path: <файл>.<PID>.<guid>.tmp (два процесса/потока не пишут в один и тот же .tmp)
+function Get-TempSibling {
+    param([string]$Path)
+    return ('{0}.{1}.{2}.tmp' -f $Path, $PID, [guid]::NewGuid().ToString('N'))
+}
+
+# IOException / UnauthorizedAccessException (в том числе когда PowerShell обернул её в MethodInvocationException): файл занят - можно повторить
+function Test-TransientIoError {
+    param($Ex)
+    for ($e = $Ex; $e; $e = $e.InnerException) {
+        if ($e -is [IO.IOException] -or $e -is [UnauthorizedAccessException]) { return $true }
+    }
+    return $false
+}
+
+# Поставить готовый временный файл на место $Dest, не удаляя $Dest до того, как новый файл готов:
+# есть цель - [IO.File]::Replace (атомарно), нет - [IO.File]::Move. Файл занят (антивирус, индексатор, читатель) - короткие повторы до $TimeoutMs.
+# Не вышло - исключение; прежний $Dest остаётся нетронутым, временный файл удаляет вызывающий.
+function Move-IntoPlace {
+    param([string]$Tmp, [string]$Dest, [int]$TimeoutMs = 3000)
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($true) {
+        if (-not (Test-Path -LiteralPath $Tmp -PathType Leaf)) { throw (New-Object IO.FileNotFoundException(('временный файл не найден: ' + $Tmp))) }
+        try {
+            if (Test-Path -LiteralPath $Dest -PathType Leaf) { [IO.File]::Replace($Tmp, $Dest, [NullString]::Value) } else { [IO.File]::Move($Tmp, $Dest) }
+            return
+        } catch {
+            if (-not (Test-TransientIoError $_.Exception) -or $sw.ElapsedMilliseconds -ge $TimeoutMs) { throw }
+            Start-Sleep -Milliseconds 60
+        }
+    }
+}
+
 function Save-FileAtomic {
-    param([string]$Path, [byte[]]$Bytes)
+    param([string]$Path, [byte[]]$Bytes, [int]$TimeoutMs = 3000)
     $dir = [IO.Path]::GetDirectoryName($Path)
     if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-    $tmp = $Path + '.tmp'
-    [IO.File]::WriteAllBytes($tmp, $Bytes)
-    Move-Item -LiteralPath $tmp -Destination $Path -Force
+    $tmp = Get-TempSibling $Path
+    try {
+        [IO.File]::WriteAllBytes($tmp, $Bytes)
+        Move-IntoPlace -Tmp $tmp -Dest $Path -TimeoutMs $TimeoutMs
+    } finally {
+        if (Test-Path -LiteralPath $tmp) { try { Remove-Item -LiteralPath $tmp -Force } catch { } }
+    }
+}
+
+# Остатки прерванных записей (*.tmp) в папке данных: прежний формат <файл>.tmp и новый <файл>.<PID>.<guid>.tmp.
+# Трогаем только старше $MinAgeMinutes, чтобы не задеть запись другого процесса. Возвращает число удалённых.
+function Remove-StaleTempFiles {
+    param([string]$Root = $script:SI_Home, [int]$MinAgeMinutes = 10)
+    $n = 0
+    if (-not $Root -or -not (Test-Path -LiteralPath $Root -PathType Container)) { return 0 }
+    $limit = (Get-Date).AddMinutes(-$MinAgeMinutes)
+    try {
+        foreach ($f in @(Get-ChildItem -LiteralPath $Root -Recurse -File -Force -Filter '*.tmp' -ErrorAction SilentlyContinue)) {
+            try {
+                if ($f.LastWriteTime -lt $limit -and $f.Name.EndsWith('.tmp', [StringComparison]::OrdinalIgnoreCase)) { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop; $n++ }
+            } catch { }
+        }
+    } catch { }
+    if ($n -gt 0) { Write-Log "Удалено остатков *.tmp: $n" }
+    return $n
 }
 
 function Join-Rel {
@@ -623,11 +745,22 @@ function Install-Pack {
     if (-not $entry) { throw "пака '$Id' нет в index.json" }
     $d0 = Update-OnePack $BaseUrl $entry ([bool]$Force)
     $packDir = Join-Path $script:SI_PacksDir $Id
-    $man = Read-JsonFile (Join-Path $packDir 'pack.json')
+    $manPath = Join-Path $packDir 'pack.json'
+    # pack.json держим в памяти: пока качаются сотни файлов, на диске с ним могло что-то случиться (антивирус, чистильщик, другой процесс)
+    $manBytes = [IO.File]::ReadAllBytes($manPath)
+    $manSha = Get-BytesSha256 $manBytes
+    $man = ConvertFrom-JsonBytes $manBytes
     $files = @(Get-PackFileList $packDir ($BaseUrl + ([string]$entry.path).Trim('/') + '/') $man)
     $label = if ($man.name) { [string]$man.name } else { $Id }
     $n = Sync-PackFiles $files $label -Force:$Force
-    [IO.File]::WriteAllText((Join-Path $packDir '.synced'), (Get-FileSha256 (Join-Path $packDir 'pack.json')), (New-Object System.Text.UTF8Encoding($false)))
+    if (-not (Test-Path -LiteralPath $manPath -PathType Leaf)) {
+        Write-Log "  pack.json пака $label пропал с диска во время загрузки - записываю заново"
+        Save-FileAtomic $manPath $manBytes
+    } elseif ((Get-FileSha256 $manPath) -ne $manSha) {
+        Write-Log "  pack.json пака $label изменился во время загрузки - записываю проверенную версию"
+        Save-FileAtomic $manPath $manBytes
+    }
+    Save-FileAtomic (Join-Path $packDir '.synced') ([System.Text.UTF8Encoding]::new($false).GetBytes($manSha))
     Write-Log $(if ($n -gt 0) { "Пак ${label}: скачано файлов $n" } else { "Пак ${label}: все файлы на месте" })
     return [pscustomobject]@{ Id = $Id; Downloaded = ($n + $d0); Files = $files.Count }
 }
@@ -928,6 +1061,45 @@ function Test-PathUnder {
     return $Full.StartsWith($d, [StringComparison]::OrdinalIgnoreCase)
 }
 
+# Полный путь без хвостового разделителя (корень диска оставляем как есть); '' - если путь разобрать нельзя
+function Get-NormalPath {
+    param([string]$Path)
+    if (-not $Path) { return '' }
+    try {
+        $f = [IO.Path]::GetFullPath($Path)
+        $root = [IO.Path]::GetPathRoot($f)
+        if ($f.Length -gt $root.Length) { $f = $f.TrimEnd($script:SI_Seps) }
+        return $f
+    } catch { return '' }
+}
+
+# Как соотносятся прежняя и новая папки данных (по полным путям, регистр не важен):
+# 'separate' - не пересекаются; 'equal' - одна и та же; 'old-in-new' / 'new-in-old' - одна лежит внутри другой; 'unknown' - путь не разобрать.
+# Всё, кроме 'separate', - повод отказаться от любого разрушительного шага над прежней папкой.
+function Get-HomeRelation {
+    param([string]$Old, [string]$New)
+    $o = Get-NormalPath $Old
+    $n = Get-NormalPath $New
+    if (-not $o -or -not $n) { return 'unknown' }
+    if ($o -ieq $n) { return 'equal' }
+    if (Test-PathUnder $o $n) { return 'old-in-new' }
+    if (Test-PathUnder $n $o) { return 'new-in-old' }
+    return 'separate'
+}
+
+# Можно ли рекурсивно удалять $Path под прежней папкой: папки не пересекаются, путь строго внутри прежней и не внутри (и не равен) новой
+function Test-SafeOldHomeDelete {
+    param([string]$Path, [string]$OldHome = [string]$script:SI_OldHome, [string]$NewHome = [string]$script:SI_Home)
+    if ((Get-HomeRelation $OldHome $NewHome) -ne 'separate') { return $false }
+    $p = Get-NormalPath $Path
+    $o = Get-NormalPath $OldHome
+    $n = Get-NormalPath $NewHome
+    if (-not $p -or -not $o -or -not $n) { return $false }
+    if (-not (Test-PathUnder $p $o)) { return $false }
+    if (($p -ieq $n) -or (Test-PathUnder $p $n)) { return $false }
+    return $true
+}
+
 # .ico, который можно подменять/восстанавливать: внутри %LOCALAPPDATA%\ (не LocalLow, не наша папка данных),
 # ни сам файл, ни его родители до %LOCALAPPDATA% включительно - не точки повторной обработки (junction/symlink)
 function Test-IcoSwapPath {
@@ -1012,14 +1184,10 @@ function Save-Backup {
     if (-not (Test-Path -LiteralPath $script:SI_BackupDir)) { New-Item -ItemType Directory -Path $script:SI_BackupDir -Force | Out-Null }
     $arr = foreach ($k in $Map.Keys) { [pscustomobject]@{ Path = $k; Copy = $Map[$k].Copy; Icon = $Map[$k].Icon } }
     $json = ConvertTo-Json -InputObject @($arr)
-    $tmp = $script:SI_BackupFile + '.tmp'          # пишем во временный файл и переименовываем: обрыв не оставит битый index.json
+    $tmp = Get-TempSibling $script:SI_BackupFile          # пишем во временный файл и переименовываем: обрыв не оставит битый index.json
     try {
         [IO.File]::WriteAllText($tmp, $json, (New-Object System.Text.UTF8Encoding($true)))
-        if (Test-Path -LiteralPath $script:SI_BackupFile) {
-            try { [IO.File]::Replace($tmp, $script:SI_BackupFile, $null) } catch { Move-Item -LiteralPath $tmp -Destination $script:SI_BackupFile -Force }
-        } else {
-            Move-Item -LiteralPath $tmp -Destination $script:SI_BackupFile -Force
-        }
+        Move-IntoPlace -Tmp $tmp -Dest $script:SI_BackupFile
     } finally {
         if (Test-Path -LiteralPath $tmp) { try { Remove-Item -LiteralPath $tmp -Force } catch { } }
     }
@@ -1404,14 +1572,10 @@ function Save-JsonAtomic {
     param([string]$Path, [string]$Json)
     $dir = [IO.Path]::GetDirectoryName($Path)
     if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-    $tmp = $Path + '.tmp'
+    $tmp = Get-TempSibling $Path
     try {
         [IO.File]::WriteAllText($tmp, $Json, (New-Object System.Text.UTF8Encoding($true)))
-        if (Test-Path -LiteralPath $Path) {
-            try { [IO.File]::Replace($tmp, $Path, $null) } catch { Move-Item -LiteralPath $tmp -Destination $Path -Force }
-        } else {
-            Move-Item -LiteralPath $tmp -Destination $Path -Force
-        }
+        Move-IntoPlace -Tmp $tmp -Dest $Path
     } finally {
         if (Test-Path -LiteralPath $tmp) { try { Remove-Item -LiteralPath $tmp -Force } catch { } }
     }
@@ -1956,7 +2120,9 @@ function Get-LegacyMigrationSkipReason {
     $old = [string]$script:SI_OldHome
     $new = [string]$script:SI_Home
     if (-not $old -or -not (Test-Path -LiteralPath $old -PathType Container)) { return 'нет прежней папки' }
-    if ($old.TrimEnd($script:SI_Seps) -ieq $new.TrimEnd($script:SI_Seps)) { return 'та же папка' }
+    $rel = Get-HomeRelation $old $new
+    if ($rel -eq 'equal') { return 'та же папка' }
+    if ($rel -ne 'separate') { return 'папки вложены друг в друга' }
     if (Test-Path -LiteralPath (Join-Path $new 'migrated.json')) { return 'уже перенесено' }
     return ''
 }
@@ -1967,7 +2133,7 @@ function Test-LegacyMigrationIncomplete {
     $old = [string]$script:SI_OldHome
     $new = [string]$script:SI_Home
     if (-not $old -or -not (Test-Path -LiteralPath $old -PathType Container)) { return $false }
-    if ($old.TrimEnd($script:SI_Seps) -ieq $new.TrimEnd($script:SI_Seps)) { return $false }
+    if ((Get-HomeRelation $old $new) -ne 'separate') { return $false }
     if (Test-Path -LiteralPath (Join-Path $new 'migrated.json')) { return $false }
     foreach ($n in @('backup', 'backup.migrating')) { if (Test-Path -LiteralPath (Join-Path $old $n)) { return $true } }
     return $false
@@ -2087,6 +2253,11 @@ function Invoke-LegacyMigrationLocked {
     $old = [string]$script:SI_OldHome
     $new = [string]$script:SI_Home
     $marker = Join-Path $new 'migrated.json'
+    if ((Get-HomeRelation $old $new) -ne 'separate') {
+        Write-Log "Отказ: прежняя и новая папки данных совпадают или вложены друг в друга ($old | $new) - ничего не переношу и не удаляю"
+        $res.Reason = 'папки совпадают или вложены'
+        return $res
+    }
 
     Write-Log "Переношу данные прежней версии: $old"
     $oldBackup = Join-Path $old 'backup'
@@ -2164,6 +2335,7 @@ function Invoke-LegacyMigrationLocked {
         }
         if ($hasPng) {
             $canDelete = ($s11ok -and ($rew.Count -eq 0 -or ($stop -and $stop.Ok)))
+            if ($canDelete -and -not (Test-SafeOldHomeDelete $oldS11)) { $canDelete = $false; Write-Log '  PNG плиток в прежней папке оставлены (путь не прошёл проверку безопасного удаления)' }
             if ($canDelete) { Remove-Item -LiteralPath $oldS11 -Recurse -Force }
             else { Write-Log '  PNG плиток в прежней папке оставлены (Start11 не перезапущен или значения не переписаны)' }
         }
@@ -2175,7 +2347,10 @@ function Invoke-LegacyMigrationLocked {
         try { $res.Backup += (Merge-LegacyBackup $s.Dir $oldBackup $oldS11 $s.OldFirst); $merged = $true }
         catch { $res.Failed++; $retry = $true; Write-Log ('  бэкап не перенесён: ' + $_.Exception.Message) }      # повтор продолжит с backup.migrating
         if (-not $merged) { break }
-        try { Remove-Item -LiteralPath $s.Dir -Recurse -Force }
+        try {
+            if (-not (Test-SafeOldHomeDelete $s.Dir)) { throw 'путь вне прежней папки или внутри новой - не удаляю' }
+            Remove-Item -LiteralPath $s.Dir -Recurse -Force
+        }
         catch { Write-Log ('  старый бэкап не удалён (он уже перенесён, остаток можно удалить вручную): ' + $s.Dir + ' - ' + $_.Exception.Message) }
     }
 
@@ -2186,7 +2361,7 @@ function Invoke-LegacyMigrationLocked {
             if (-not (Test-Path -LiteralPath $ol -PathType Leaf)) { continue }
             $nl = Join-Path $new $ln
             if ($ln -eq 'log.txt' -and (Test-Path -LiteralPath $nl)) {
-                [IO.File]::WriteAllText($nl, ([IO.File]::ReadAllText($ol) + [IO.File]::ReadAllText($nl)), (New-Object System.Text.UTF8Encoding($false)))
+                Save-FileAtomic $nl ([System.Text.UTF8Encoding]::new($false).GetBytes([IO.File]::ReadAllText($ol) + [IO.File]::ReadAllText($nl)))
                 Remove-Item -LiteralPath $ol -Force
             } elseif (-not (Test-Path -LiteralPath $nl)) {
                 Move-Item -LiteralPath $ol -Destination $nl -Force
@@ -2205,7 +2380,9 @@ function Invoke-LegacyMigrationLocked {
             if (Test-Path -LiteralPath $oa) {
                 $cd = ''
                 try { $cd = [IO.Path]::GetFullPath([string]$script:SI_CodeDir).TrimEnd($script:SI_Seps) } catch { }
-                if ($cd -and (($cd -ieq $oa.TrimEnd($script:SI_Seps)) -or (Test-PathUnder $cd $oa))) { Write-Log '  прежняя папка app используется сейчас - не удаляю' }
+                $cd = Get-NormalPath $cd
+                if ($cd -and (($cd -ieq (Get-NormalPath $oa)) -or (Test-PathUnder $cd (Get-NormalPath $oa)))) { Write-Log '  прежняя папка app используется сейчас - не удаляю' }
+                elseif (-not (Test-SafeOldHomeDelete $oa)) { Write-Log '  прежняя папка app не удалена: путь не прошёл проверку безопасного удаления' }
                 else { Remove-Item -LiteralPath $oa -Recurse -Force; Write-Log '  удалена прежняя папка app' }
             }
         } catch { Write-Log ('  прежняя папка app не удалена: ' + $_.Exception.Message) }
@@ -2247,14 +2424,14 @@ function Remove-EmptyDirs {
 function Remove-LegacyHomeIfUnused {
     $old = [string]$script:SI_OldHome
     if (-not $old -or -not (Test-Path -LiteralPath $old -PathType Container)) { return $false }
-    if ($old.TrimEnd($script:SI_Seps) -ieq ([string]$script:SI_Home).TrimEnd($script:SI_Seps)) { return $false }
+    if ((Get-HomeRelation $old ([string]$script:SI_Home)) -ne 'separate') { return $false }
     if (Test-LegacyMigrationIncomplete) { return $false }
     if (Test-LegacyHomeReferenced) { return $false }
     $subs = @('packs', 'icons')
     if (Test-Path -LiteralPath (Join-Path ([string]$script:SI_Home) 'migrated.json')) { $subs += 'backup.migrating' }       # остаток уже перенесённого бэкапа
     foreach ($sub in $subs) {
         $d = Join-Path $old $sub
-        try { if (Test-Path -LiteralPath $d) { Remove-Item -LiteralPath $d -Recurse -Force; Write-Log "Удалена прежняя папка: $d" } } catch { Write-Log "Не удалена $d : $($_.Exception.Message)" }
+        try { if ((Test-Path -LiteralPath $d) -and (Test-SafeOldHomeDelete $d)) { Remove-Item -LiteralPath $d -Recurse -Force; Write-Log "Удалена прежняя папка: $d" } } catch { Write-Log "Не удалена $d : $($_.Exception.Message)" }
     }
     foreach ($fn in @('Set-TaskbarIcons.ps1', 'log.txt', 'log.txt.old', 'run-hidden.vbs')) {
         $f = Join-Path $old $fn
@@ -2267,6 +2444,41 @@ function Remove-LegacyHomeIfUnused {
 
 function Invoke-LegacyCleanup {
     try { [void](Remove-LegacyHomeIfUnused) } catch { Write-Log ('Прежняя папка данных: ' + $_.Exception.Message) }
+}
+
+# Текст помощника удаления: ждёт завершения процесса $WaitPid (GUI/CLI, из чьих файлов он запущен), затем удаляет папку приложения
+# (повторы - файлы могут ещё секунду быть заняты) и саму папку данных, если она опустела. Ничего другого не трогает.
+function New-UninstallHelperScript {
+    param([int]$WaitPid, [string]$AppDir, [string]$HomeDir)
+    $qa = $AppDir.Replace("'", "''")
+    $qh = $HomeDir.Replace("'", "''")
+    $lines = @(
+        '$ErrorActionPreference = ''SilentlyContinue''',
+        ('$wp = ' + [int]$WaitPid),
+        ('$app = ''' + $qa + ''''),
+        ('$home1 = ''' + $qh + ''''),
+        '$dl = (Get-Date).AddSeconds(120)',
+        'while ((Get-Date) -lt $dl -and (Get-Process -Id $wp -ErrorAction SilentlyContinue)) { Start-Sleep -Milliseconds 300 }',
+        'for ($i = 0; $i -lt 40; $i++) {',
+        '    if (-not (Test-Path -LiteralPath $app)) { break }',
+        '    Remove-Item -LiteralPath $app -Recurse -Force -ErrorAction SilentlyContinue',
+        '    if (-not (Test-Path -LiteralPath $app)) { break }',
+        '    Start-Sleep -Milliseconds 500',
+        '}',
+        'if ((Test-Path -LiteralPath $home1) -and -not (Get-ChildItem -LiteralPath $home1 -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $home1 -Force -ErrorAction SilentlyContinue }'
+    )
+    return ($lines -join "`r`n")
+}
+
+# запустить помощника отдельным скрытым powershell.exe; бросает исключение, если не запустился
+function Start-UninstallHelper {
+    param([string]$AppDir, [string]$HomeDir, [int]$WaitPid = $PID, [string]$WorkDir = '')
+    if (-not $WorkDir) { $WorkDir = if ($env:TEMP) { $env:TEMP } else { [IO.Path]::GetTempPath() } }
+    if (-not (Test-PathUnder (Get-NormalPath $AppDir) (Get-NormalPath $HomeDir))) { throw 'папка приложения не внутри папки данных - помощник не запускаю' }
+    $code = New-UninstallHelperScript -WaitPid $WaitPid -AppDir $AppDir -HomeDir $HomeDir
+    $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($code))
+    $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    Start-Process -FilePath $ps -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', $enc) -WindowStyle Hidden -WorkingDirectory $WorkDir
 }
 
 function Uninstall-App {
@@ -2301,8 +2513,7 @@ function Uninstall-App {
     } catch {
         $appRemoved = $false
         try {   # файлы заняты (мы из них запущены) - дочищаем после завершения процесса
-            $cmd = 'ping -n 4 127.0.0.1 >nul & rmdir /s /q "' + $script:SI_AppDir + '" & rmdir "' + $script:SI_Home + '"'
-            Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', $cmd) -WindowStyle Hidden -WorkingDirectory $tmpDir
+            Start-UninstallHelper -AppDir $script:SI_AppDir -HomeDir $script:SI_Home -WaitPid $PID -WorkDir $tmpDir
             $appRemoved = $true
         } catch { Write-Log "Папка приложения не удалена: $($_.Exception.Message)" }
     }

@@ -27,7 +27,28 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $script:Root = $PSScriptRoot
-. (Join-Path $script:Root 'Engine.ps1')
+$script:EnginePath = Join-Path $script:Root 'Engine.ps1'
+# Текст движка читаем один раз: фоновые операции (runspace) получают его из памяти и не зависят от файла на диске (см. Start-EngineJob)
+# Файл повреждён/отсутствует/не разбирается - понятное сообщение вместо молчаливого падения (и запись в %TEMP%\Glyphix-error.log)
+try {
+    $script:EngineText = [IO.File]::ReadAllText($script:EnginePath, [System.Text.Encoding]::UTF8)
+    . $script:EnginePath
+} catch {
+    $gxMsg = 'Файлы приложения повреждены — переустановите Glyphix командой: irm https://raw.githubusercontent.com/F1KS-FK/glyphix/main/install.ps1 | iex'
+    try {
+        $gxTmp = if ($env:TEMP) { $env:TEMP } else { [IO.Path]::GetTempPath() }
+        $gxLog = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '  Glyphix.ps1: ' + $script:EnginePath + ' не загружен: ' + $_.Exception.Message + "`r`n"
+        [IO.File]::AppendAllText((Join-Path $gxTmp 'Glyphix-error.log'), $gxLog, (New-Object System.Text.UTF8Encoding($false)))
+    } catch { }
+    try { Write-Host $gxMsg } catch { }
+    if (-not ($Cli -or $List -or $Apply -or $Undo -or $Update -or $CheckUpdate)) {
+        try {
+            Add-Type -AssemblyName PresentationFramework
+            [void][System.Windows.MessageBox]::Show($gxMsg, 'Glyphix', 'OK', 'Error')
+        } catch { }
+    }
+    exit 1
+}
 
 # ======================= CLI =======================
 function Invoke-Cli {
@@ -125,6 +146,25 @@ if ([Threading.Thread]::CurrentThread.GetApartmentState() -ne [Threading.Apartme
 # Пуск и рабочий стол пользователя). Общие ярлыки - по галочке, через UAC на одно действие (см. Invoke-Apply).
 
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
+
+# Один экземпляр окна: именованный мьютекс сессии. Второй запуск лишь сообщает, что приложение уже открыто, и выходит
+# (два окна писали бы в одни и те же state.json/backup и мешали бы обновлению файлов).
+$script:InstanceMutex = $null
+$gxAlready = $false
+try {
+    $gxNew = $false
+    $script:InstanceMutex = New-Object System.Threading.Mutex($false, 'Local\Glyphix.App', [ref]$gxNew)
+    if (-not $gxNew) { $gxAlready = $true }
+} catch {
+    for ($gxE = $_.Exception; $gxE; $gxE = $gxE.InnerException) { if ($gxE -is [UnauthorizedAccessException]) { $gxAlready = $true } }      # создан другим уровнем доступа (например, повышенным процессом) - значит, окно уже есть
+    if (-not $gxAlready) { try { Write-Log ('Мьютекс единственного экземпляра недоступен: ' + $_.Exception.Message) } catch { } }      # не смогли проверить - работаем как раньше
+}
+if ($gxAlready) {
+    if ($script:InstanceMutex) { try { $script:InstanceMutex.Dispose() } catch { } }
+    [void][System.Windows.MessageBox]::Show('Glyphix уже открыт', 'Glyphix', 'OK', 'Information')
+    exit 0
+}
+try { [void](Remove-StaleTempFiles) } catch { }          # остатки прерванных записей (*.tmp); мы единственный экземпляр, никто другой не пишет
 
 try {
     if (-not ('GlyphixNative.Gui' -as [type])) {
@@ -291,11 +331,32 @@ function Add-LogLine {
 
 function Set-Status { param([string]$Text) $script:ui.TxtStatus.Text = $Text; $script:ui.TxtStatus.ToolTip = $Text }
 
+# Ошибка действия GUI: сообщение в строку состояния, в журнал (log.txt) - сообщение, место ошибки и стек вызовов. Сама не бросает исключений.
 function Show-Error {
-    param($Err)
-    $m = if ($Err -is [System.Management.Automation.ErrorRecord]) { $Err.Exception.Message } else { [string]$Err }
-    Write-Log ('ОШИБКА GUI: ' + $m)
-    Set-Status ($script:T.Error -f $m)
+    param($Err, [string]$Action = '', [string]$Stack = '')
+    try {
+        $m = ''
+        if ($Err -is [System.Management.Automation.ErrorRecord]) {
+            $m = $Err.Exception.Message
+            if (-not $Stack) { $Stack = [string]$Err.ScriptStackTrace }
+            $im = ''
+            try { if ($Err.InvocationInfo) { $im = ('{0}:{1}  {2}' -f $Err.InvocationInfo.ScriptName, $Err.InvocationInfo.ScriptLineNumber, $Err.InvocationInfo.Line.Trim()) } } catch { }
+            if ($im) { $Stack = ('в ' + $im + "`n" + $Stack) }
+        } elseif ($Err -and $Err.PSObject.Properties['Error']) {
+            $m = [string]$Err.Error
+            if (-not $Stack -and $Err.PSObject.Properties['Stack']) { $Stack = [string]$Err.Stack }
+        } else { $m = [string]$Err }
+        $head = if ($Action) { 'ОШИБКА GUI [' + $Action + ']: ' } else { 'ОШИБКА GUI: ' }
+        Write-Log ($head + $m)
+        if ($Stack) { Write-Log ('  стек: ' + (($Stack.Trim() -replace "`r?`n", ' <- '))) }
+        Set-Status ($script:T.Error -f $m)
+    } catch { }
+}
+
+# Действие GUI не должно валить окно и соседние действия: любая ошибка - в журнал со стеком и в строку состояния
+function Invoke-Safe {
+    param([string]$Action, [scriptblock]$Do)
+    try { & $Do } catch { Show-Error $_ $Action }
 }
 
 function Set-Busy {
@@ -306,32 +367,23 @@ function Set-Busy {
     foreach ($b in $script:CardButtons) { $b.IsEnabled = (-not $Busy) }
 }
 
-# ---- фоновые операции (отдельный runspace, UI не замирает) ----
-$script:Prologue = @'
-param($enginePath, $queue, $params, $body)
-$ErrorActionPreference = 'Stop'
-. $enginePath
-$q = $queue
-Set-EngineLogHandler ({ param($m) $q.Enqueue([string]$m) }.GetNewClosure())
-try { & ([scriptblock]::Create($body)) $params }
-catch { Write-Log ('ОШИБКА: ' + $_.Exception.Message); [pscustomobject]@{ Error = $_.Exception.Message } }
-'@
-
+# ---- фоновые операции (отдельный runspace, UI не замирает; код - Start-EngineJob / Receive-EngineJob в Engine.ps1) ----
 function Start-Bg {
     param([string]$Title, [string]$Body, [hashtable]$Params, [scriptblock]$OnDone)
     if ($script:Job -or $script:Closing) { return }
     Set-Status $Title
     Set-Busy $true
-    $q = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
-    $rs = [runspacefactory]::CreateRunspace()
-    $rs.ApartmentState = [Threading.ApartmentState]::STA
-    $rs.ThreadOptions = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
-    $rs.Open()
-    $ps = [powershell]::Create()
-    $ps.Runspace = $rs
-    [void]$ps.AddScript($script:Prologue).AddArgument((Join-Path $script:Root 'Engine.ps1')).AddArgument($q).AddArgument($Params).AddArgument($Body)
-    $async = $ps.BeginInvoke()
-    $script:Job = @{ PS = $ps; RS = $rs; Async = $async; Queue = $q; OnDone = $OnDone }
+    try {
+        if (-not (Test-Path -LiteralPath $script:EnginePath -PathType Leaf)) {
+            Write-Log ('Engine.ps1 нет на диске: ' + $script:EnginePath + ' (папка app есть: ' + (Test-Path -LiteralPath $script:Root) + ') - работаю с копией из памяти')
+        }
+        $j = Start-EngineJob -EngineText $script:EngineText -CodeDir $script:Root -Body $Body -Params $Params
+    } catch {
+        Set-Busy $false
+        throw
+    }
+    $j.OnDone = $OnDone
+    $script:Job = $j
     $script:Timer.Start()
 }
 
@@ -342,18 +394,12 @@ function Step-Job {
     while ($job.Queue.TryDequeue([ref]$line)) { Add-LogLine $line; Set-Status $line }
     if (-not $job.Async.IsCompleted) { return }
     $script:Timer.Stop()
-    $res = $null
-    try {
-        $out = $job.PS.EndInvoke($job.Async)
-        if ($out -and $out.Count -gt 0) { $res = $out[$out.Count - 1] }
-    } catch {
-        $res = [pscustomobject]@{ Error = $_.Exception.Message }
-    }
-    try { $job.PS.Dispose(); $job.RS.Close(); $job.RS.Dispose() } catch { }
+    $res = Receive-EngineJob $job
     $script:Job = $null
     Set-Busy $false
-    try { & $job.OnDone $res } catch { Show-Error $_ }
-    if ($script:PendingSelect) { $p = $script:PendingSelect; $script:PendingSelect = $null; Select-Pack $p }
+    if ($res -and $res.PSObject.Properties['Error'] -and $res.Error) { Write-Log ('Фоновая операция завершилась ошибкой: ' + $res.Error) }
+    try { & $job.OnDone $res } catch { Show-Error $_ 'после операции' }
+    if ($script:PendingSelect) { $p = $script:PendingSelect; $script:PendingSelect = $null; try { Select-Pack $p } catch { Show-Error $_ 'выбор пака' } }
 }
 
 # ---- обновление самого приложения ----
@@ -375,11 +421,7 @@ function Step-UpdateCheck {
     if (-not $u.Async.IsCompleted) { return }
     $script:UpdTimer.Stop()
     $info = $null
-    try {
-        $out = $u.PS.EndInvoke($u.Async)
-        if ($out -and $out.Count -gt 0) { $info = $out[$out.Count - 1] }
-    } catch { }
-    try { $u.PS.Dispose(); $u.RS.Close(); $u.RS.Dispose() } catch { }
+    try { $info = Receive-EngineJob $u } catch { }
     $script:UpdJob = $null
     if ($info -and $info.PSObject.Properties['Available']) { $script:UpdateInfo = $info; Show-AppUpdateButton }
 }
@@ -387,18 +429,9 @@ function Step-UpdateCheck {
 function Start-UpdateCheck {
     if ($script:UpdJob -or $script:Closing) { return }
     try {
-        $rs = [runspacefactory]::CreateRunspace()
-        $rs.ApartmentState = [Threading.ApartmentState]::STA
-        $rs.ThreadOptions = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
-        $rs.Open()
-        $ps = [powershell]::Create()
-        $ps.Runspace = $rs
-        $q = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
-        [void]$ps.AddScript($script:Prologue).AddArgument((Join-Path $script:Root 'Engine.ps1')).AddArgument($q).AddArgument(@{}).AddArgument('param($p) Get-AppUpdateInfo')
-        $async = $ps.BeginInvoke()
-        $script:UpdJob = @{ PS = $ps; RS = $rs; Async = $async }
+        $script:UpdJob = Start-EngineJob -EngineText $script:EngineText -CodeDir $script:Root -Body 'param($p) Get-AppUpdateInfo' -Params @{}
         $script:UpdTimer.Start()
-    } catch { $script:UpdJob = $null }
+    } catch { $script:UpdJob = $null; Write-Log ('Проверка версии не запущена: ' + $_.Exception.Message) }
 }
 
 function Invoke-AppUpdate {
@@ -413,7 +446,7 @@ param($p)
 '@ -OnDone {
         param($res)
         if (-not $res) { Show-Error 'Обновление не вернуло результат'; return }
-        if ($res.Error) { Show-Error $res.Error; return }
+        if ($res.Error) { Show-Error $res 'обновление приложения'; return }
         Set-Status $script:T.AppUpdateStarted
         $script:Closing = $true
         $script:Window.Close()
@@ -467,6 +500,7 @@ function Rebuild-Packs {
     $st = Read-State
     if ($st.ContainsKey('Applied') -and $st['Applied']) { $applied = [string]$st['Applied'].PackId }
     foreach ($pk in $script:Packs) {
+      try {
         # карточка = Grid с жёсткими строками: высота и положение элементов не зависят от длины текста
         $card = New-Object System.Windows.Controls.Border
         $card.Style = (Get-Res 'CardStyle')
@@ -542,7 +576,7 @@ function Rebuild-Packs {
         $btn.Style = (Get-Res 'AccentButton')
         $btn.Content = $script:T.Apply
         $btn.Tag = $pk.Id
-        $btn.Add_Click({ param($s, $e) try { Invoke-Apply ([string]$s.Tag) } catch { Show-Error $_ } })
+        $btn.Add_Click({ param($s, $e) try { Invoke-Apply ([string]$s.Tag) } catch { Show-Error $_ 'Применить' } })
         [void]$row.Children.Add($btn)
         $script:CardButtons += $btn
         if ($pk.State -ne 'ready') {          # «Скачать» - иконки и плитки этого пака (по требованию)
@@ -551,7 +585,7 @@ function Rebuild-Packs {
             $dl.Content = $script:T.Download
             $dl.Tag = $pk.Id
             $dl.Margin = New-Object System.Windows.Thickness(10, 0, 0, 0)
-            $dl.Add_Click({ param($s, $e) try { Invoke-Download ([string]$s.Tag) } catch { Show-Error $_ } })
+            $dl.Add_Click({ param($s, $e) try { Invoke-Download ([string]$s.Tag) } catch { Show-Error $_ 'Скачать' } })
             [System.Windows.Controls.Grid]::SetColumn($dl, 1)
             [void]$row.Children.Add($dl)
             $script:CardButtons += $dl
@@ -559,16 +593,17 @@ function Rebuild-Packs {
         [System.Windows.Controls.Grid]::SetRow($row, 4)
         [void]$sp.Children.Add($row)
         $card.Child = $sp
-        $card.Add_MouseLeftButtonUp({ param($s, $e) try { Select-Pack ([string]$s.Tag) } catch { Show-Error $_ } })
+        $card.Add_MouseLeftButtonUp({ param($s, $e) try { Select-Pack ([string]$s.Tag) } catch { Show-Error $_ 'выбор пака' } })
         [void]$script:ui.PackList.Children.Add($card)
         $script:Cards[$pk.Id] = $card
+      } catch { Show-Error $_ ('карточка пака ' + $pk.Id) }      # одна неудачная карточка не должна оставлять без списка остальные
     }
     Update-CardHighlight
 }
 
 # ---- панель «Что поменяется» ----
 function New-MatchRow {
-    param([string]$ImgPath, [string]$Title, [string]$Sub, [string]$Pill, [string]$Tip)
+    param([string]$ImgPath, [string]$Title, [string]$Sub, [string]$PillText, [string]$Tip)
     $row = New-Object System.Windows.Controls.Border
     $row.Background = (Get-Res 'RowBrush')
     $row.CornerRadius = New-Object System.Windows.CornerRadius(10)
@@ -605,7 +640,7 @@ function New-MatchRow {
     $pill.Padding = New-Object System.Windows.Thickness(8, 3, 8, 3)
     $pill.VerticalAlignment = 'Center'
     $pill.MaxWidth = 140
-    $pill.Child = New-Text $Pill 11 'MutedBrush'
+    $pill.Child = New-Text $PillText 11 'MutedBrush'
     $pill.Child.TextTrimming = 'CharacterEllipsis'
     [System.Windows.Controls.Grid]::SetColumn($pill, 2)
     [void]$g.Children.Add($pill)
@@ -637,6 +672,7 @@ function Fill-Matches {
     foreach ($g in @(Get-MatchGroups $items $tiles)) {
         [void]$script:ui.MatchList.Children.Add((New-GroupHeader ($script:T.GroupHeader -f (Get-GroupTitle ([string]$g.Group)), $g.Count)))
         foreach ($r in $g.Rows) {
+          try {
             $m = $r.Item
             if ($r.Kind -eq 'link') {
                 if ($m.Already) { $same++ }
@@ -652,6 +688,7 @@ function Fill-Matches {
                 if ($m.Already) { $sub += ' · ' + $script:T.AlreadySet }
                 [void]$script:ui.MatchList.Children.Add((New-MatchRow $m.TilePath $title $sub $script:T.TilesPill ([string]$m.TileId)))
             }
+          } catch { Show-Error $_ 'строка списка' }
         }
     }
     if ($items.Count -eq 0 -and $tiles.Count -eq 0) {
@@ -696,7 +733,7 @@ if ($p.Tiles) { try { $tm = @(Get-Start11Matches -Pack $pk -NoName:([bool]$p.NoN
 [pscustomobject]@{ Matches = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All)); TileMatches = $tm }
 '@ -OnDone {
         param($res)
-        if ($res -and $res.Error) { Show-Error $res.Error; $script:ui.TxtMatchSummary.Text = ''; return }
+        if ($res -and $res.Error) { Show-Error $res 'сканирование ярлыков'; $script:ui.TxtMatchSummary.Text = ''; return }
         Fill-Matches $res.Matches $res.TileMatches
         Set-Status $script:T.Ready
     }
@@ -744,7 +781,7 @@ $tr = & $doTiles $pk
 [pscustomobject]@{ Elevated = $false; Result = $r; Tiles = $tr; Matches = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All)); TileMatches = @(& $getTiles $pk); PackName = $pk.Name }
 '@ -OnDone {
         param($res)
-        if ($res -and $res.Error) { Show-Error $res.Error; return }
+        if ($res -and $res.Error) { Show-Error $res 'применение'; return }
         if ($res.Elevated) {
             $code = [int]$res.Elev.ExitCode
             if ($res.Elev.Cancelled) { Set-Status $script:T.ElevCancel }
@@ -778,7 +815,7 @@ param($p)
 Update-Packs
 '@ -OnDone {
         param($res)
-        if ($res -and $res.Error) { Show-Error $res.Error }
+        if ($res -and $res.Error) { Show-Error $res 'обновление паков' }
         elseif ($res -and -not $res.Ok -and $res.Downloaded -eq 0) { Set-Status $script:T.Offline }
         elseif ($res) { Set-Status $res.Message }
         Rebuild-Packs
@@ -800,7 +837,7 @@ param($p)
 Install-Pack -Id ([string]$p.Id)
 '@ -OnDone {
         param($res)
-        if ($res -and $res.Error) { Show-Error $res.Error }
+        if ($res -and $res.Error) { Show-Error $res 'скачивание пака' }
         elseif ($res) { Set-Status ($script:T.DownloadDone -f $res.Downloaded) }
         Rebuild-Packs
         if ($script:SelectedId) { Select-Pack $script:SelectedId }
@@ -816,7 +853,7 @@ Undo-Routed -RestartExplorer:([bool]$p.Restart)
 '@ -OnDone {
         param($res)
         if (-not $res) { Show-Error 'Откат не вернул результат'; return }
-        if ($res.Error) { Show-Error $res.Error; return }
+        if ($res.Error) { Show-Error $res 'откат'; return }
         if ($res.Nothing) { Set-Status $script:T.UndoNothing }
         else {
             $s = $script:T.UndoDone -f $res.Restored
@@ -839,8 +876,12 @@ Uninstall-App -RestartExplorer:([bool]$p.Restart)
 '@ -OnDone {
         param($res)
         if (-not $res) { Show-Error 'Удаление не вернуло результат'; return }
-        if ($res.Error) { Show-Error $res.Error; return }
+        if ($res.Error) { Show-Error $res 'удаление'; return }
         if ($res.Aborted) { Set-Status $res.Message; return }       # откат не удался - приложение остаётся
+        # приложение удалено: этот процесс (отдельная копия движка) больше не пишет журнал, иначе он воссоздал бы папку данных
+        $script:SI_NoLogFile = $true
+        try { foreach ($lf in @($script:SI_LogFile, ($script:SI_LogFile + '.old'))) { if (Test-Path -LiteralPath $lf) { Remove-Item -LiteralPath $lf -Force } } } catch { }
+        try { if ((Test-Path -LiteralPath $script:SI_Home) -and -not (Get-ChildItem -LiteralPath $script:SI_Home -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $script:SI_Home -Force } } catch { }
         Set-Status $script:T.Removed
         $script:Window.Close()
     }
@@ -884,34 +925,36 @@ Set-EngineLogHandler { param($m) Add-LogLine $m }
 
 $script:Timer = New-Object System.Windows.Threading.DispatcherTimer
 $script:Timer.Interval = [TimeSpan]::FromMilliseconds(120)
-$script:Timer.Add_Tick({ try { Step-Job } catch { Show-Error $_ } })
+$script:Timer.Add_Tick({ try { Step-Job } catch { Show-Error $_ 'таймер' } })
 
 $script:UpdTimer = New-Object System.Windows.Threading.DispatcherTimer
 $script:UpdTimer.Interval = [TimeSpan]::FromMilliseconds(250)
 $script:UpdTimer.Add_Tick({ try { Step-UpdateCheck } catch { } })
 
-$script:ui.BtnUpdate.Add_Click({ try { Invoke-Update; Start-UpdateCheck } catch { Show-Error $_ } })
-$script:ui.BtnAppUpdate.Add_Click({ try { Invoke-AppUpdate } catch { Show-Error $_ } })
-$script:ui.BtnUndo.Add_Click({ try { Invoke-Undo } catch { Show-Error $_ } })
+$script:ui.BtnUpdate.Add_Click({ try { Invoke-Update; Start-UpdateCheck } catch { Show-Error $_ 'Обновить паки' } })
+$script:ui.BtnAppUpdate.Add_Click({ try { Invoke-AppUpdate } catch { Show-Error $_ 'Обновить приложение' } })
+$script:ui.BtnUndo.Add_Click({ try { Invoke-Undo } catch { Show-Error $_ 'Откатить' } })
 $script:ui.BtnOpen.Add_Click({
     try {
         if (-not (Test-Path -LiteralPath $script:DataHome)) { New-Item -ItemType Directory -Path $script:DataHome -Force | Out-Null }
         Start-Process -FilePath $script:DataHome
     } catch { Show-Error $_ }
 })
-$script:ui.ChkAllUsers.Add_Click({ try { if ($script:SelectedId) { Select-Pack $script:SelectedId } } catch { Show-Error $_ } })
+$script:ui.ChkAllUsers.Add_Click({ try { if ($script:SelectedId) { Select-Pack $script:SelectedId } } catch { Show-Error $_ 'общие ярлыки' } })
 $script:ui.ChkTiles.Add_Click({
     try {
         $script:ui.ChkNoName.IsEnabled = ($script:HasStart11 -and [bool]$script:ui.ChkTiles.IsChecked)
         if ($script:SelectedId) { Select-Pack $script:SelectedId }
     } catch { Show-Error $_ }
 })
-$script:ui.ChkNoName.Add_Click({ try { if ($script:SelectedId) { Select-Pack $script:SelectedId } } catch { Show-Error $_ } })
-$script:ui.BtnMenu.Add_Click({ $script:ui.PopMenu.IsOpen = (-not $script:ui.PopMenu.IsOpen) })
-$script:ui.BtnUninstall.Add_Click({ try { $script:ui.PopMenu.IsOpen = $false; Invoke-Uninstall } catch { Show-Error $_ } })
+$script:ui.ChkNoName.Add_Click({ try { if ($script:SelectedId) { Select-Pack $script:SelectedId } } catch { Show-Error $_ 'плитки без подписи' } })
+$script:ui.BtnMenu.Add_Click({ try { $script:ui.PopMenu.IsOpen = (-not $script:ui.PopMenu.IsOpen) } catch { Show-Error $_ 'меню' } })
+$script:ui.BtnUninstall.Add_Click({ try { $script:ui.PopMenu.IsOpen = $false; Invoke-Uninstall } catch { Show-Error $_ 'Удалить приложение' } })
 $script:ui.BtnLog.Add_Click({
-    if ($script:ui.LogPanel.Visibility -eq 'Visible') { $script:ui.LogPanel.Visibility = 'Collapsed'; $script:ui.BtnLog.Content = $script:T.LogShow }
-    else { $script:ui.LogPanel.Visibility = 'Visible'; $script:ui.BtnLog.Content = $script:T.LogHide }
+    try {
+        if ($script:ui.LogPanel.Visibility -eq 'Visible') { $script:ui.LogPanel.Visibility = 'Collapsed'; $script:ui.BtnLog.Content = $script:T.LogShow }
+        else { $script:ui.LogPanel.Visibility = 'Visible'; $script:ui.BtnLog.Content = $script:T.LogHide }
+    } catch { Show-Error $_ 'журнал' }
 })
 $script:ui.LnkGitHub.Add_RequestNavigate({
     param($s, $e)
@@ -928,8 +971,15 @@ $script:ui.LnkGitHub.Add_RequestNavigate({
 })
 $script:Window.Add_Closing({
     param($s, $e)
-    if ($script:Job) { $e.Cancel = $true; Set-Status $script:T.Busy; return }
-    $script:Closing = $true
+    try {
+        if ($script:Job) { $e.Cancel = $true; Set-Status $script:T.Busy; return }
+        $script:Closing = $true
+    } catch { Show-Error $_ 'закрытие' }
+})
+# последняя линия обороны: необработанное исключение в обработчике WPF - в журнал со стеком, окно остаётся открытым
+$script:Window.Dispatcher.add_UnhandledException({
+    param($s, $e)
+    try { Write-Log ('НЕОБРАБОТАННАЯ ОШИБКА GUI: ' + $e.Exception.Message + ' | ' + ([string]$e.Exception.StackTrace -replace "`r?`n", ' <- ')); $e.Handled = $true } catch { }
 })
 $script:Window.Add_SourceInitialized({
     try {   # тёмный заголовок окна (Windows 10 1903+/11)
@@ -958,7 +1008,7 @@ function Start-Initial {
 }
 
 $script:Window.Add_ContentRendered({
-    try { Start-UpdateCheck } catch { }
+    try { Start-UpdateCheck } catch { Show-Error $_ 'проверка версии' }
     try {
         $need = ((-not $script:ElevProblem) -and -not (Get-LegacyMigrationSkipReason))
         if ($need) {
@@ -967,13 +1017,13 @@ param($p)
 Invoke-LegacyMigration
 '@ -OnDone {
                 param($res)
-                if ($res -and $res.Error) { Show-Error $res.Error }
+                if ($res -and $res.Error) { Show-Error $res 'перенос данных' }
                 Start-Initial ([bool]($res -and $res.PSObject.Properties['Migrated'] -and $res.Migrated))
             }
         } else {
             Start-Initial
         }
-    } catch { Show-Error $_ }
+    } catch { Show-Error $_ 'запуск' }
 })
 
 $script:ElevProblem = Get-ElevationProblem
@@ -989,5 +1039,7 @@ try {
 } catch {
     Write-Log ('Фатальная ошибка: ' + $_.Exception.Message)
     [void][System.Windows.MessageBox]::Show($_.Exception.Message, 'Glyphix', 'OK', 'Error')
+    try { $script:InstanceMutex.Dispose() } catch { }
     exit 1
 }
+try { $script:InstanceMutex.Dispose() } catch { }
