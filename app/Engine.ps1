@@ -1135,12 +1135,16 @@ function Get-MatchGroups {
 }
 
 # ---------- Сопоставление ----------
+# слишком общие слова: не имя и не exe конкретного приложения (в старых паках они ещё есть, поэтому режем и здесь, а не только в каталоге)
+$script:SI_GenericNames = @('uninstall', 'launcher', 'install', 'installer', 'setup', 'update', 'code')       # 'code' - только как имя ярлыка/токен id: exe code.exe (VS Code) остаётся
+$script:SI_GenericExes = @('uninstall', 'launcher', 'install', 'installer', 'setup', 'update')
+
 function New-MatchIndex {
     param($Pack)
     $nameMap = @{}; $exeMap = @{}
     foreach ($ic in @($Pack.Icons)) {
-        foreach ($n in @($ic.Names)) { $k = Get-Key $n; if ($k -and -not $nameMap.ContainsKey($k)) { $nameMap[$k] = $ic } }
-        foreach ($e in @($ic.Exes)) { $k = Get-Key $e; if ($k -and -not $exeMap.ContainsKey($k)) { $exeMap[$k] = $ic } }
+        foreach ($n in @($ic.Names)) { $k = Get-Key $n; if ($k -and ($script:SI_GenericNames -notcontains $k) -and -not $nameMap.ContainsKey($k)) { $nameMap[$k] = $ic } }
+        foreach ($e in @($ic.Exes)) { $k = Get-Key $e; if ($k -and ($script:SI_GenericExes -notcontains $k) -and -not $exeMap.ContainsKey($k)) { $exeMap[$k] = $ic } }
     }
     return [pscustomobject]@{ Names = $nameMap; Exes = $exeMap }
 }
@@ -1152,7 +1156,7 @@ function Test-UninstallLike {
     return $false
 }
 
-# имя-ключ -> точное имя; exe-ключ -> точный exe; префикс имени (запись names длиной >= 3, самая длинная)
+# имя-ключ -> точное имя; exe-ключ -> точный exe; префикс имени (запись names длиной >= 5, остаток - известный суффикс, самая длинная)
 function Find-IconMatch {
     param($Index, [string]$Name, [string]$Target, [string]$Arguments)
     $k1 = Get-Key $Name
@@ -1170,14 +1174,24 @@ function Find-IconMatch {
     return $null
 }
 
-# префикс: ключ names длиной >= 3 (самый длинный), с которого начинается любой из $Keys
+# Префикс допустим, только если после ключа идёт известный суффикс (telegram|desktop, discord|ptb, robloxplayer|beta) или цифры/версия:
+# signalrgb НЕ signal, codectweaktool НЕ code. Короткие ключи (<= 4 символов: msi, code, obs, vlc) - только целиком, без префикса.
+$script:SI_PrefixSuffixRx = '^(?:desktop|app|launcher|beta|client|player|studio|x64|x86|web|remote|canary|ptb|\d+)+$'
+
+function Test-PrefixRemainder {
+    param([string]$Rest)
+    if (-not $Rest) { return $true }
+    return ($Rest -match $script:SI_PrefixSuffixRx)
+}
+
+# префикс: ключ names длиной >= 5 (самый длинный), с которого начинается любой из $Keys, а остаток - известный суффикс
 function Find-PrefixMatch {
     param($Index, [string[]]$Keys)
     $best = $null; $bestLen = 0
     foreach ($key in $Index.Names.Keys) {
-        if ($key.Length -lt 3 -or $key.Length -le $bestLen) { continue }
+        if ($key.Length -le 4 -or $key.Length -le $bestLen) { continue }
         foreach ($k in @($Keys)) {
-            if ($k -and $k.StartsWith($key, [StringComparison]::Ordinal)) { $best = $Index.Names[$key]; $bestLen = $key.Length; break }
+            if ($k -and $k.StartsWith($key, [StringComparison]::Ordinal) -and (Test-PrefixRemainder $k.Substring($key.Length))) { $best = $Index.Names[$key]; $bestLen = $key.Length; break }
         }
     }
     return $best
@@ -1654,15 +1668,16 @@ function Get-StrippedKeys {
 # слова, которые в id бывают издателем/общим словом, а не именем приложения (ключи уже без регистра и знаков)
 $script:SI_PublisherWords = @('com', 'org', 'net', 'ru', 'io', 'microsoft', 'windows', 'google', 'app', 'apps', 'desktop', 'the')
 
-# Что можно вытащить из id плитки. Pwa = PWA Chrome/Edge (Chrome._crx_<id>): по id не сопоставляем вообще.
+# Что можно вытащить из id плитки. Pwa = PWA Chrome/Edge (Chrome._crx_<id>) и Url = id-ссылка (scheme://...): по id не сопоставляем вообще.
 # Keys = упорядоченные ключи для точного сравнения с names (последний токен важнее: com.anilibria.anilibrix -> anilibrix);
 # Last = ключ имени файла/последнего токена для exes и префикса.
 function Get-TileIdInfo {
     param([string]$Id)
-    $info = [pscustomobject]@{ Pwa = $false; Keys = @(); Last = '' }
+    $info = [pscustomobject]@{ Pwa = $false; Url = $false; Keys = @(); Last = '' }
     if (-not $Id) { return $info }
     $s = $Id.Trim()
     if ($s -match '\._crx_') { $info.Pwa = $true; return $info }
+    if ($s -match '^[A-Za-z][A-Za-z0-9+.\-]+://') { $info.Url = $true; return $info }      # плитка-ссылка (https://www.geeks3d.com/discord/): путь адреса - не имя приложения
     $extRx = '\.(exe|lnk|bat|cmd|com|msi|url|app)$'
     $tokens = @()
     $pathLike = ($s -match '^[A-Za-z]:[_\\/]') -or ($s -match '^\{[0-9A-Fa-f\-]{36}\}[_\\/]') -or ($s -match '[\\/]')
@@ -2264,7 +2279,7 @@ function Install-AppShortcuts {
             $sc = $wsh.CreateShortcut($p)
             $sc.TargetPath = Join-Path $env:SystemRoot 'System32\wscript.exe'
             $sc.Arguments = '"' + $vbs + '"'
-            $sc.WorkingDirectory = $script:SI_AppDir
+            $sc.WorkingDirectory = $script:SI_Home      # не app\: рабочая папка запущенного процесса мешала бы заменить app\ при обновлении
             $sc.IconLocation = "$ico,0"
             $sc.Description = 'Glyphix'
             $sc.Save()

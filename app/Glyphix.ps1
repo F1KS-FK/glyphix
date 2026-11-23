@@ -50,6 +50,13 @@ try {
     exit 1
 }
 
+# Рабочая папка процесса - папка данных, а не app\: текущая папка процесса держит каталог, и установщик не смог бы переименовать app\ при обновлении
+try {
+    if (-not (Test-Path -LiteralPath $script:SI_Home)) { New-Item -ItemType Directory -Path $script:SI_Home -Force | Out-Null }
+    [Environment]::CurrentDirectory = $script:SI_Home
+    Set-Location -LiteralPath $script:SI_Home
+} catch { }
+
 # ======================= CLI =======================
 function Invoke-Cli {
     try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
