@@ -226,7 +226,7 @@ $T = @{
     StateReady   = 'Скачан'
     StateNone    = 'Не скачан'
     StateStale   = 'Есть обновление'
-    NotReadyNote = 'Пак ещё не скачан: иконки и плитки загрузятся при нажатии «Применить» (или «Скачать» на карточке).'
+    NotReadyNote = 'Пак ещё не скачан: иконки загрузятся при нажатии «Применить» (или «Скачать» на карточке), плитки Start11 - при их применении.'
     GroupHeader  = '{0} · {1}'
     Group_apps   = 'Приложения'
     Group_games  = 'Игры'
@@ -579,7 +579,7 @@ function Rebuild-Packs {
         $btn.Add_Click({ param($s, $e) try { Invoke-Apply ([string]$s.Tag) } catch { Show-Error $_ 'Применить' } })
         [void]$row.Children.Add($btn)
         $script:CardButtons += $btn
-        if ($pk.State -ne 'ready') {          # «Скачать» - иконки и плитки этого пака (по требованию)
+        if ($pk.State -ne 'ready') {          # «Скачать» - иконки этого пака и плитки, если они включены (по требованию)
             $dl = New-Object System.Windows.Controls.Button
             $dl.Style = (Get-Res 'GhostButton')
             $dl.Content = $script:T.Download
@@ -757,7 +757,7 @@ function Invoke-Apply {
 param($p)
 $pk = @(Get-Packs) | Where-Object { $_.Id -eq $p.Id } | Select-Object -First 1
 if (-not $pk) { throw 'Пак не найден' }
-Confirm-PackFiles $pk          # иконки и плитки именно этого пака качаем сейчас, до повышения прав и применения
+Confirm-PackFiles $pk          # иконки именно этого пака качаем сейчас (параллельно), до повышения прав и применения; плитки докачает Apply-Start11Tiles
 # плитки Start11 - в реестре текущего пользователя: применяем здесь, а не в повышенном процессе (там -NoTiles)
 $tr = $null
 $doTiles = { param($packObj)
@@ -832,9 +832,10 @@ Update-Packs
 
 function Invoke-Download {
     param([string]$Id)
-    Start-Bg -Title $script:T.Downloading -Params @{ Id = $Id } -Body @'
+    # иконки - всегда; плитки Start11 - только если включены; плитки без подписи - только если выбрано «без подписи» (остальное докачается при применении)
+    Start-Bg -Title $script:T.Downloading -Params @{ Id = $Id; Tiles = (Get-TilesWanted); NoName = [bool]$script:ui.ChkNoName.IsChecked } -Body @'
 param($p)
-Install-Pack -Id ([string]$p.Id)
+Install-Pack -Id ([string]$p.Id) -Parts (Get-PackParts -Tiles ([bool]$p.Tiles) -NoName ([bool]$p.NoName))
 '@ -OnDone {
         param($res)
         if ($res -and $res.Error) { Show-Error $res 'скачивание пака' }

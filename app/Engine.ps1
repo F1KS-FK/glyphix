@@ -501,7 +501,7 @@ function Test-SafeRel {
 
 function Get-WebBytes {
     param([string]$Url, [int]$MaxBytes = 8388608, [int]$TimeoutMs = 20000)
-    try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
     $sep = if ($Url.Contains('?')) { '&' } else { '?' }
     $u = $Url + $sep + 'cb=' + [DateTime]::UtcNow.Ticks          # против кэша
     $req = [Net.HttpWebRequest]::Create($u)
@@ -610,6 +610,157 @@ function Join-Rel {
     return $p
 }
 
+# ---------- Параллельная загрузка файлов пака ----------
+# Пак - сотни мелких файлов с одного хоста; по одному (новый HttpWebRequest, 2 соединения на хост, ожидание каждого ответа) это очень долго.
+# Здесь: один общий System.Net.Http.HttpClient (keep-alive, соединения переиспользуются), до $script:SI_DownloadConcurrency запросов одновременно,
+# без async/await: окно из Task, ожидание Task.WaitAny. Проверка sha256 и запись (Save-FileAtomic) - только в вызывающем потоке.
+$script:SI_HttpClient = $null
+$script:SI_DownloadConcurrency = 12                  # одновременных запросов
+$script:SI_DownloadTries = 3                         # попыток на файл (первая + 2 повтора)
+$script:SI_RetryDelaysMs = @(500, 1500)              # пауза перед 2-й и 3-й попыткой
+$script:SI_HttpTimeoutSec = 45                       # таймаут одного запроса (с телом ответа)
+$script:SI_ConnectionLimit = 16                      # ServicePoint.ConnectionLimit для хоста
+# лимит соединений задаём сразу при загрузке движка: ServicePoint (в т.ч. для системного прокси/VPN) создаётся с лимитом, действующим в момент первого запроса
+try { if ([Net.ServicePointManager]::DefaultConnectionLimit -lt $script:SI_ConnectionLimit) { [Net.ServicePointManager]::DefaultConnectionLimit = $script:SI_ConnectionLimit } } catch { }
+$script:SI_FileMaxBytes = 16777216                   # один файл пака больше 16 МБ не принимаем
+
+function Get-HttpClient {
+    if ($script:SI_HttpClient) { return $script:SI_HttpClient }
+    try { Add-Type -AssemblyName System.Net.Http -ErrorAction Stop } catch { }
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
+    try {
+        if ([Net.ServicePointManager]::DefaultConnectionLimit -lt $script:SI_ConnectionLimit) { [Net.ServicePointManager]::DefaultConnectionLimit = $script:SI_ConnectionLimit }
+        [Net.ServicePointManager]::Expect100Continue = $false
+    } catch { }
+    $h = New-Object System.Net.Http.HttpClientHandler
+    try { $h.AllowAutoRedirect = $true; $h.AutomaticDecompression = [Net.DecompressionMethods]::GZip -bor [Net.DecompressionMethods]::Deflate } catch { }
+    try {
+        $px = [Net.WebRequest]::GetSystemWebProxy()
+        $px.Credentials = [Net.CredentialCache]::DefaultCredentials
+        $h.Proxy = $px
+    } catch { }
+    $c = New-Object System.Net.Http.HttpClient($h)
+    $c.Timeout = [TimeSpan]::FromSeconds($script:SI_HttpTimeoutSec)
+    try { $c.MaxResponseContentBufferSize = [long]$script:SI_FileMaxBytes } catch { }
+    try { [void]$c.DefaultRequestHeaders.UserAgent.TryParseAdd('Glyphix/' + (Get-AppVersion)) } catch { }
+    $script:SI_HttpClient = $c
+    return $c
+}
+
+# Запустить GET (тело ответа читается целиком внутри задачи); вернуть Task<HttpResponseMessage>. Тесты подменяют эту функцию.
+function Start-HttpFetch {
+    param([string]$Url, [Threading.CancellationToken]$Token)
+    $c = Get-HttpClient
+    $uri = [Uri]$Url
+    try {
+        $sp = [Net.ServicePointManager]::FindServicePoint($uri)      # ServicePoint хоста мог появиться раньше (Get-WebBytes) с лимитом 2
+        if ($sp.ConnectionLimit -lt $script:SI_ConnectionLimit) { $sp.ConnectionLimit = $script:SI_ConnectionLimit }
+    } catch { }
+    return $c.GetAsync($uri, [Net.Http.HttpCompletionOption]::ResponseContentRead, $Token)
+}
+
+# Завершённая Task -> байты; сбой запроса, таймаут, не-2xx, слишком большой ответ - исключение
+function Receive-HttpFetch {
+    param($Task, [long]$MaxBytes = $script:SI_FileMaxBytes)
+    if ($Task.IsCanceled) { throw 'таймаут запроса' }
+    if ($Task.IsFaulted) { throw $Task.Exception.GetBaseException().Message }
+    $resp = $Task.Result
+    try {
+        if (-not $resp.IsSuccessStatusCode) { throw ('HTTP {0} {1}' -f [int]$resp.StatusCode, $resp.ReasonPhrase) }
+        $len = $resp.Content.Headers.ContentLength
+        if ($len -and [long]$len -gt $MaxBytes) { throw "ответ больше $MaxBytes байт" }
+        $b = $resp.Content.ReadAsByteArrayAsync().Result
+        if ($b.Length -gt $MaxBytes) { throw "ответ больше $MaxBytes байт" }
+        return , $b
+    } finally { $resp.Dispose() }
+}
+
+function Format-DownloadSize {
+    param([long]$Bytes)
+    return ([double]($Bytes / 1048576.0)).ToString('0.0', [Globalization.CultureInfo]::InvariantCulture) + ' МБ'
+}
+
+# Скачать $Items (объекты с Url, Dest, Sha) параллельно. Каждый файл: GET -> sha256 -> Save-FileAtomic (в этом потоке); не совпал/сбой -
+# до $MaxTries попыток с паузой (повтор идёт с cb=<ticks> в URL, чтобы обойти устаревший кэш CDN); итог по файлу не влияет на остальные.
+# Прогресс: $OnProgress (done, total, bytes) и, если задан $Label, строки журнала «Скачиваю <пак>: 230/508 (7.4 МБ)» (не чаще раза в 300 мс).
+# Возвращает { Done; Total; Bytes; Failed = [ { Item; Error } ] }. Исключение/остановка - отменяем запросы в полёте, временных файлов не остаётся.
+function Invoke-ParallelDownload {
+    param($Items, [string]$Label, [scriptblock]$OnProgress, [int]$Concurrency = $script:SI_DownloadConcurrency, [int]$MaxTries = $script:SI_DownloadTries)
+    if ($Concurrency -lt 1) { $Concurrency = 1 }
+    if ($MaxTries -lt 1) { $MaxTries = 1 }
+    $total = @($Items).Count
+    $failed = New-Object 'System.Collections.Generic.List[object]'
+    $res = [pscustomobject]@{ Done = 0; Total = $total; Bytes = [long]0; Failed = $failed }
+    if ($total -eq 0) { return $res }
+    $pending = New-Object 'System.Collections.Generic.Queue[object]'
+    $waiting = New-Object 'System.Collections.Generic.List[object]'
+    $active = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($it in @($Items)) { $pending.Enqueue([pscustomobject]@{ Item = $it; Attempt = 0; Task = $null; StartErr = $null; Ready = [long]0 }) }
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    $lastLog = [long]-1000
+    $cts = New-Object System.Threading.CancellationTokenSource
+    try {
+        while ($pending.Count -gt 0 -or $waiting.Count -gt 0 -or $active.Count -gt 0) {
+            $now = $sw.ElapsedMilliseconds
+            for ($k = $waiting.Count - 1; $k -ge 0; $k--) { if ($waiting[$k].Ready -le $now) { $pending.Enqueue($waiting[$k]); $waiting.RemoveAt($k) } }
+            while ($active.Count -lt $Concurrency -and $pending.Count -gt 0) {
+                $j = $pending.Dequeue()
+                $j.Attempt++; $j.Task = $null; $j.StartErr = $null
+                $url = [string]$j.Item.Url
+                if ($j.Attempt -gt 1) { $url += $(if ($url.Contains('?')) { '&' } else { '?' }) + 'cb=' + [DateTime]::UtcNow.Ticks }
+                try { $j.Task = Start-HttpFetch $url $cts.Token } catch { $j.StartErr = $_.Exception.Message }
+                $active.Add($j)
+            }
+            $live = @($active | Where-Object { $_.Task -and -not $_.Task.IsCompleted })
+            if ($live.Count -gt 0 -and $live.Count -eq $active.Count) {
+                $arr = New-Object 'System.Threading.Tasks.Task[]' $live.Count
+                for ($k = 0; $k -lt $live.Count; $k++) { $arr[$k] = $live[$k].Task }
+                [void][Threading.Tasks.Task]::WaitAny($arr, 100)
+            } elseif ($active.Count -eq 0 -and $waiting.Count -gt 0) {
+                Start-Sleep -Milliseconds 40
+            }
+            for ($k = $active.Count - 1; $k -ge 0; $k--) {
+                $j = $active[$k]
+                if ($j.Task -and -not $j.Task.IsCompleted) { continue }
+                $active.RemoveAt($k)
+                $err = $j.StartErr; $b = $null
+                if (-not $err) {
+                    try {
+                        $b = Receive-HttpFetch $j.Task
+                        $got = Get-BytesSha256 $b
+                        $want = ([string]$j.Item.Sha).ToLowerInvariant()
+                        if ($got -ne $want) { $err = "sha256 не совпал (ожидали $want, получили $got)" }
+                        else { Save-FileAtomic ([string]$j.Item.Dest) $b }
+                    } catch { $err = $_.Exception.Message }
+                }
+                if (-not $err) {
+                    $res.Done++; $res.Bytes += $b.Length
+                    $ms = $sw.ElapsedMilliseconds
+                    if ($Label -and ($res.Done -eq $total -or ($ms - $lastLog) -ge 300)) { $lastLog = $ms; Write-Log ("Скачиваю ${Label}: $($res.Done)/$total ($(Format-DownloadSize $res.Bytes))") }
+                    if ($OnProgress) { try { & $OnProgress $res.Done $total $res.Bytes } catch { } }
+                } elseif ($j.Attempt -lt $MaxTries) {
+                    $di = [Math]::Min($j.Attempt - 1, @($script:SI_RetryDelaysMs).Count - 1)
+                    $j.Ready = $sw.ElapsedMilliseconds + $(if ($di -ge 0) { [long]@($script:SI_RetryDelaysMs)[$di] } else { 0 })
+                    $waiting.Add($j)
+                    Write-Log ("  повтор $($j.Attempt)/${MaxTries}: $(([string]$j.Item.Url) -replace '^.*/packs/', '') - $err")
+                } else {
+                    $failed.Add([pscustomobject]@{ Item = $j.Item; Error = $err })
+                    Write-Log ("  не скачан: $([string]$j.Item.Url) - $err")
+                }
+            }
+        }
+    } finally {
+        try { $cts.Cancel() } catch { }
+        $left = @($active | Where-Object { $_.Task })
+        if ($left.Count -gt 0) {
+            try { $arr = New-Object 'System.Threading.Tasks.Task[]' $left.Count; for ($k = 0; $k -lt $left.Count; $k++) { $arr[$k] = $left[$k].Task }; [void][Threading.Tasks.Task]::WaitAll($arr, 3000) } catch { }
+            foreach ($j in $left) { try { if ($j.Task.IsCompleted -and -not $j.Task.IsFaulted -and -not $j.Task.IsCanceled) { $j.Task.Result.Dispose() } } catch { } }
+        }
+        try { $cts.Dispose() } catch { }
+    }
+    return $res
+}
+
 # скачать файл, если локальный отсутствует или не совпал по sha256; вернуть 1 если качали
 function Sync-File {
     param([string]$Url, [string]$Dest, [string]$Sha, [string]$Ext, [switch]$Force)
@@ -625,11 +776,29 @@ function Sync-File {
     return 1
 }
 
-# Список файлов пака из pack.json: иконки (.ico/.png) и плитки Start11 (обычная и без подписи); у каждого файла свой sha256.
-# Небезопасный путь - исключение (такой pack.json не принимается и не сохраняется).
+# Части пака: 'icons' - .ico и .png иконок (нужны всегда); 'tiles' - плитки Start11 с подписью; 'noname' - плитки без подписи.
+# Плитка без файла file_noname при «без подписи» берётся обычная (так выбирает Get-Start11Matches), поэтому такой file относится к обеим частям.
+$script:SI_AllParts = @('icons', 'tiles', 'noname')
+
+# Части пака, нужные при текущих настройках: иконки всегда; плитки включены -> 'tiles', или 'noname' при «без подписи» (обычные тогда не нужны)
+function Get-PackParts {
+    param([bool]$Tiles = $false, [bool]$NoName = $false)
+    $p = @('icons')
+    if ($Tiles) { if ($NoName) { $p += 'noname' } else { $p += 'tiles' } }
+    return $p
+}
+
+# Список файлов пака из pack.json: иконки (.ico/.png) и плитки Start11 (обычная и без подписи); у каждого файла свой sha256 и список частей (Parts).
+# $Parts - какие части вернуть (по умолчанию все). Небезопасный путь - исключение (такой pack.json не принимается и не сохраняется).
 function Get-PackFileList {
-    param([string]$PackDir, [string]$PackUrl, $Manifest)
+    param([string]$PackDir, [string]$PackUrl, $Manifest, [string[]]$Parts = $script:SI_AllParts)
     $list = New-Object 'System.Collections.Generic.List[object]'
+    $want = @{}; foreach ($w in @($Parts)) { $want[[string]$w] = $true }
+    $add = {
+        param($Rel, $Sha, $Ext, $FileParts)
+        foreach ($fp in $FileParts) { if ($want.ContainsKey($fp)) { $list.Add([pscustomobject]@{ Rel = $Rel; Url = ($PackUrl + $Rel); Dest = (Join-Rel $PackDir $Rel); Sha = $Sha; Ext = $Ext; Parts = $FileParts }); return }
+        }
+    }
     foreach ($ic in @($Manifest.icons)) {
         $icId = [string]$ic.id
         if ($icId -notmatch '^[A-Za-z0-9_\-]+$') { Write-Log "  пропуск иконки с неверным id '$icId'"; continue }
@@ -637,42 +806,50 @@ function Get-PackFileList {
             $rel = [string]$ic.($pair[0])
             if (-not $rel) { continue }
             if (-not (Test-SafeRel $rel @($pair[1]))) { throw "недопустимый путь файла '$rel'" }
-            $list.Add([pscustomobject]@{ Rel = $rel; Url = ($PackUrl + $rel); Dest = (Join-Rel $PackDir $rel); Sha = [string]$ic.($pair[0] + '_sha256'); Ext = $pair[1] })
+            & $add $rel ([string]$ic.($pair[0] + '_sha256')) $pair[1] @('icons')
         }
     }
     foreach ($tl in @($Manifest.tiles)) {
         if (-not $tl) { continue }
         $tId = [string]$tl.id
         if ($tId -notmatch '^[A-Za-z0-9_\-]+$') { Write-Log "  пропуск плитки с неверным id '$tId'"; continue }
+        $hasNoName = [bool][string]$tl.file_noname
         foreach ($pair in @(@('file', 'sha256'), @('file_noname', 'sha256_noname'))) {
             $rel = [string]$tl.($pair[0])
             if (-not $rel) { continue }
             if (-not (Test-SafeRel $rel @('.png'))) { throw "недопустимый путь файла '$rel'" }
-            $list.Add([pscustomobject]@{ Rel = $rel; Url = ($PackUrl + $rel); Dest = (Join-Rel $PackDir $rel); Sha = [string]$tl.($pair[1]); Ext = '.png' })
+            $fp = if ($pair[0] -eq 'file_noname') { @('noname') } elseif ($hasNoName) { @('tiles') } else { @('tiles', 'noname') }
+            & $add $rel ([string]$tl.($pair[1])) '.png' $fp
         }
     }
     return $list.ToArray()
 }
 
-# Скачать недостающие/изменённые файлы списка (каждый проверяется по sha256). Прогресс - строки журнала «Скачиваю <пак>: i/n»
-# (GUI показывает их в строке состояния). Возвращает число скачанных файлов.
+# Скачать недостающие/изменённые файлы списка (каждый проверяется по sha256; локальный файл с верным sha не качаем). Качает параллельно
+# (Invoke-ParallelDownload); прогресс - строки журнала «Скачиваю <пак>: 230/508 (7.4 МБ)» (GUI показывает их в строке состояния).
+# Остальные файлы сохраняются, даже если один не скачался; тогда в конце - исключение со списком не скачанных. Возвращает число скачанных файлов.
 function Sync-PackFiles {
     param($Files, [string]$Label, [switch]$Force)
     $todo = New-Object 'System.Collections.Generic.List[object]'
+    $seen = @{}
     foreach ($f in @($Files)) {
         $sha = ([string]$f.Sha).ToLowerInvariant()
         if ($sha -notmatch '^[0-9a-f]{64}$') { throw "нет корректного sha256 для $($f.Dest)" }
+        if ($seen.ContainsKey([string]$f.Dest)) { continue }
+        $seen[[string]$f.Dest] = $true
         $have = $false
         if (-not $Force -and (Test-Path -LiteralPath $f.Dest -PathType Leaf)) { try { $have = ((Get-FileSha256 $f.Dest) -eq $sha) } catch { } }
-        if (-not $have) { $todo.Add($f) }
+        if (-not $have) { $todo.Add([pscustomobject]@{ Rel = $f.Rel; Url = $f.Url; Dest = $f.Dest; Sha = $sha }) }
     }
-    $n = $todo.Count; $i = 0
-    if ($n -gt 0) { Write-Log "Скачиваю ${Label}: файлов $n" }
-    $step = [Math]::Max(1, [int][Math]::Floor($n / 20))
-    foreach ($f in $todo) {
-        [void](Sync-File $f.Url $f.Dest ([string]$f.Sha) $f.Ext -Force)
-        $i++
-        if ($i -eq $n -or ($i % $step) -eq 0) { Write-Log "Скачиваю ${Label}: $i/$n" }
+    $n = $todo.Count
+    if ($n -gt 0) {
+        Write-Log "Скачиваю ${Label}: файлов $n"
+        $r = Invoke-ParallelDownload -Items $todo.ToArray() -Label $Label
+        if ($r.Failed.Count -gt 0) {
+            $names = @($r.Failed | Select-Object -First 3 | ForEach-Object { '{0} ({1})' -f $_.Item.Rel, $_.Error }) -join '; '
+            $more = if ($r.Failed.Count -gt 3) { " и ещё $($r.Failed.Count - 3)" } else { '' }
+            throw "не скачано файлов пака ${Label}: $($r.Failed.Count) из $n (скачано $($r.Done)): $names$more"
+        }
     }
     return $n
 }
@@ -718,13 +895,22 @@ function Update-OnePack {
     return $downloaded
 }
 
-# Файлы пака на диске: 'ready' - всё на месте и проверено по текущему pack.json (метка .synced);
-# 'stale' - файлы на месте, но не проверены (pack.json обновился / кэш перенесён из прежней версии); 'none' - чего-то не хватает
+# Метка «часть пака проверена по текущему pack.json»: иконки - .synced (как в прежних версиях), плитки - .synced_tiles, плитки без подписи - .synced_noname
+function Get-PackMarkerName {
+    param([string]$Part = 'icons')
+    if ($Part -eq 'icons' -or -not $Part) { return '.synced' }
+    return ('.synced_' + $Part)
+}
+
+# Файлы части пака на диске: 'ready' - всё на месте и проверено по текущему pack.json (метка);
+# 'stale' - файлы на месте, но не проверены (pack.json обновился / кэш перенесён из прежней версии); 'none' - чего-то не хватает.
+# Нет файлов в этой части (в паке нет плиток) - 'ready'.
 function Get-PackState {
-    param([string]$PackDir, [string[]]$Files)
+    param([string]$PackDir, [string[]]$Files, [string]$Part = 'icons')
+    if (@($Files).Count -eq 0) { return 'ready' }
     foreach ($f in @($Files)) { if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { return 'none' } }
     try {
-        $mk = Join-Path $PackDir '.synced'
+        $mk = Join-Path $PackDir (Get-PackMarkerName $Part)
         if (Test-Path -LiteralPath $mk -PathType Leaf) {
             if (([IO.File]::ReadAllText($mk)).Trim() -eq (Get-FileSha256 (Join-Path $PackDir 'pack.json'))) { return 'ready' }
         }
@@ -732,13 +918,16 @@ function Get-PackState {
     return 'stale'
 }
 
-# Скачать иконки и плитки ОДНОГО пака (по требованию: при «Применить» или «Скачать»). Сначала сверяем pack.json с index.json
-# (пак мог обновиться), потом качаем только недостающие/изменённые файлы; каждый - с проверкой sha256. Ошибка сети/sha - исключение.
+# Скачать файлы ОДНОГО пака (по требованию: при «Применить» или «Скачать»). Сначала сверяем pack.json с index.json
+# (пак мог обновиться), потом качаем только недостающие/изменённые файлы нужных частей ($Parts: icons, tiles, noname; по умолчанию все)
+# параллельно; каждый - с проверкой sha256. Ошибка сети/sha - исключение (уже скачанные файлы остаются, метка «готово» не ставится).
 function Install-Pack {
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Id, [string]$BaseUrl = $script:SI_BaseUrl, [switch]$Force)
+    param([Parameter(Mandatory)][string]$Id, [string]$BaseUrl = $script:SI_BaseUrl, [switch]$Force, [string[]]$Parts = $script:SI_AllParts)
     if ($Id -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$') { throw "недопустимый id пака '$Id'" }
-    try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
+    $Parts = @($Parts | Where-Object { $script:SI_AllParts -contains $_ })
+    if ($Parts.Count -eq 0) { $Parts = @('icons') }
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
     if (-not $BaseUrl.EndsWith('/')) { $BaseUrl += '/' }
     $idx = ConvertFrom-JsonBytes (Get-WebBytes ($BaseUrl + 'index.json') 1048576)
     $entry = @($idx.packs) | Where-Object { [string]$_.id -eq $Id } | Select-Object -First 1
@@ -750,7 +939,7 @@ function Install-Pack {
     $manBytes = [IO.File]::ReadAllBytes($manPath)
     $manSha = Get-BytesSha256 $manBytes
     $man = ConvertFrom-JsonBytes $manBytes
-    $files = @(Get-PackFileList $packDir ($BaseUrl + ([string]$entry.path).Trim('/') + '/') $man)
+    $files = @(Get-PackFileList $packDir ($BaseUrl + ([string]$entry.path).Trim('/') + '/') $man -Parts $Parts)
     $label = if ($man.name) { [string]$man.name } else { $Id }
     $n = Sync-PackFiles $files $label -Force:$Force
     if (-not (Test-Path -LiteralPath $manPath -PathType Leaf)) {
@@ -760,21 +949,30 @@ function Install-Pack {
         Write-Log "  pack.json пака $label изменился во время загрузки - записываю проверенную версию"
         Save-FileAtomic $manPath $manBytes
     }
-    Save-FileAtomic (Join-Path $packDir '.synced') ([System.Text.UTF8Encoding]::new($false).GetBytes($manSha))
+    foreach ($part in $Parts) { Save-FileAtomic (Join-Path $packDir (Get-PackMarkerName $part)) ([System.Text.UTF8Encoding]::new($false).GetBytes($manSha)) }
     Write-Log $(if ($n -gt 0) { "Пак ${label}: скачано файлов $n" } else { "Пак ${label}: все файлы на месте" })
-    return [pscustomobject]@{ Id = $Id; Downloaded = ($n + $d0); Files = $files.Count }
+    return [pscustomobject]@{ Id = $Id; Downloaded = ($n + $d0); Files = $files.Count; Parts = $Parts }
 }
 
-# Перед применением: файлы пака не скачаны / не проверены - скачиваем (только этот пак). Всё на месте, но сети нет - работаем из кэша.
+# Перед применением: нужные части пака не скачаны / не проверены - докачиваем (только этот пак, только эти части; по умолчанию - иконки).
+# Всё на месте, но сети нет - работаем из кэша.
 function Confirm-PackFiles {
-    param($Pack)
+    param($Pack, [string[]]$Parts = @('icons'))
     if (-not $Pack -or -not $Pack.PSObject.Properties['Dir'] -or -not $Pack.PSObject.Properties['Files']) { return }
-    $state = Get-PackState ([string]$Pack.Dir) @($Pack.Files)
-    if ($state -eq 'ready') { return }
+    $pf = if ($Pack.PSObject.Properties['PartFiles'] -and $Pack.PartFiles) { $Pack.PartFiles } else { @{} }
+    $need = @(); $worst = 'ready'
+    foreach ($part in @($Parts)) {
+        $files = if ($pf.ContainsKey([string]$part)) { @($pf[[string]$part]) } else { @($Pack.Files) }
+        $s = Get-PackState ([string]$Pack.Dir) $files ([string]$part)
+        if ($s -eq 'ready') { continue }
+        $need += $part
+        if ($s -eq 'none') { $worst = 'none' } elseif ($worst -eq 'ready') { $worst = 'stale' }
+    }
+    if ($need.Count -eq 0) { return }
     try {
-        [void](Install-Pack -Id ([string]$Pack.Id))
+        [void](Install-Pack -Id ([string]$Pack.Id) -Parts $need)
     } catch {
-        if ($state -eq 'stale') { Write-Log ('Не удалось проверить файлы пака (' + $_.Exception.Message + ') - использую сохранённые'); return }
+        if ($worst -eq 'stale') { Write-Log ('Не удалось проверить файлы пака (' + $_.Exception.Message + ') - использую сохранённые'); return }
         throw
     }
 }
@@ -785,7 +983,7 @@ function Update-Packs {
     $errors = New-Object 'System.Collections.Generic.List[string]'
     $updated = New-Object 'System.Collections.Generic.List[string]'
     $total = 0
-    try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
     if (-not $BaseUrl.EndsWith('/')) { $BaseUrl += '/' }
     Write-Log 'Проверяю обновления паков...'
     $idxBytes = $null
@@ -833,7 +1031,8 @@ function Update-Packs {
 
 # ---------- Локальные паки ----------
 # Паки читаются из pack.json (он есть у всех паков после Update-Packs); сами файлы иконок могут быть ещё не скачаны.
-# Поэтому пути IcoPath/PngPath/TilePath - «где файл должен лежать», State - 'ready' | 'stale' | 'none' (см. Get-PackState).
+# Поэтому пути IcoPath/PngPath/TilePath - «где файл должен лежать», State - 'ready' | 'stale' | 'none' по иконкам (см. Get-PackState);
+# PartFiles - файлы по частям (icons / tiles / noname), Files - все.
 function Get-Packs {
     $res = New-Object 'System.Collections.Generic.List[object]'
     if (-not (Test-Path -LiteralPath $script:SI_PacksDir)) { return @() }
@@ -850,23 +1049,25 @@ function Get-Packs {
             $id = [string]$j.id
             if ($id -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$') { continue }
             $files = New-Object 'System.Collections.Generic.List[string]'
+            $pIcons = New-Object 'System.Collections.Generic.List[string]'; $pTiles = New-Object 'System.Collections.Generic.List[string]'; $pNoName = New-Object 'System.Collections.Generic.List[string]'
             $tileMap = @{}
             foreach ($tl in @($j.tiles)) {
                 if (-not $tl) { continue }
                 $tId = [string]$tl.id
                 if ($tId -notmatch '^[A-Za-z0-9_\-]+$') { continue }
                 $tp = $null; $tn = $null
-                if ($tl.file -and (Test-SafeRel ([string]$tl.file) @('.png'))) { $tp = Join-Rel $d.FullName ([string]$tl.file); $files.Add($tp) }
-                if ($tl.file_noname -and (Test-SafeRel ([string]$tl.file_noname) @('.png'))) { $tn = Join-Rel $d.FullName ([string]$tl.file_noname); $files.Add($tn) }
+                if ($tl.file -and (Test-SafeRel ([string]$tl.file) @('.png'))) { $tp = Join-Rel $d.FullName ([string]$tl.file); $files.Add($tp); $pTiles.Add($tp) }
+                if ($tl.file_noname -and (Test-SafeRel ([string]$tl.file_noname) @('.png'))) { $tn = Join-Rel $d.FullName ([string]$tl.file_noname); $files.Add($tn); $pNoName.Add($tn) }
+                if ($tp -and -not $tn) { $pNoName.Add($tp) }                  # нет плитки без подписи - при «без подписи» берётся обычная
                 if ($tp -or $tn) { $tileMap[$tId] = @{ Tile = $tp; NoName = $tn } }
             }
             $icons = New-Object 'System.Collections.Generic.List[object]'
             foreach ($ic in @($j.icons)) {
                 if (-not $ic.ico -or -not (Test-SafeRel ([string]$ic.ico) @('.ico'))) { continue }
                 $ico = Join-Rel $d.FullName ([string]$ic.ico)
-                $files.Add($ico)
+                $files.Add($ico); $pIcons.Add($ico)
                 $png = $null
-                if ($ic.png -and (Test-SafeRel ([string]$ic.png) @('.png'))) { $png = Join-Rel $d.FullName ([string]$ic.png); $files.Add($png) }
+                if ($ic.png -and (Test-SafeRel ([string]$ic.png) @('.png'))) { $png = Join-Rel $d.FullName ([string]$ic.png); $files.Add($png); $pIcons.Add($png) }
                 $mn = @(); $mx = @()
                 if ($ic.match) { $mn = @($ic.match.names | ForEach-Object { [string]$_ }); $mx = @($ic.match.exes | ForEach-Object { [string]$_ }) }
                 $tilePath = $null; $tileNoName = $null
@@ -879,12 +1080,13 @@ function Get-Packs {
                 if (Test-Path -LiteralPath $pv) { $prev = $pv }
             }
             $fileArr = $files.ToArray()
-            $state = Get-PackState $d.FullName $fileArr
+            $partFiles = @{ icons = $pIcons.ToArray(); tiles = $pTiles.ToArray(); noname = $pNoName.ToArray() }
+            $state = Get-PackState $d.FullName $partFiles['icons'] 'icons'          # «готов» = иконки; плитки докачиваются при применении плиток
             $res.Add([pscustomobject]@{
                 Id = $id; Name = [string]$j.name; Version = [string]$j.version; Author = [string]$j.author
                 License = [string]$j.license; Description = [string]$j.description
                 IconCount = $icons.Count; Dir = $d.FullName; Preview = $prev; Icons = $icons.ToArray()
-                Files = $fileArr; State = $state; Ready = ($state -eq 'ready')
+                Files = $fileArr; PartFiles = $partFiles; State = $state; Ready = ($state -eq 'ready')
             })
         } catch { Write-Log "пак $($d.Name) не прочитан: $($_.Exception.Message)" }
     }
@@ -1747,7 +1949,7 @@ function Apply-Start11Tiles {
     Assert-LegacyMigrationComplete               # бэкап прежней версии ещё не перенесён - не применяем
     $none = [pscustomobject]@{ Changed = 0; Same = 0; Failed = 0; Total = 0; Reload = $null; Hint = '' }
     if (-not (Test-Start11)) { Write-Log 'Start11 не найден - плитки пропускаю.'; return $none }
-    Confirm-PackFiles $Pack
+    Confirm-PackFiles $Pack -Parts @($(if ($NoName) { 'noname' } else { 'tiles' }))       # плитки докачиваем только сейчас (если ещё не скачаны)
     Write-Log "Применяю плитки Start11: $($Pack.Name) $($Pack.Version)"
     if ($null -eq $Items) { $Items = @(Get-Start11Matches -Pack $Pack -NoName:$NoName) }
     $backup = Load-S11Backup           # не читается - исключение до любых изменений, исходные значения не потеряем
