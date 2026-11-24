@@ -637,6 +637,7 @@
       <Popup x:Name="PopMenu" PlacementTarget="{Binding ElementName=BtnMenu}" Placement="Top" StaysOpen="False" AllowsTransparency="True">
         <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource GhostBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="8" Margin="8">
           <StackPanel>
+            <Button x:Name="BtnCheckUpd" Style="{StaticResource GhostButton}" MinWidth="200" Margin="0,0,0,6"/>
             <Button x:Name="BtnReport" Style="{StaticResource GhostButton}" MinWidth="200" Margin="0,0,0,6"/>
             <Button x:Name="BtnClearCache" Style="{StaticResource GhostButton}" MinWidth="200" Margin="0,0,0,6"/>
             <Button x:Name="BtnUninstall" Style="{StaticResource GhostButton}" MinWidth="200"/>

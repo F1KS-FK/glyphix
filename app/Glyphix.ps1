@@ -724,6 +724,12 @@ $T = @{
     UndoSelDone  = 'Возвращено: ярлыков {0}, плиток {1}'
     UndoCommon   = ', общих ярлыков без прав администратора: {0} (отметьте «Также общие ярлыки»)'
     ApplyRestored = ', возвращено родных: {0}'
+    CheckUpd     = 'Проверить обновления'
+    CheckUpdTip  = 'Спросить GitHub, вышла ли новая версия Glyphix (само проверяется при запуске и раз в 30 минут, пока окно открыто)'
+    CheckUpdRun  = 'Проверяю обновления…'
+    CheckUpdSame = 'У тебя последняя версия {0}'
+    CheckUpdNew  = 'Вышла версия {0} — нажми «Обновить» вверху окна'
+    CheckUpdFail = 'Не удалось проверить обновления: нет связи с GitHub. Проверь интернет или VPN'
     Report       = 'Скопировать отчёт'
     ReportTip    = 'Версия, сборка Windows, Start11 и последние 200 строк журнала — в буфер обмена, для сообщения об ошибке'
     ReportDone   = 'Отчёт скопирован в буфер обмена (строк журнала: {0})'
@@ -748,7 +754,7 @@ $script:ui = @{}
 $names = @('ImgLogo', 'TxtVersion', 'TxtAdmin', 'TxtPacksTitle', 'TxtPackSearch', 'TxtPackSearchHint', 'ScrSections', 'SectionsHost', 'TxtEmpty',
     'TxtMatchTitle', 'TxtSelectedPack', 'RbAll', 'RbReplace', 'RbCurrent', 'RbMissing', 'TxtPlanSearch', 'TxtPlanSearchHint', 'PlanList', 'TxtPlanEmpty',
     'ChkPlanAll', 'TxtPlanSel', 'BtnUndoSel', 'TxtMatchSummary', 'BtnUpdate', 'BtnUndo', 'BtnOpen', 'BtnMenu', 'ChkRestart', 'ChkAllUsers', 'ChkTiles', 'ChkNoName', 'ChkAuto',
-    'LnkGitHub', 'LnkAuthor', 'LnkDiscord', 'RunDiscord', 'PopMenu', 'PopChoice', 'PopChoiceItems', 'BtnReport', 'BtnUninstall', 'BtnClearCache',
+    'LnkGitHub', 'LnkAuthor', 'LnkDiscord', 'RunDiscord', 'PopMenu', 'PopChoice', 'PopChoiceItems', 'BtnCheckUpd', 'BtnReport', 'BtnUninstall', 'BtnClearCache',
     'TxtSelCount', 'BtnSelDownload', 'BtnSelAll', 'BtnSelNone', 'PrgBusy', 'TxtStatus', 'TxtPct', 'BtnLog', 'LogPanel', 'TxtLog', 'BtnAppUpdate')
 foreach ($n in $names) {
     $script:ui[$n] = $script:Window.FindName($n)
@@ -764,6 +770,7 @@ $script:AppliedId = ''            # применённый вариант (id к
 $script:Cards = @{}               # id варианта -> карточка (Border); если вариант есть и в «Избранном», и в своей секции - последняя построенная
 $script:CardButtons = @()
 $script:CardChecks = @{}          # id варианта -> список CheckBox'ов карточек (в «Избранном» и в своей секции)
+$script:UpdManual = $false
 $script:Checked = @{}             # отмеченные варианты (переживает перестройку секций)
 $script:SelectedId = $null        # выбранный вариант: по нему строится «Что поменяется»
 $script:PendingSelect = $null
@@ -1068,14 +1075,25 @@ function Step-UpdateCheck {
     try { $info = Receive-EngineJob $u } catch { }
     $script:UpdJob = $null
     if ($info -and $info.PSObject.Properties['Available']) { $script:UpdateInfo = $info; Show-AppUpdateButton }
+    if ($script:UpdManual) {
+        $script:UpdManual = $false
+        if (-not $info -or -not $info.PSObject.Properties['Available'] -or -not [string]$info.Remote) { Set-Status $script:T.CheckUpdFail }
+        elseif ($info.Available) { Set-Status ($script:T.CheckUpdNew -f [string]$info.Remote) }
+        else { Set-Status ($script:T.CheckUpdSame -f [string]$info.Local) }
+    }
 }
 
 function Start-UpdateCheck {
+    param([switch]$Manual)
+    if ($Manual) { $script:UpdManual = $true; Set-Status $script:T.CheckUpdRun }
     if ($script:UpdJob -or $script:Closing) { return }
     try {
         $script:UpdJob = Start-EngineJob -EngineText $script:EngineText -CodeDir $script:Root -Body 'param($p) Get-AppUpdateInfo' -Params @{}
         $script:UpdTimer.Start()
-    } catch { $script:UpdJob = $null; Write-Log ('Проверка версии не запущена: ' + $_.Exception.Message) }
+    } catch {
+        $script:UpdJob = $null; Write-Log ('Проверка версии не запущена: ' + $_.Exception.Message)
+        if ($script:UpdManual) { $script:UpdManual = $false; Set-Status $script:T.CheckUpdFail }
+    }
 }
 
 # ---- тихое обновление паков на каждом запуске ----
@@ -2336,6 +2354,8 @@ $script:ui.BtnUndo.Content = $script:T.Undo
 $script:ui.BtnOpen.Content = $script:T.Open
 $script:ui.BtnUninstall.Content = $script:T.Uninstall
 $script:ui.BtnClearCache.Content = $script:T.ClearCache
+$script:ui.BtnCheckUpd.Content = $script:T.CheckUpd
+$script:ui.BtnCheckUpd.ToolTip = $script:T.CheckUpdTip
 $script:ui.BtnReport.Content = $script:T.Report
 $script:ui.BtnReport.ToolTip = $script:T.ReportTip
 $script:ui.BtnSelDownload.Content = $script:T.SelDownload
@@ -2406,6 +2426,11 @@ $script:WaitTimer.Add_Tick({ try { Step-BgPending } catch { $script:WaitTimer.St
 
 $script:UpdTimer = New-Object System.Windows.Threading.DispatcherTimer
 $script:UpdTimer.Interval = [TimeSpan]::FromMilliseconds(250)
+# раз в 30 минут, пока окно открыто, тихо спрашиваем GitHub о новой версии (только эта проверка, без скачивания; закрыл окно - ничего не работает)
+$script:UpdPeriodic = New-Object System.Windows.Threading.DispatcherTimer
+$script:UpdPeriodic.Interval = [TimeSpan]::FromMinutes(30)
+$script:UpdPeriodic.Add_Tick({ try { if (-not $script:Closing) { Start-UpdateCheck } } catch { } })
+$script:UpdPeriodic.Start()
 $script:UpdTimer.Add_Tick({ try { Step-UpdateCheck } catch { } })
 
 # построение секций (по одной за такт), подгрузка картинок (малыми порциями), возврат положения прокрутки, поиск с задержкой, подпись «Скопировано», прогрев движка
@@ -2460,6 +2485,7 @@ $script:ui.ChkAuto.Add_Click({
 })
 $script:ui.BtnMenu.Add_Click({ try { $script:ui.PopMenu.IsOpen = (-not $script:ui.PopMenu.IsOpen) } catch { Show-Error $_ 'меню' } })
 $script:ui.BtnClearCache.Add_Click({ try { $script:ui.PopMenu.IsOpen = $false; Invoke-ClearCache } catch { Show-Error $_ 'Очистить кэш' } })
+$script:ui.BtnCheckUpd.Add_Click({ try { $script:ui.PopMenu.IsOpen = $false; Start-UpdateCheck -Manual } catch { Show-Error $_ 'Проверить обновления' } })
 $script:ui.BtnReport.Add_Click({ try { $script:ui.PopMenu.IsOpen = $false; Copy-Report } catch { Show-Error $_ 'Скопировать отчёт' } })
 $script:ui.BtnUninstall.Add_Click({ try { $script:ui.PopMenu.IsOpen = $false; Invoke-Uninstall } catch { Show-Error $_ 'Удалить приложение' } })
 $script:ui.BtnSelDownload.Add_Click({ try { Invoke-DownloadSelected } catch { Show-Error $_ 'Скачать выбранные' } })
