@@ -103,7 +103,7 @@ function Start-EngineJob {
     if (-not $EngineText) { throw 'Текст движка пуст: фоновую операцию запустить нельзя' }
     if (-not $Prologue) { $Prologue = $script:SI_BgPrologue }
     if ($null -eq $Params) { $Params = @{} }
-    $q = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+    $q = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
     $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
     if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { try { $iss.ExecutionPolicy = [Microsoft.PowerShell.ExecutionPolicy]::Bypass } catch { } }      # на других ОС свойство не поддерживается (Open() падает)
     $rs = [runspacefactory]::CreateRunspace($iss)
@@ -314,7 +314,7 @@ $script:SI_SetupMaxBytes = 33554432                   # установщик б�
 # Адреса одного файла по источникам: { Url; Name; Flat }. Пустой адрес источника = источника нет.
 function Get-SetupSourceUrls {
     param([string]$Rel, [string]$BaseUrl = $script:SI_BaseUrl, [string]$MirrorUrl = $script:SI_MirrorBaseUrl, [string]$ReleasesUrl = $script:SI_ReleasesBaseUrl)
-    $r = New-Object 'System.Collections.Generic.List[object]'
+    $r = [System.Collections.Generic.List[object]]::new()
     foreach ($s in @(@($BaseUrl, $false, 'GitHub'), @($MirrorUrl, $false, 'зеркало jsDelivr'), @($ReleasesUrl, $true, 'релиз GitHub'))) {
         $b = [string]$s[0]
         if (-not $b) { continue }
@@ -343,7 +343,7 @@ function ConvertTo-SetupEntry {
 function Get-SetupBytes {
     param([object[]]$Sources, [int]$MaxBytes, [scriptblock]$Check, [int]$TimeoutMs = 20000)
     Initialize-NetSecurity
-    $why = New-Object 'System.Collections.Generic.List[string]'
+    $why = [System.Collections.Generic.List[string]]::new()
     foreach ($s in @($Sources)) {
         for ($try = 1; $try -le 2; $try++) {
             try {
@@ -705,7 +705,7 @@ function Get-WebBytes {
     Initialize-NetSecurity
     $delays = @($script:SI_WebRetryDelaysMs)
     $mirror = Get-MirrorUrl $Url
-    $plan = New-Object 'System.Collections.Generic.List[object]'
+    $plan = [System.Collections.Generic.List[object]]::new()
     $nP = $delays.Count + 1
     if ($mirror -and (Test-PrimaryBad)) {            # первичный хост недавно не отвечал: зеркало первым, потом он же
         $plan.Add(@($mirror, $true)); for ($i = 0; $i -lt [Math]::Min(2, $nP); $i++) { $plan.Add(@($Url, $false)) }; $plan.Add(@($mirror, $true))
@@ -811,7 +811,7 @@ function Remove-StaleTempFiles {
     $limit = (Get-Date).AddMinutes(-$MinAgeMinutes)
     try {
         # обход вручную: Get-ChildItem -Recurse в Windows PowerShell 5.1 заходит в junction/symlink; ссылки (папки и файлы) не открываем и не удаляем
-        $stack = New-Object 'System.Collections.Generic.Stack[string]'
+        $stack = [System.Collections.Generic.Stack[string]]::new()
         $stack.Push($Root)
         while ($stack.Count -gt 0) {
             $dir = $stack.Pop()
@@ -914,13 +914,13 @@ function Invoke-ParallelDownload {
     if ($Concurrency -lt 1) { $Concurrency = 1 }
     if ($MaxTries -lt 1) { $MaxTries = 1 }
     $total = @($Items).Count
-    $failed = New-Object 'System.Collections.Generic.List[object]'
+    $failed = [System.Collections.Generic.List[object]]::new()
     $res = [pscustomobject]@{ Done = 0; Total = $total; Bytes = [long]0; Failed = $failed }
     $script:SI_LastNetFail = $false                  # флаг сетевой ошибки - на одну операцию: ставится только за файл, не скачанный по сетевой причине
     if ($total -eq 0) { return $res }
-    $pending = New-Object 'System.Collections.Generic.Queue[object]'
-    $waiting = New-Object 'System.Collections.Generic.List[object]'
-    $active = New-Object 'System.Collections.Generic.List[object]'
+    $pending = [System.Collections.Generic.Queue[object]]::new()
+    $waiting = [System.Collections.Generic.List[object]]::new()
+    $active = [System.Collections.Generic.List[object]]::new()
     foreach ($it in @($Items)) { $pending.Enqueue([pscustomobject]@{ Item = $it; Attempt = 0; Task = $null; StartErr = $null; Ready = [long]0; Mirror = $false }) }
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $lastLog = [long]-1000
@@ -1033,7 +1033,7 @@ function Get-PackParts {
 # $Parts - какие части вернуть (по умолчанию все). Небезопасный путь - исключение (такой pack.json не принимается и не сохраняется).
 function Get-PackFileList {
     param([string]$PackDir, [string]$PackUrl, $Manifest, [string[]]$Parts = $script:SI_AllParts)
-    $list = New-Object 'System.Collections.Generic.List[object]'
+    $list = [System.Collections.Generic.List[object]]::new()
     $want = @{}; foreach ($w in @($Parts)) { $want[[string]$w] = $true }
     $add = {
         param($Rel, $Sha, $Ext, $FileParts)
@@ -1077,7 +1077,7 @@ function Get-PackFileList {
 # Остальные файлы сохраняются, даже если один не скачался; тогда в конце - исключение со списком не скачанных. Возвращает число скачанных файлов.
 function Sync-PackFiles {
     param($Files, [string]$Label, [switch]$Force)
-    $todo = New-Object 'System.Collections.Generic.List[object]'
+    $todo = [System.Collections.Generic.List[object]]::new()
     $seen = @{}
     foreach ($f in @($Files)) {
         $sha = ([string]$f.Sha).ToLowerInvariant()
@@ -1254,9 +1254,9 @@ function Install-Packs {
     param([Parameter(Mandatory)][string[]]$Ids, [string]$BaseUrl = $script:SI_BaseUrl, [string[]]$Parts = @('icons'))
     $ids = @($Ids | Where-Object { $_ } | Select-Object -Unique)
     $total = $ids.Count
-    $done = New-Object 'System.Collections.Generic.List[string]'
-    $skipped = New-Object 'System.Collections.Generic.List[string]'
-    $failed = New-Object 'System.Collections.Generic.List[object]'
+    $done = [System.Collections.Generic.List[string]]::new()
+    $skipped = [System.Collections.Generic.List[string]]::new()
+    $failed = [System.Collections.Generic.List[object]]::new()
     $files = 0; $i = 0
     foreach ($id in $ids) {
         $i++
@@ -1339,8 +1339,8 @@ function Test-IndexOlderThanLocal {
 function Update-Packs {
     [CmdletBinding()]
     param([string]$BaseUrl = $script:SI_BaseUrl, [switch]$Force, $Cancel = $null)
-    $errors = New-Object 'System.Collections.Generic.List[string]'
-    $updated = New-Object 'System.Collections.Generic.List[string]'
+    $errors = [System.Collections.Generic.List[string]]::new()
+    $updated = [System.Collections.Generic.List[string]]::new()
     $total = 0
     Initialize-NetSecurity
     $script:SI_LastNetFail = $false
@@ -1405,7 +1405,7 @@ function Update-Packs {
 # PartFiles - файлы по частям (icons / tiles / noname), Files - все.
 function Get-Packs {
     param([string]$OnlyId = '')          # прочитать с диска только этот пак (папка packs\<id>); имя не $Id: переменная $id ниже - id очередного пака
-    $res = New-Object 'System.Collections.Generic.List[object]'
+    $res = [System.Collections.Generic.List[object]]::new()
     if (-not (Test-Path -LiteralPath $script:SI_PacksDir)) { return @() }
     $order = @{}
     try {
@@ -1421,9 +1421,9 @@ function Get-Packs {
             $mSha = ''; try { $mSha = Get-FileSha256 $mf } catch { }
             $id = [string]$j.id
             if ($id -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$') { continue }
-            $files = New-Object 'System.Collections.Generic.List[string]'
-            $pAuto = New-Object 'System.Collections.Generic.List[string]'
-            $pIcons = New-Object 'System.Collections.Generic.List[string]'; $pTiles = New-Object 'System.Collections.Generic.List[string]'; $pNoName = New-Object 'System.Collections.Generic.List[string]'
+            $files = [System.Collections.Generic.List[string]]::new()
+            $pAuto = [System.Collections.Generic.List[string]]::new()
+            $pIcons = [System.Collections.Generic.List[string]]::new(); $pTiles = [System.Collections.Generic.List[string]]::new(); $pNoName = [System.Collections.Generic.List[string]]::new()
             $tileMap = @{}
             foreach ($tl in @($j.tiles)) {
                 if (-not $tl) { continue }
@@ -1435,7 +1435,7 @@ function Get-Packs {
                 if ($tp -and -not $tn) { $pNoName.Add($tp) }                  # нет плитки без подписи - при «без подписи» берётся обычная
                 if ($tp -or $tn) { $tileMap[$tId] = @{ Tile = $tp; NoName = $tn } }
             }
-            $icons = New-Object 'System.Collections.Generic.List[object]'
+            $icons = [System.Collections.Generic.List[object]]::new()
             foreach ($ic in @($j.icons)) {
                 if (-not $ic.ico -or -not (Test-SafeRel ([string]$ic.ico) @('.ico'))) { continue }
                 $ico = Join-Rel $d.FullName ([string]$ic.ico)
@@ -1786,8 +1786,8 @@ function Clear-PackLeftovers {
         $exp[(Get-NormalPath (Join-Path $PackDir 'pack.json')).ToLowerInvariant()] = $true
         $exts = @('.ico', '.png', '.jpg', '.jpeg', '.json')
         # сначала смотрим, есть ли вообще остатки: ярлыки читаем (это не быстро) только если есть что удалять
-        $cand = New-Object 'System.Collections.Generic.List[string]'
-        $stack = New-Object 'System.Collections.Generic.Stack[string]'
+        $cand = [System.Collections.Generic.List[string]]::new()
+        $stack = [System.Collections.Generic.Stack[string]]::new()
         $stack.Push($PackDir)
         while ($stack.Count -gt 0) {
             $d = $stack.Pop()
@@ -1891,7 +1891,7 @@ function Clear-PackCache {
     [CmdletBinding()]
     param()
     $res = [pscustomobject]@{ Ok = $true; Bytes = [long]0; Files = 0; Packs = @(); Message = '' }
-    $removed = New-Object 'System.Collections.Generic.List[string]'
+    $removed = [System.Collections.Generic.List[string]]::new()
     try {
         $applied = Get-AppliedPackId
         $rf = Get-ReferencedFiles
@@ -1965,13 +1965,13 @@ function Get-MatchGroups {
     foreach ($m in @($Matches2)) {
         if (-not $m) { continue }
         $k = Get-GroupKey $m.Group
-        if (-not $by.ContainsKey($k)) { $by[$k] = New-Object 'System.Collections.Generic.List[object]' }
+        if (-not $by.ContainsKey($k)) { $by[$k] = [System.Collections.Generic.List[object]]::new() }
         $by[$k].Add([pscustomobject]@{ Kind = 'link'; Title = [string]$m.Name; Item = $m })
     }
     foreach ($m in @($TileMatches)) {
         if (-not $m) { continue }
         $k = Get-GroupKey $m.Group
-        if (-not $by.ContainsKey($k)) { $by[$k] = New-Object 'System.Collections.Generic.List[object]' }
+        if (-not $by.ContainsKey($k)) { $by[$k] = [System.Collections.Generic.List[object]]::new() }
         $by[$k].Add([pscustomobject]@{ Kind = 'tile'; Title = (Get-TileTitle $m); Item = $m })
     }
     $out = foreach ($k in $by.Keys) {
@@ -2052,7 +2052,7 @@ function Get-WshShell {
 
 function Get-ShortcutRoots {
     param([switch]$Common)   # -Common: добавить общие папки (для всех пользователей)
-    $roots = New-Object 'System.Collections.Generic.List[object]'
+    $roots = [System.Collections.Generic.List[object]]::new()
     $roots.Add(@{ Path = (Join-Path $env:APPDATA 'Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar'); Recurse = $false; Location = 'taskbar' })
     $roots.Add(@{ Path = [Environment]::GetFolderPath('Desktop'); Recurse = $false; Location = 'desktop' })
     $roots.Add(@{ Path = [Environment]::GetFolderPath('Programs'); Recurse = $true; Location = 'start' })
@@ -2096,7 +2096,7 @@ $script:SI_RefScanMaxDepth = 8
 $script:SI_RefScanMaxEntries = 100000
 
 function Get-ReferenceScanRoots {
-    $list = New-Object 'System.Collections.Generic.List[string]'
+    $list = [System.Collections.Generic.List[string]]::new()
     $seen = @{}
     $add = {
         param($Path)
@@ -2123,7 +2123,7 @@ function Get-ReferenceLinks {
     $count = 0
     foreach ($root in @(Get-ReferenceScanRoots)) {
         if (-not (Test-Path -LiteralPath $root -PathType Container)) { continue }
-        $stack = New-Object 'System.Collections.Generic.Stack[object]'
+        $stack = [System.Collections.Generic.Stack[object]]::new()
         $stack.Push(@($root, 0))
         while ($stack.Count -gt 0) {
             $e = $stack.Pop(); $dir = [string]$e[0]; $depth = [int]$e[1]
@@ -2166,7 +2166,7 @@ function Get-Matches {
     param([Parameter(Mandatory)]$Pack, $Shortcuts, [switch]$AllUsers, [switch]$Auto, $Overrides)
     if ($null -eq $Shortcuts) { $Shortcuts = @(Get-ShortcutList -AllUsers:$AllUsers) }
     $index = New-MatchIndex $Pack
-    $out = New-Object 'System.Collections.Generic.List[object]'
+    $out = [System.Collections.Generic.List[object]]::new()
     $autoP = $null                                   # -Auto: ярлыки без иконки в паке тоже в списке (Auto = $true), если у пака есть auto.json
     if ($Auto) { $autoP = Get-PackAuto $Pack; if ($null -eq $Overrides) { $Overrides = Get-AutoOverrides } }
     foreach ($s in @($Shortcuts)) {
@@ -2394,7 +2394,7 @@ function Restart-Explorer {
     foreach ($p in @(Get-SessionExplorer)) { try { $p.Kill(); [void]$p.WaitForExit(5000) } catch { } }
     if ($ClearCache) {
         Start-Sleep -Milliseconds 300
-        $files = New-Object 'System.Collections.Generic.List[string]'
+        $files = [System.Collections.Generic.List[string]]::new()
         $files.Add((Join-Path $env:LOCALAPPDATA 'IconCache.db'))
         $exDir = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Explorer'
         foreach ($f in @(Get-ChildItem -LiteralPath $exDir -Filter 'iconcache_*.db' -File -ErrorAction SilentlyContinue)) { $files.Add($f.FullName) }
@@ -2555,10 +2555,10 @@ function Apply-Pack {
     $backup = Load-Backup
     $changed = 0; $same = 0; $failed = 0; $autoDone = 0; $autoSkipped = 0
     $autoP = $null; $autoTried = $false; $autoReady = $false; $ov = $null
-    $running = New-Object 'System.Collections.Generic.List[string]'
-    $dests = New-Object 'System.Collections.Generic.List[string]'          # копии applied\, нужные в этом применении
+    $running = [System.Collections.Generic.List[string]]::new()
+    $dests = [System.Collections.Generic.List[string]]::new()          # копии applied\, нужные в этом применении
     $destsBy = @{}                                                         # то же по пакам-источникам (3.0: у приложения может быть свой вариант - PackId элемента)
-    $keepRefs = New-Object 'System.Collections.Generic.List[string]'       # иконки ярлыков, которые остались как были (не удалять копии, на которые они смотрят)
+    $keepRefs = [System.Collections.Generic.List[string]]::new()       # иконки ярлыков, которые остались как были (не удалять копии, на которые они смотрят)
     foreach ($m in @($Items)) {
         try {
             $regen = $false
@@ -2584,7 +2584,7 @@ function Apply-Pack {
                 $itemPack = if ($m.PSObject.Properties['PackId'] -and [string]$m.PackId) { [string]$m.PackId } else { [string]$Pack.Id }
                 $ico = Publish-AppliedIcon $itemPack ([string]$m.IconId) ([string]$m.IcoPath)
                 $dests.Add($ico)
-                if (-not $destsBy.ContainsKey($itemPack)) { $destsBy[$itemPack] = New-Object 'System.Collections.Generic.List[string]' }
+                if (-not $destsBy.ContainsKey($itemPack)) { $destsBy[$itemPack] = [System.Collections.Generic.List[string]]::new() }
                 $destsBy[$itemPack].Add($ico)
                 $already = Test-IconIsSet ([string]$m.Icon) $ico
             }
@@ -2708,7 +2708,7 @@ function Get-S11ValueNames {
 
 # Папки, где может лежать установленный Start11 (Program Files и Program Files (x86))
 function Get-Start11InstallDirs {
-    $dirs = New-Object 'System.Collections.Generic.List[string]'
+    $dirs = [System.Collections.Generic.List[string]]::new()
     foreach ($b in @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramW6432)) {
         if (-not $b) { continue }
         $d = Join-Path (Join-Path $b 'Stardock') 'Start11'
@@ -2719,7 +2719,7 @@ function Get-Start11InstallDirs {
 
 # DisplayName записей удаления программ (HKLM 64/32 и HKCU); в тестах подменяется
 function Get-UninstallDisplayNames {
-    $names = New-Object 'System.Collections.Generic.List[string]'
+    $names = [System.Collections.Generic.List[string]]::new()
     $roots = @(
         @([Microsoft.Win32.Registry]::LocalMachine, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'),
         @([Microsoft.Win32.Registry]::LocalMachine, 'SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'),
@@ -2794,7 +2794,7 @@ function Get-TileTitle {
 # Приложения из Get-StartApps + имена значений из подключей Start8\CustomTiles*, CustomText
 function Get-Start11Candidates {
     $map = @{}
-    $list = New-Object 'System.Collections.Generic.List[object]'
+    $list = [System.Collections.Generic.List[object]]::new()
     $apps = @()
     try { if (Get-Command -Name Get-StartApps -ErrorAction SilentlyContinue) { $apps = @(Get-StartApps) } } catch { Write-Log ('Get-StartApps: ' + $_.Exception.Message) }
     foreach ($a in $apps) {
@@ -2819,7 +2819,7 @@ function Get-Start11Candidates {
         $map[$n] = $o; $list.Add($o)
     }
     # 3.0: закреплённые элементы Start11 (GroupContents): их id - основной источник плиток, которых нет в Get-StartApps
-    $pinSkipped = New-Object 'System.Collections.Generic.List[string]'
+    $pinSkipped = [System.Collections.Generic.List[string]]::new()
     try { [void](Add-PinnedCandidates $list $map $pinSkipped) } catch { Write-Log ('закреплённые элементы Start11: ' + $_.Exception.Message) }
     foreach ($ps in $pinSkipped) { Write-Log ('  Диагностика плиток: закреплённый id ' + $ps) }
     # сам Glyphix (2.6.0): ярлык «Glyphix» в меню Пуск идёт через wscript.exe с AppUserModelID F1KS.Glyphix; Get-StartApps может его не вернуть -
@@ -2900,10 +2900,10 @@ function Get-TileIdInfo {
     if ($tokens.Count -eq 0) { return $info }
     # Для точного сравнения берём только хвост id (последние 2 токена): ведущие токены - издатель (com.google.*, Microsoft.*)
     # и не должны давать совпадений. Порядок: оба токена вместе, последний, предпоследний (если это не слово-издатель).
-    $keys = New-Object 'System.Collections.Generic.List[string]'
+    $keys = [System.Collections.Generic.List[string]]::new()
     $seen = @{}
     $n = $tokens.Count
-    $cand = New-Object 'System.Collections.Generic.List[string]'
+    $cand = [System.Collections.Generic.List[string]]::new()
     if ($n -ge 2) { $cand.Add(($tokens[($n - 2)..($n - 1)]) -join '') }
     $cand.Add($tokens[$n - 1])
     if ($n -ge 2 -and ($script:SI_PublisherWords -notcontains $tokens[$n - 2])) { $cand.Add($tokens[$n - 2]) }
@@ -3012,7 +3012,7 @@ function Get-Start11Matches {
     param([Parameter(Mandatory)]$Pack, $Candidates, [switch]$NoName, [switch]$Auto, $Overrides)
     if ($null -eq $Candidates) { $Candidates = @(Get-Start11Candidates) }
     $index = New-TileIndex $Pack
-    $out = New-Object 'System.Collections.Generic.List[object]'
+    $out = [System.Collections.Generic.List[object]]::new()
     $autoP = $null                                   # -Auto: плитки без иконки в паке - автоплитки (Auto = $true), если у пака есть auto.json
     if ($Auto) { $autoP = Get-PackAuto $Pack; if ($null -eq $Overrides) { $Overrides = Get-AutoOverrides } }
     foreach ($c in @($Candidates)) {
@@ -3164,10 +3164,10 @@ function Start-NonElevated {
 # Paths - уникальные пути exe; Launch - то же с аргументами командной строки для повторного запуска.
 function Stop-Start11 {
     param($Procs = $null)
-    $r = [pscustomobject]@{ Ok = $true; Paths = (New-Object 'System.Collections.Generic.List[string]'); Launch = (New-Object 'System.Collections.Generic.List[object]') }
+    $r = [pscustomobject]@{ Ok = $true; Paths = ([System.Collections.Generic.List[string]]::new()); Launch = ([System.Collections.Generic.List[object]]::new()) }
     try {
         if ($null -eq $Procs) { $Procs = @(Get-Start11Processes) }
-        $ids = New-Object 'System.Collections.Generic.List[int]'
+        $ids = [System.Collections.Generic.List[int]]::new()
         foreach ($p in @($Procs)) {
             try {
                 Stop-Process -Id $p.Id -Force -ErrorAction Stop
@@ -3292,7 +3292,7 @@ function Apply-Start11Tiles {
     try {
         $selfM = @($Items | Where-Object { [string]$_.IconId -ieq 'glyphix' })
         if ($selfM.Count -gt 0 -or @($Pack.Icons | Where-Object { [string]$_.Id -ieq 'glyphix' }).Count -gt 0) {
-            $wr = New-Object 'System.Collections.Generic.List[string]'
+            $wr = [System.Collections.Generic.List[string]]::new()
             foreach ($sm in $selfM) {
                 $now = $null; try { $now = Get-S11Value $script:SI_S11Tiles ([string]$sm.TileId) } catch { }
                 $wr.Add([string]$sm.TileId + $(if ($now) { ' (в реестре: ' + $now + ')' } else { ' (значения в реестре нет)' }))
@@ -4593,7 +4593,7 @@ function Test-AutoItem {
 # файлу иконки/цели - без стрелки ярлыка; иначе - сам .lnk (или его копия из бэкапа: после нашей замены сам ярлык уже отдаёт НАШУ иконку).
 function Get-AutoLinkSources {
     param($Item, $Backup)
-    $list = New-Object 'System.Collections.Generic.List[object]'
+    $list = [System.Collections.Generic.List[object]]::new()
     $lnk = [string]$Item.Path
     $copy = ''
     $orig = [string]$Item.Icon
@@ -4630,7 +4630,7 @@ function Get-AutoLinkSources {
 
 function Get-AutoTileSources {
     param($Item)
-    $list = New-Object 'System.Collections.Generic.List[object]'
+    $list = [System.Collections.Generic.List[object]]::new()
     $aid = [string]$Item.AppId
     if ($aid) {
         $pinP = ''; if ($Item.PSObject.Properties['Pinned'] -and $Item.Pinned) { $pinP = Expand-PinnedPath $aid }
@@ -4720,7 +4720,7 @@ function Remove-AutoFiles {
 # перед применением плиток: режимы приложений -> готовые .jpg; возвращает @{ Items = что применять; Failed = сколько не получилось; Skipped = Native/Off }
 function Resolve-AutoTileItems {
     param($Pack, $Items, [bool]$NoName)
-    $keep = New-Object 'System.Collections.Generic.List[object]'
+    $keep = [System.Collections.Generic.List[object]]::new()
     $failed = 0; $skipped = 0
     $auto = $null; $ov = $null; $ready = $false; $tried = $false
     foreach ($m in @($Items)) {
@@ -4885,7 +4885,7 @@ function Invoke-ElevatedCli {
 
 # ---------- Старая версия (автозапуск v2) ----------
 function Remove-Legacy {
-    $removed = New-Object 'System.Collections.Generic.List[string]'
+    $removed = [System.Collections.Generic.List[string]]::new()
     try {
         $lnk = Join-Path ([Environment]::GetFolderPath('Startup')) 'TaskbarIcons.lnk'
         if (Test-Path -LiteralPath $lnk) { Remove-Item -LiteralPath $lnk -Force; $removed.Add($lnk); Write-Log "Удалён автозапуск: $lnk" }
@@ -4943,7 +4943,7 @@ function Repair-AppShortcutAppId {
         $ver = Get-AppVersion
         $st = Read-State
         if ($st.ContainsKey('AumidChecked') -and [string]$st['AumidChecked'] -eq $ver) { return $false }
-        $bad = New-Object 'System.Collections.Generic.List[string]'
+        $bad = [System.Collections.Generic.List[string]]::new()
         foreach ($p in @(Get-AppShortcutPaths)) {
             if (-not $p -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { continue }
             $r = Get-ShortcutAppId $p
@@ -5062,7 +5062,7 @@ function Merge-BackupEntries {
     $first = if ($IncomingWins) { @($Incoming) } else { $existing }
     $second = if ($IncomingWins) { $existing } else { @($Incoming) }
     $seen = @{}
-    $out = New-Object 'System.Collections.Generic.List[object]'
+    $out = [System.Collections.Generic.List[object]]::new()
     foreach ($e in $first) {
         $k = ''; if ($e.PSObject.Properties[$Key] -and $null -ne $e.$Key) { $k = [string]$e.$Key }
         if ($k) { $seen[$k] = $true }
@@ -5083,7 +5083,7 @@ function Merge-BackupEntries {
 # Возвращает число записей index.json старого бэкапа.
 function Merge-LegacyBackup {
     param([string]$Src, [string]$OldBackup, [string]$OldS11, [bool]$OldFirst = $true)
-    $created = New-Object 'System.Collections.Generic.List[string]'
+    $created = [System.Collections.Generic.List[string]]::new()
     $count = 0
     try {
         if (-not (Test-Path -LiteralPath $script:SI_BackupDir)) { New-Item -ItemType Directory -Path $script:SI_BackupDir -Force | Out-Null }
@@ -5174,7 +5174,7 @@ function Invoke-LegacyMigrationLocked {
     $retry = $false          # true - не перенесён бэкап: метку не ставим, перенос повторится при следующем запуске (идемпотентно)
 
     # 0) старый backup\ -> backup.migrating\ одним переименованием (атомарно); дальше работаем только с ним
-    $sources = New-Object 'System.Collections.Generic.List[object]'
+    $sources = [System.Collections.Generic.List[object]]::new()
     try {
         $hasMig = Test-Path -LiteralPath $oldMig -PathType Container
         $hasBk = Test-Path -LiteralPath $oldBackup -PathType Container
@@ -5214,7 +5214,7 @@ function Invoke-LegacyMigrationLocked {
 
     # 3) плитки Start11: PNG -> новая папка, значения CustomTiles, указывающие в старую папку, -> новые пути
     try {
-        $rew = New-Object 'System.Collections.Generic.List[object]'
+        $rew = [System.Collections.Generic.List[object]]::new()
         if (Test-Start11) {
             foreach ($n in @(Get-S11ValueNames $script:SI_S11Tiles)) {
                 $v = $null
@@ -6280,7 +6280,7 @@ function ConvertTo-VariantNum {
 function ConvertTo-VariantOps {
     param($Ops)
     [void](Initialize-VariantsNative)
-    $list = New-Object 'System.Collections.Generic.List[GlyphixVariants.Op]'
+    $list = [System.Collections.Generic.List[GlyphixVariants.Op]]::new()
     foreach ($o in @($Ops)) {
         if ($null -eq $o) { continue }
         $name = [string](Get-JsonProp $o 'op')
@@ -6413,14 +6413,14 @@ function ConvertFrom-VariantCatalog {
     $flags = @{}
     $bf = Get-JsonProp $j 'brand_flags'
     if ($bf) { foreach ($p in $bf.PSObject.Properties) { if ($p.Name -match '^[A-Za-z0-9_\-]+$') { $flags[$p.Name] = $p.Value } } }
-    $outSecs = New-Object 'System.Collections.Generic.List[object]'
-    $flat = New-Object 'System.Collections.Generic.List[object]'
+    $outSecs = [System.Collections.Generic.List[object]]::new()
+    $flat = [System.Collections.Generic.List[object]]::new()
     $byId = @{}
     foreach ($s in $secs) {
         $sid = [string](Get-JsonProp $s 'id')
         if ($sid -notmatch '^[A-Za-z0-9_\-]{1,40}$') { Write-Log "  каталог вариантов: секция с неверным id '$sid' пропущена"; continue }
         $sec = [pscustomobject]@{ Id = $sid; Title = [string](Get-JsonProp $s 'title'); Subtitle = [string](Get-JsonProp $s 'subtitle'); Variants = $null }
-        $vl = New-Object 'System.Collections.Generic.List[object]'
+        $vl = [System.Collections.Generic.List[object]]::new()
         foreach ($v in @(Get-JsonProp $s 'variants')) {
             $vid = [string](Get-JsonProp $v 'id'); $vb = [string](Get-JsonProp $v 'base')
             if ($vid -notmatch $script:SI_IdRx -or $vb -notmatch $script:SI_IdRx) { Write-Log "  каталог вариантов: вариант '$vid' (base '$vb') пропущен - неверный id"; continue }
@@ -6442,7 +6442,7 @@ function ConvertFrom-VariantCatalog {
 
 # Запасной каталог: паки из локального packs\index.json (порядок как в нём), иначе - прочитанные Get-Packs. Каждый пак = вариант без операций.
 function Get-FallbackVariantCatalog {
-    $entries = New-Object 'System.Collections.Generic.List[object]'
+    $entries = [System.Collections.Generic.List[object]]::new()
     $ixf = Join-Path $script:SI_PacksDir 'index.json'
     try {
         if (Test-Path -LiteralPath $ixf -PathType Leaf) {
@@ -6456,7 +6456,7 @@ function Get-FallbackVariantCatalog {
         try { foreach ($p in @(Get-Packs)) { $entries.Add([pscustomobject]@{ Id = [string]$p.Id; Name = [string]$p.Name; Description = [string]$p.Description }) } } catch { }
     }
     $sec = [pscustomobject]@{ Id = 'packs'; Title = 'Паки'; Subtitle = ''; Variants = $null }
-    $flat = New-Object 'System.Collections.Generic.List[object]'
+    $flat = [System.Collections.Generic.List[object]]::new()
     $byId = @{}
     foreach ($e in $entries) {
         if ($byId.ContainsKey($e.Id)) { continue }
@@ -6538,7 +6538,7 @@ function Update-VariantCatalog {
         $cur = Get-VariantCatalog
         $stampWant = [string]$cur.Updated + ':' + (Get-FileSha256 $script:SI_CatalogFile).Substring(0, 8)
         $stampHave = ''; try { if (Test-Path -LiteralPath $script:SI_PreviewStamp -PathType Leaf) { $stampHave = ([IO.File]::ReadAllText($script:SI_PreviewStamp)).Trim() } } catch { }
-        $items = New-Object 'System.Collections.Generic.List[object]'
+        $items = [System.Collections.Generic.List[object]]::new()
         $jpegCheck = { param($b) ($b.Length -gt 4 -and $b[0] -eq 0xFF -and $b[1] -eq 0xD8) -or ($b.Length -gt 8 -and $b[0] -eq 0x89 -and $b[1] -eq 0x50) }
         foreach ($v in @($cur.Variants)) {
             if (-not $v.Preview) { continue }
@@ -6642,11 +6642,11 @@ function Resolve-VariantPack {
     $opsN = ConvertTo-VariantOps $variant.Ops
     $want = $null
     if ($null -ne $IconIds) { $want = @{}; foreach ($i in @($IconIds)) { if ($i) { $want[[string]$i] = $true } } }
-    $icons = New-Object 'System.Collections.Generic.List[object]'
-    $jobs = New-Object 'System.Collections.Generic.List[GlyphixVariants.Job]'
-    $files = New-Object 'System.Collections.Generic.List[string]'
-    $pIcons = New-Object 'System.Collections.Generic.List[string]'; $pTiles = New-Object 'System.Collections.Generic.List[string]'; $pNoName = New-Object 'System.Collections.Generic.List[string]'
-    $missing = New-Object 'System.Collections.Generic.List[object]'
+    $icons = [System.Collections.Generic.List[object]]::new()
+    $jobs = [System.Collections.Generic.List[GlyphixVariants.Job]]::new()
+    $files = [System.Collections.Generic.List[string]]::new()
+    $pIcons = [System.Collections.Generic.List[string]]::new(); $pTiles = [System.Collections.Generic.List[string]]::new(); $pNoName = [System.Collections.Generic.List[string]]::new()
+    $missing = [System.Collections.Generic.List[object]]::new()
     $doIcons = ($Parts -contains 'icons'); $doPng = ($doIcons -or ($Parts -contains 'png'))
     foreach ($ic in @($base.Icons)) {
         $id = [string]$ic.Id
@@ -6683,7 +6683,7 @@ function Resolve-VariantPack {
             $jobs.Add($j)
         }
     }
-    $failed = New-Object 'System.Collections.Generic.List[object]'
+    $failed = [System.Collections.Generic.List[object]]::new()
     foreach ($m in $missing) { $failed.Add($m) }
     $rendered = 0
     if ($jobs.Count -gt 0) {
@@ -6784,7 +6784,7 @@ function ConvertTo-PinnedTileName {
 
 # Все закреплённые id: { Id (как в GroupContents); TileName (имя в CustomTiles); Group; Index }. Пустые группы и значения не id (не REG_SZ, не число в имени) пропускаются.
 function Get-PinnedTileIds {
-    $out = New-Object 'System.Collections.Generic.List[object]'
+    $out = [System.Collections.Generic.List[object]]::new()
     $seen = @{}
     foreach ($g in @(Get-S11SubKeyNames $script:SI_S11Groups)) {
         if (-not $g) { continue }
@@ -6897,10 +6897,10 @@ function Add-PinnedCandidates {
 # $Written - id значений CustomTiles, записанных для иконки glyphix. Возвращает { Lines; Pinned; StartApps; Shortcuts; Written }.
 function Get-GlyphixTileDiagnostics {
     param($Candidates = $null, [string[]]$Written = @())
-    $lines = New-Object 'System.Collections.Generic.List[string]'
+    $lines = [System.Collections.Generic.List[string]]::new()
     $pins = @(); try { $pins = @(Get-PinnedTileIds | Where-Object { $_.Id -match '(?i)glyph|wscript' }) } catch { }
     $apps = @(); try { if (Get-Command -Name Get-StartApps -ErrorAction SilentlyContinue) { $apps = @(Get-StartApps | Where-Object { $_ -and (([string]$_.Name -match '(?i)glyph') -or ([string]$_.AppID -match '(?i)glyph')) }) } } catch { }
-    $lnks = New-Object 'System.Collections.Generic.List[object]'
+    $lnks = [System.Collections.Generic.List[object]]::new()
     try {
         foreach ($p in @(Get-AppShortcutPaths)) {
             if (-not $p) { continue }
@@ -7108,7 +7108,7 @@ function Sync-AppOverrideFromLegacy {
 
 # ---------- Избранные варианты (state.json: Favorites - упорядоченный список id) ----------
 function Get-Favorites {
-    $out = New-Object 'System.Collections.Generic.List[string]'
+    $out = [System.Collections.Generic.List[string]]::new()
     try {
         $st = Read-State
         if ($st.ContainsKey('Favorites') -and $st['Favorites']) {
@@ -7123,7 +7123,7 @@ function Set-Favorite {
     [CmdletBinding()]
     param([Parameter(Mandatory, Position = 0)][string]$VariantId, [Parameter(Mandatory, Position = 1)][bool]$On, [int]$Position = -1)
     if ($VariantId -notmatch $script:SI_IdRx) { throw "неверный id варианта '$VariantId'" }
-    $list = New-Object 'System.Collections.Generic.List[string]'
+    $list = [System.Collections.Generic.List[string]]::new()
     foreach ($f in @(Get-Favorites)) { $list.Add($f) }
     if ($On) {
         if (-not $list.Contains($VariantId) -or $Position -ge 0) {
@@ -7256,7 +7256,7 @@ function Get-AppPlan {
     $tiles = @()
     if ($o.Tiles) { $tiles = @(Get-Start11Matches -Pack $vp -Candidates $Candidates -NoName:$o.NoName -Auto:$o.Auto -Overrides @{}) }
     $by = @{}
-    $order = New-Object 'System.Collections.Generic.List[string]'
+    $order = [System.Collections.Generic.List[string]]::new()
     $touch = {
         param($M, [bool]$IsTile)
         $k = Get-ItemAppKey $M
@@ -7264,7 +7264,7 @@ function Get-AppPlan {
         if (-not $by.ContainsKey($k)) {
             $auto = [bool]($M.PSObject.Properties['Auto'] -and $M.Auto)
             $by[$k] = [pscustomobject]@{ AppKey = $k; Name = $(if ($auto) { [string]$M.Name } else { [string]$M.IconName }); IconId = $(if ($auto) { '' } else { [string]$M.IconId }); Group = [string]$M.Group; Auto = $auto
-                Sh = (New-Object 'System.Collections.Generic.List[object]'); Ti = (New-Object 'System.Collections.Generic.List[object]') }
+                Sh = ([System.Collections.Generic.List[object]]::new()); Ti = ([System.Collections.Generic.List[object]]::new()) }
             $order.Add($k)
         }
         if ($IsTile) { $by[$k].Ti.Add($M) } else { $by[$k].Sh.Add($M) }
@@ -7277,7 +7277,7 @@ function Get-AppPlan {
     foreach ($k in $order) {
         $e = $by[$k]
         if ($e.Auto -or -not $ov.ContainsKey($k) -or -not $ov[$k].Source -or $ov[$k].Source -eq $VariantId) { continue }
-        if (-not $srcIds.ContainsKey($ov[$k].Source)) { $srcIds[$ov[$k].Source] = New-Object 'System.Collections.Generic.List[string]' }
+        if (-not $srcIds.ContainsKey($ov[$k].Source)) { $srcIds[$ov[$k].Source] = [System.Collections.Generic.List[string]]::new() }
         $srcIds[$ov[$k].Source].Add($e.IconId)
     }
     $partsR = if ($o.Render) { @('png') } else { @() }
@@ -7295,7 +7295,7 @@ function Get-AppPlan {
     foreach ($ic in @($rp.Icons)) { $mainIcons[[string]$ic.Id] = $ic }
     $backup = @{}; try { $backup = Load-Backup } catch { }
     $s11bk = @{}; try { $s11bk = Load-S11Backup } catch { }
-    $out = New-Object 'System.Collections.Generic.List[object]'
+    $out = [System.Collections.Generic.List[object]]::new()
     foreach ($k in $order) {
         $e = $by[$k]
         $ovE = if ($ov.ContainsKey($k)) { $ov[$k] } else { $null }
@@ -7381,8 +7381,8 @@ function Apply-Plan {
     $o = Get-PlanOptions $Options
     if ($null -eq $Plan) { $Plan = @(Get-AppPlan -VariantId $VariantId -Options $o -OnProgress $OnProgress) }
     $Plan = @($Plan)
-    $iconApply = New-Object 'System.Collections.Generic.List[object]'; $tileApply = New-Object 'System.Collections.Generic.List[object]'
-    $restoreLinks = New-Object 'System.Collections.Generic.List[string]'; $restoreTiles = New-Object 'System.Collections.Generic.List[string]'
+    $iconApply = [System.Collections.Generic.List[object]]::new(); $tileApply = [System.Collections.Generic.List[object]]::new()
+    $restoreLinks = [System.Collections.Generic.List[string]]::new(); $restoreTiles = [System.Collections.Generic.List[string]]::new()
     $skipped = 0
     $need = @{}
     $needOf = { param([string]$v) if (-not $need.ContainsKey($v)) { $need[$v] = @{ Ids = @{}; Icons = $false; Tiles = $false } }; return $need[$v] }
@@ -7406,7 +7406,7 @@ function Apply-Plan {
     $res = [pscustomobject]@{ Variant = $VariantId; Icons = $null; Tiles = $null; RestoredShortcuts = 0; RestoredTiles = 0; Skipped = $skipped; Changed = 0; Same = 0; Failed = 0; Rendered = 0; RenderFailed = @() }
     # нужные иконки / плитки нужных вариантов (по умолчанию - ничего лишнего)
     [void](& $needOf $VariantId)
-    $packs = @{}; $renderFailed = New-Object 'System.Collections.Generic.List[object]'
+    $packs = @{}; $renderFailed = [System.Collections.Generic.List[object]]::new()
     foreach ($v in @($need.Keys)) {
         $n = $need[$v]
         $parts = @(); if ($n.Icons) { $parts += 'icons' }; if ($n.Tiles) { $parts += $(if ($o.NoName) { 'noname' } else { 'tiles' }) }
@@ -7419,7 +7419,7 @@ function Apply-Plan {
     $main = $packs[$VariantId]
     $repoint = {
         param($Items)
-        $keep = New-Object 'System.Collections.Generic.List[object]'
+        $keep = [System.Collections.Generic.List[object]]::new()
         foreach ($m in @($Items)) {
             if (Test-AutoItem $m) { $keep.Add($m); continue }
             $v = if ($m.PSObject.Properties['PackId'] -and [string]$m.PackId) { [string]$m.PackId } else { $VariantId }
@@ -7526,8 +7526,8 @@ function Undo-Apps {
     $res = [pscustomobject]@{ Restored = 0; TilesRestored = 0; Failed = 0; CommonPending = 0; Nothing = $true; Hint = ''; Keys = @($keys.Keys) }
     $backup = Load-Backup
     $s11 = Load-S11Backup
-    $paths = New-Object 'System.Collections.Generic.List[string]'
-    $tileIds = New-Object 'System.Collections.Generic.List[string]'
+    $paths = [System.Collections.Generic.List[string]]::new()
+    $tileIds = [System.Collections.Generic.List[string]]::new()
     $legacy = $false
     foreach ($p in @($backup.Keys)) { $ak = [string]$backup[$p].AppKey; if ($ak -and $keys.ContainsKey($ak)) { $paths.Add($p) } elseif (-not $ak) { $legacy = $true } }
     foreach ($i in @($s11.Keys)) { $ak = [string]$s11[$i].AppKey; if ($ak -and $keys.ContainsKey($ak)) { $tileIds.Add($i) } elseif (-not $ak) { $legacy = $true } }

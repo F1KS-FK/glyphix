@@ -238,7 +238,7 @@ $script:GxTagWords = @{
 # «Светящиеся цветные глифы · яркий, холодные тона»: подзаголовок секции и слова из тегов (default - метка базового стиля, в текст не идёт)
 function Get-VariantBlurb {
     param($Variant, [string]$SectionSubtitle = '')
-    $w = New-Object 'System.Collections.Generic.List[string]'
+    $w = [System.Collections.Generic.List[string]]::new()
     foreach ($t in @($Variant.Tags)) {
         $k = ([string]$t).ToLowerInvariant()
         if ($script:GxTagWords.ContainsKey($k)) { $w.Add([string]$script:GxTagWords[$k]) }
@@ -264,7 +264,7 @@ function Get-BaseUsers {
     $h = @{}
     foreach ($v in @($Catalog.Variants)) {
         $b = [string]$v.Base
-        if (-not $h.ContainsKey($b)) { $h[$b] = New-Object 'System.Collections.Generic.List[string]' }
+        if (-not $h.ContainsKey($b)) { $h[$b] = [System.Collections.Generic.List[string]]::new() }
         $h[$b].Add(([string]$v.SectionTitle + ' · ' + [string]$v.Title))
     }
     return $h
@@ -317,7 +317,7 @@ function New-SectionModels {
     $users = Get-BaseUsers $Catalog
     $subOf = @{}; foreach ($s in @($Catalog.Sections)) { $subOf[[string]$s.Id] = [string]$s.Subtitle }
     $mk = { param($v) New-CardModel $v $subOf[[string]$v.SectionId] $packMap $AppliedId $favSet $users }
-    $out = New-Object 'System.Collections.Generic.List[object]'
+    $out = [System.Collections.Generic.List[object]]::new()
     $favCards = @($favList | ForEach-Object { & $mk $Catalog.ById[[string]$_] } | Where-Object { Test-CardMatch $_ $Query })
     if ($favCards.Count -gt 0) { $out.Add([pscustomobject]@{ Id = 'fav'; Title = $FavTitle; Subtitle = $FavSubtitle; IsFavorites = $true; Cards = $favCards }) }
     $qq = ([string]$Query).Trim().ToLowerInvariant()
@@ -334,7 +334,7 @@ function New-SectionModels {
 # Какие базовые паки качать для отмеченных стилей: уникальные id основ в порядке выбора (стили одной основы - один пак)
 function Get-BaseIdsForVariants {
     param($Catalog, $VariantIds)
-    $seen = @{}; $out = New-Object 'System.Collections.Generic.List[string]'
+    $seen = @{}; $out = [System.Collections.Generic.List[string]]::new()
     foreach ($id in @($VariantIds)) {
         if (-not $id -or -not $Catalog.ById.ContainsKey([string]$id)) { continue }
         $b = [string]$Catalog.ById[[string]$id].Base
@@ -386,7 +386,7 @@ function Get-PlanStatusText {
 # «Пуск», «Панель задач ×2», «Start11»: чипы мест (порядок как в плане). Подписи по коду места - из таблицы строк (ключ Loc_<код>), иначе из плана
 function Get-PlanChips {
     param($Locations, $Text)
-    $out = New-Object 'System.Collections.Generic.List[string]'
+    $out = [System.Collections.Generic.List[string]]::new()
     foreach ($l in @($Locations)) {
         $k = 'Loc_' + [string]$l.Code
         $label = if ($Text.ContainsKey($k)) { [string]$Text[$k] } else { [string]$l.Label }
@@ -459,7 +459,7 @@ function Get-PlanCounts {
 function Select-PlanRows {
     param($Rows, [string]$Filter = 'all', [string]$Query = '')
     $q = ([string]$Query).Trim().ToLowerInvariant()
-    $out = New-Object 'System.Collections.Generic.List[object]'
+    $out = [System.Collections.Generic.List[object]]::new()
     foreach ($r in @($Rows)) {
         if ($null -eq $r) { continue }
         if ($Filter -and $Filter -ne 'all' -and [string]$r.Status -ne $Filter) { continue }
@@ -472,7 +472,7 @@ function Select-PlanRows {
 # меню «Стиль» строки: секции каталога по порядку; первый пункт - «по умолчанию» (Id = '')
 function New-StyleMenuModel {
     param($Catalog, [string]$CurrentSource = '', [string]$DefaultLabel = 'По умолчанию')
-    $groups = New-Object 'System.Collections.Generic.List[object]'
+    $groups = [System.Collections.Generic.List[object]]::new()
     $groups.Add([pscustomobject]@{ Title = ''; Items = @([pscustomobject]@{ Id = ''; Title = $DefaultLabel; Current = (-not $CurrentSource) }) })
     foreach ($s in @($Catalog.Sections)) {
         $items = @(@($s.Variants) | ForEach-Object { [pscustomobject]@{ Id = [string]$_.Id; Title = [string]$_.Title; Current = ([string]$_.Id -eq $CurrentSource) } })
@@ -490,7 +490,7 @@ function Get-LogTail {
     try {
         $fs = New-Object System.IO.FileStream($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
         $sr = New-Object System.IO.StreamReader($fs, [System.Text.Encoding]::UTF8)
-        $q = New-Object 'System.Collections.Generic.Queue[string]'
+        $q = [System.Collections.Generic.Queue[string]]::new()
         while (-not $sr.EndOfStream) { $q.Enqueue($sr.ReadLine()); if ($q.Count -gt $Count) { [void]$q.Dequeue() } }
         return $q.ToArray()
     } catch { return @() }
@@ -779,7 +779,7 @@ $script:DataHome = $script:SI_Home
 $script:HasStart11 = $false
 try { $script:HasStart11 = [bool](Test-Start11) } catch { }
 $script:BusyNow = $false
-$script:PendingWrites = New-Object 'System.Collections.Generic.List[hashtable]'      # записи в state.json (избранное, режимы), отложенные до конца фоновой операции
+$script:PendingWrites = [System.Collections.Generic.List[hashtable]]::new()      # записи в state.json (избранное, режимы), отложенные до конца фоновой операции
 $script:OvRecent = $null          # режимы / источники, заданные с начала сканирования плана (Select-Variant): задание могло прочитать state.json до их записи
 $script:BuildQueue = $null        # секции, ждущие построения (по одной за такт таймера)
 $script:BuildHost = $null         # панель, в которую строятся секции
@@ -790,8 +790,8 @@ $script:SavedV = 0.0
 $script:DiskCache = @{}           # id пака -> размер на диске (сбрасывается при перечитывании данных - Load-StyleData)
 $script:CardModels = @{}          # id варианта -> модель карточки (для подсказок, которые считаются при наведении)
 $script:ImgCache = @{}            # 'путь|ширина|время файла' -> BitmapImage (замороженный)
-$script:ThumbQueue = New-Object 'System.Collections.Generic.Queue[object]'          # превью карточек: Image + путь, грузятся по несколько штук за такт
-$script:RowThumbQueue = New-Object 'System.Collections.Generic.Queue[object]'       # картинки строк плана: Row + Kind (before | after) + путь
+$script:ThumbQueue = [System.Collections.Generic.Queue[object]]::new()          # превью карточек: Image + путь, грузятся по несколько штук за такт
+$script:RowThumbQueue = [System.Collections.Generic.Queue[object]]::new()       # картинки строк плана: Row + Kind (before | after) + путь
 $script:PlanAll = $null           # все строки плана выбранного варианта (List[PlanRow])
 $script:PlanShown = $null         # то, что показано в списке (ObservableCollection[PlanRow]) - после фильтра
 $script:PlanFilter = 'all'
@@ -821,6 +821,30 @@ function New-Img {
         $ms.Dispose()
         return $bi
     } catch { return $null }
+}
+
+
+# Присвоить свойство элементу интерфейса без динамического биндера: снимаем обёртку PSObject, у DependencyObject пишем через
+# SetValue(<Prop>Property), иначе - через PropertyInfo.SetValue; значение приводится к типу свойства.
+# (Корень «Argument types do not match» в 3.0.1: @() над List[object], созданным через New-Object, - коллекции теперь только через ::new().)
+function Set-UiValue {
+    param($Target, [string]$Prop, $Value)
+    $t = $Target; if ($t -is [System.Management.Automation.PSObject]) { $t = $t.psobject.BaseObject }
+    if ($null -eq $t) { return }
+    $v = $Value; if ($v -is [System.Management.Automation.PSObject]) { $v = $v.psobject.BaseObject }
+    $ty = $t.GetType()
+    $dpo = 'System.Windows.DependencyObject' -as [type]
+    if ($dpo -and $dpo.IsInstanceOfType($t)) {
+        $f = $ty.GetField($Prop + 'Property', [System.Reflection.BindingFlags]'Public, Static, FlattenHierarchy')
+        if ($f) {
+            $dp = $f.GetValue($null)
+            $t.SetValue($dp, [System.Management.Automation.LanguagePrimitives]::ConvertTo($v, $dp.PropertyType))
+            return
+        }
+    }
+    $pi = $ty.GetProperty($Prop)
+    if (-not $pi) { throw ("нет свойства " + $Prop + " у " + $ty.FullName) }
+    $pi.SetValue($t, [System.Management.Automation.LanguagePrimitives]::ConvertTo($v, $pi.PropertyType), $null)
 }
 
 # Картинка в Image: только в настоящий System.Windows.Controls.Image, через SetValue(Image.SourceProperty, ImageSource), а не через `$im.Source = ...`
@@ -949,8 +973,8 @@ function Set-Busy {
     $script:BusyNow = $Busy
     $script:ui.PrgBusy.Visibility = if ($Busy) { 'Visible' } else { 'Hidden' }
     Set-Progress $null
-    foreach ($b in @($script:ui.BtnUpdate, $script:ui.BtnUndo, $script:ui.BtnMenu, $script:ui.BtnAppUpdate)) { $b.IsEnabled = (-not $Busy) }
-    foreach ($b in $script:CardButtons) { $b.IsEnabled = (-not $Busy) }
+    foreach ($b in @($script:ui.BtnUpdate, $script:ui.BtnUndo, $script:ui.BtnMenu, $script:ui.BtnAppUpdate)) { Set-UiValue $b 'IsEnabled' (-not $Busy) }
+    foreach ($b in $script:CardButtons) { Set-UiValue $b 'IsEnabled' (-not $Busy) }
     if (-not $Busy) { Flush-StateWrites }
     Update-SelBar
     Update-PlanSel
@@ -1137,8 +1161,8 @@ function New-Text {
 # ---- секции и карточки стилей ----
 function Update-CardHighlight {
     foreach ($id in @($script:Cards.Keys)) {
-        foreach ($c in @($script:Cards[$id])) {
-            if ($id -eq $script:SelectedId) { $c.BorderBrush = (Get-Res 'AccentBrush') } else { $c.BorderBrush = (Get-Res 'CardBorderBrush') }
+        foreach ($c in $script:Cards[$id].ToArray()) {
+            if ($id -eq $script:SelectedId) { Set-UiValue $c 'BorderBrush' (Get-Res 'AccentBrush') } else { Set-UiValue $c 'BorderBrush' (Get-Res 'CardBorderBrush') }
         }
     }
 }
@@ -1175,7 +1199,7 @@ function Update-SelBar {
 function Set-VariantChecked {
     param([string]$Id, [bool]$On)
     if ($On) { $script:Checked[$Id] = $true } else { $script:Checked.Remove($Id) }
-    if ($script:CardChecks.ContainsKey($Id)) { foreach ($ck in @($script:CardChecks[$Id])) { $ck.IsChecked = $On } }
+    if ($script:CardChecks.ContainsKey($Id)) { foreach ($ck in $script:CardChecks[$Id].ToArray()) { Set-UiValue $ck 'IsChecked' $On } }
     Update-SelBar
 }
 
@@ -1246,8 +1270,8 @@ function New-VariantCard {
     $chk.Add_Click({ param($s, $e) try { Set-VariantChecked ([string]$s.Tag) ([bool]$s.IsChecked) } catch { Show-Error $_ 'выбор стилей' } })
     $ckBox.Child = $chk
     [void]$pv.Children.Add($ckBox)
-    if (-not $script:CardChecks.ContainsKey($id)) { $script:CardChecks[$id] = New-Object 'System.Collections.Generic.List[object]' }
-    $script:CardChecks[$id].Add($chk)
+    if (-not $script:CardChecks.ContainsKey($id)) { $script:CardChecks[$id] = [System.Collections.Generic.List[object]]::new() }
+    $script:CardChecks[$id].Add($chk.psobject.BaseObject)
     # звезда «в избранное» (справа сверху)
     $star = New-Object System.Windows.Controls.Border
     $star.Width = 28
@@ -1385,8 +1409,8 @@ function New-VariantCard {
             Select-Variant $vid
         } catch { Show-Error $_ 'выбор стиля' }
     })
-    if (-not $script:Cards.ContainsKey($id)) { $script:Cards[$id] = New-Object 'System.Collections.Generic.List[object]' }
-    $script:Cards[$id].Add($card)
+    if (-not $script:Cards.ContainsKey($id)) { $script:Cards[$id] = [System.Collections.Generic.List[object]]::new() }
+    $script:Cards[$id].Add($card.psobject.BaseObject)
     return $card
 }
 
@@ -1529,7 +1553,7 @@ function Show-Sections {
         $h.Margin = $script:SectionsPanel.Margin
         $script:BuildHost = $h
     }
-    $script:BuildQueue = New-Object 'System.Collections.Generic.Queue[object]'
+    $script:BuildQueue = [System.Collections.Generic.Queue[object]]::new()
     foreach ($m in $models) { $script:BuildQueue.Enqueue($m) }
     Update-SelBar
     if ($script:BuildQueue.Count -eq 0) { Complete-Build } else { $script:BuildTimer.Start() }
@@ -1674,15 +1698,15 @@ function Update-PlanView {
     if ($null -eq $script:PlanAll) {          # не `-not`: пустой List в PowerShell - ложь, а пустой план - это «ничего не найдено», а не «нет плана»
         Set-PlanItems $null
         $script:PlanShown = $null
-        foreach ($b in @($script:ui.RbAll, $script:ui.RbReplace, $script:ui.RbCurrent, $script:ui.RbMissing)) { $b.IsEnabled = $false }
+        foreach ($b in @($script:ui.RbAll, $script:ui.RbReplace, $script:ui.RbCurrent, $script:ui.RbMissing)) { Set-UiValue $b 'IsEnabled' $false }
         Update-PlanSel
         return
     }
-    foreach ($b in @($script:ui.RbAll, $script:ui.RbReplace, $script:ui.RbCurrent, $script:ui.RbMissing)) { $b.IsEnabled = $true }
+    foreach ($b in @($script:ui.RbAll, $script:ui.RbReplace, $script:ui.RbCurrent, $script:ui.RbMissing)) { Set-UiValue $b 'IsEnabled' $true }
     Update-PlanChips
     $q = ([string]$script:ui.TxtPlanSearch.Text)
     $sel = @(Select-PlanRows $script:PlanAll $script:PlanFilter $q)
-    $list = New-Object 'System.Collections.Generic.List[GlyphixGui.PlanRow]'
+    $list = [System.Collections.Generic.List[GlyphixGui.PlanRow]]::new()
     foreach ($r in $sel) { $list.Add($r) }
     $oc = New-Object 'System.Collections.ObjectModel.ObservableCollection[GlyphixGui.PlanRow]' -ArgumentList (, $list)
     $script:PlanShown = $oc
@@ -1731,7 +1755,7 @@ function Select-Variant {
     Update-PlanView
     $script:ui.TxtMatchSummary.Text = $script:T.Scanning
     Stop-RowThumbs
-    $script:OvRecent = New-Object 'System.Collections.Generic.List[hashtable]'
+    $script:OvRecent = [System.Collections.Generic.List[hashtable]]::new()
     foreach ($w in @($script:PendingWrites.ToArray())) { if ($w.Kind -eq 'override') { $script:OvRecent.Add($w) } }      # ещё не записаны (идёт тихое обновление) - задание их не увидит
     Start-Bg -Title $script:T.Scanning -Params @{ Id = $Id; All = [bool]$script:ui.ChkAllUsers.IsChecked; Tiles = (Get-TilesWanted); NoName = [bool]$script:ui.ChkNoName.IsChecked; Auto = (Get-AutoWanted); Render = $ready } -Body @'
 param($p)
@@ -1750,7 +1774,7 @@ $o = @{ AllUsers = [bool]$p.All; Tiles = [bool]$p.Tiles; NoName = [bool]$p.NoNam
 # строки плана из записей Get-AppPlan; картинки «станет» (PNG, уже нарисован) - в очередь превью, «было» и автоиконки - фоновым заданием
 function Fill-Plan {
     param($Plan, [string]$VariantId)
-    $rows = New-Object 'System.Collections.Generic.List[GlyphixGui.PlanRow]'
+    $rows = [System.Collections.Generic.List[GlyphixGui.PlanRow]]::new()
     $script:RowIndex = @{}
     $script:RowThumbQueue.Clear()
     foreach ($e in @($Plan)) {
@@ -1798,7 +1822,7 @@ function Start-RowThumbs {
     if ($script:Closing -or -not $VariantId) { return }
     $items = @(@($Plan) | Where-Object { $_ -and ((@($_.Shortcuts).Count -gt 0) -or (@($_.Tiles).Count -gt 0)) })
     if ($items.Count -eq 0) { return }
-    $out = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+    $out = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
     $ctl = @{ Stop = $false }
     try {
         $j = Start-EngineJob -EngineText $script:EngineText -CodeDir $script:Root -Params @{ Id = $VariantId; Items = $items; Out = $out; Ctl = $ctl; NoName = [bool]$script:ui.ChkNoName.IsChecked } -Body @'
@@ -2031,7 +2055,7 @@ if ($ic -and $ic.PngPath -and (Test-Path -LiteralPath ([string]$ic.PngPath) -Pat
 # отметить / снять все видимые строки (с учётом фильтра и поиска)
 function Set-PlanAllChecked {
     param([bool]$On)
-    if ($script:PlanShown) { foreach ($r in @($script:PlanShown)) { $r.Checked = $On } }
+    if ($script:PlanShown) { foreach ($r in @($script:PlanShown)) { Set-UiValue $r 'Checked' $On } }
     Update-PlanSel
 }
 
