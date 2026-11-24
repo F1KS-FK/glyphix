@@ -92,6 +92,11 @@ function Invoke-Cli {
             Write-Host ("Пак '{0}' не найден. Доступные: {1}" -f $id, (($packs | ForEach-Object { $_.Id }) -join ', '))
             return 2
         }
+        if ($mode -eq 'Apply') {
+            # применяем только свежий пак: index + pack.json + файлы, затем пак заново читается с диска и по нему ищутся ярлыки
+            try { $pk = Sync-PackForApply -Id ([string]$pk.Id) -Parts (Get-PackParts -Tiles $tilesOn -NoName ([bool]$NoName)) }
+            catch { Write-Log ('Пак не обновлён: ' + $_.Exception.Message); return 1 }
+        }
         $items = @(Get-Matches -Pack $pk -AllUsers:$all -Auto:$autoOn)
         if ($mode -eq 'List') {
             Write-Host ("Пак: {0} {1}, иконок: {2}; найдено ярлыков: {3}" -f $pk.Name, $pk.Version, $pk.IconCount, $items.Count)
@@ -104,7 +109,7 @@ function Invoke-Cli {
                 Write-Host ("Плитки Start11: {0}" -f $tiles.Count)
                 foreach ($m in $tiles) {
                     $mark = if ($m.Already) { ' (уже стоит)' } else { '' }
-                    Write-Host ("  [start11] {0,-32} -> {1} ({2}){3}" -f $(if ($m.Name) { $m.Name } else { $m.TileId }), $m.IconName, $m.Rule, $mark)
+                    Write-Host ("  [start11] {0,-32} -> {1} ({2}){3}" -f (Get-TileTitle $m), $m.IconName, $m.Rule, $mark)
                 }
             }
         } else {
@@ -248,7 +253,9 @@ $T = @{
     Applying     = 'Применяю пак...'
     Undoing      = 'Возвращаю исходные ярлыки...'
     Uninstalling = 'Удаляю приложение...'
-    ApplyDone    = 'Готово: заменено {0}, уже стояли {1}'
+    ApplyDone    = '{0}: заменено {1}, уже стояли {2}'
+    ApplyCached  = 'Не удалось обновить пак с GitHub — применена сохранённая версия {0}'
+    WaitSilent   = 'Жду обновления паков…'
     ApplyFail    = ', ошибок: {0}'
     UndoDone     = 'Возвращено ярлыков: {0}'
     UndoNothing  = 'Откатывать нечего: бэкапа нет'
@@ -322,6 +329,9 @@ $script:PendingSelect = $null
 $script:Job = $null
 $script:Closing = $false
 $script:UpdJob = $null
+$script:SilentJob = $null
+$script:SilentCtl = $null         # синхронизированная hashtable { Cancel }: GUI просит тихое обновление остановиться
+$script:BgPending = $null         # операция, ждущая окончания тихого обновления паков (Start-Bg -WaitSilent)
 $script:UpdateInfo = $null
 $script:DataHome = $script:SI_Home
 $script:HasStart11 = $false
@@ -399,9 +409,19 @@ function Set-Busy {
 }
 
 # ---- фоновые операции (отдельный runspace, UI не замирает; код - Start-EngineJob / Receive-EngineJob в Engine.ps1) ----
+# -WaitSilent (Применить / Откат / Удаление / Обновить / Скачать / Обновление приложения): операции, пишущие state.json, pack.json, packs\.
+# Идёт тихое обновление паков - просим его остановиться и стартуем операцию, когда оно закончится (окно не блокируется, таймер WaitTimer).
 function Start-Bg {
-    param([string]$Title, [string]$Body, [hashtable]$Params, [scriptblock]$OnDone)
-    if ($script:Job -or $script:Closing) { return }
+    param([string]$Title, [string]$Body, [hashtable]$Params, [scriptblock]$OnDone, [switch]$WaitSilent)
+    if ($script:Job -or $script:BgPending -or $script:Closing) { return }
+    if ($WaitSilent -and $script:SilentJob) {
+        if ($script:SilentCtl) { try { $script:SilentCtl['Cancel'] = $true } catch { } }
+        Set-Status $script:T.WaitSilent
+        Set-Busy $true
+        $script:BgPending = @{ Title = $Title; Body = $Body; Params = $Params; OnDone = $OnDone }
+        $script:WaitTimer.Start()
+        return
+    }
     Set-Status $Title
     Set-Busy $true
     try {
@@ -416,6 +436,25 @@ function Start-Bg {
     $j.OnDone = $OnDone
     $script:Job = $j
     $script:Timer.Start()
+}
+
+# ждём окончания тихого обновления паков (оно уже получило Cancel), затем запускаем отложенную операцию; всё в потоке интерфейса (DispatcherTimer)
+function Step-BgPending {
+    $pd = $script:BgPending
+    if (-not $pd) { $script:WaitTimer.Stop(); return }
+    $j = $script:SilentJob
+    if ($j) {
+        $line = $null
+        while ($j.Queue.TryDequeue([ref]$line)) { Add-LogLine $line }
+        if (-not $j.Async.IsCompleted) { return }
+        $script:SilentTimer.Stop()
+        try { [void](Receive-EngineJob $j) } catch { }
+        $script:SilentJob = $null
+    }
+    $script:WaitTimer.Stop()
+    $script:BgPending = $null
+    if ($script:Closing) { Set-Busy $false; return }
+    Start-Bg -Title $pd.Title -Body $pd.Body -Params $pd.Params -OnDone $pd.OnDone
 }
 
 function Step-Job {
@@ -465,13 +504,45 @@ function Start-UpdateCheck {
     } catch { $script:UpdJob = $null; Write-Log ('Проверка версии не запущена: ' + $_.Exception.Message) }
 }
 
+# ---- тихое обновление паков на каждом запуске ----
+# index.json + pack.json + превью всех паков (без иконок и плиток) в отдельном runspace, без строки состояния и индикатора занятости:
+# карточки (версия, число иконок, превью) обновляются по готовности. Иначе кэш старой версии показывался бы до ручного «Обновить паки».
+function Step-SilentRefresh {
+    $j = $script:SilentJob
+    if (-not $j) { $script:SilentTimer.Stop(); return }
+    $line = $null
+    while ($j.Queue.TryDequeue([ref]$line)) { Add-LogLine $line }
+    if (-not $j.Async.IsCompleted) { return }
+    if ($script:Job -or $script:BgPending) { return }      # идёт другая операция (или она ждёт конца этого обновления) - карточки обновим, когда она закончится
+    $script:SilentTimer.Stop()
+    $res = $null
+    try { $res = Receive-EngineJob $j } catch { }
+    $script:SilentJob = $null
+    if ($script:Closing) { return }
+    if ($res -and $res.PSObject.Properties['Error'] -and $res.Error) { Write-Log ('Тихое обновление паков: ' + $res.Error); return }
+    if ($res -and $res.PSObject.Properties['Downloaded'] -and [int]$res.Downloaded -gt 0) {
+        Rebuild-Packs
+        if ($script:SelectedId -and $script:Cards.ContainsKey($script:SelectedId)) { Select-Pack $script:SelectedId }
+        elseif ($script:Packs.Count -gt 0) { Select-Pack ([string]$script:Packs[0].Id) }
+    }
+}
+
+function Start-SilentRefresh {
+    if ($script:SilentJob -or $script:Job -or $script:BgPending -or $script:Closing) { return }      # идёт Применить / Откат / ...: тихое обновление не стартует (оно пишет те же файлы)
+    try {
+        $script:SilentCtl = [hashtable]::Synchronized(@{ Cancel = $false })
+        $script:SilentJob = Start-EngineJob -EngineText $script:EngineText -CodeDir $script:Root -Body 'param($p) Update-Packs -Cancel $p.Ctl' -Params @{ Ctl = $script:SilentCtl }
+        $script:SilentTimer.Start()
+    } catch { $script:SilentJob = $null; Write-Log ('Тихое обновление паков не запущено: ' + $_.Exception.Message) }
+}
+
 function Invoke-AppUpdate {
-    if ($script:Job) { Set-Status $script:T.Busy; return }
+    if ($script:Job -or $script:BgPending) { Set-Status $script:T.Busy; return }
     $i = $script:UpdateInfo
     if (-not $i -or -not $i.Available) { return }
     $ans = [System.Windows.MessageBox]::Show($script:Window, ($script:T.ConfirmAppUpdate -f $i.Local, $i.Remote), $script:T.Title, [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question)
     if ($ans -ne [System.Windows.MessageBoxResult]::Yes) { return }
-    Start-Bg -Title $script:T.AppUpdating -Params @{} -Body @'
+    Start-Bg -WaitSilent -Title $script:T.AppUpdating -Params @{} -Body @'
 param($p)
 [pscustomobject]@{ Started = $true; Installer = (Start-AppSelfUpdate) }
 '@ -OnDone {
@@ -889,7 +960,7 @@ function Fill-Matches {
     $script:ui.MatchList.Children.Clear()
     $script:AutoThumbs = @{}; $script:AutoRows = @{}
     $all = @($Matches2 | Where-Object { $_ })
-    $allT = @($TileMatches | Where-Object { $_ })
+    $allT = @($TileMatches | Where-Object { $_ -and -not (Test-UrlTileId ([string]$_.TileId)) })       # плитки-ссылки (https://...) в списке не показываем
     $items = @($all | Where-Object { -not (Test-AutoItem $_) })
     $tiles = @($allT | Where-Object { -not (Test-AutoItem $_) })
     $autoCount = @($all | Where-Object { Test-AutoItem $_ }).Count + @($allT | Where-Object { Test-AutoItem $_ }).Count
@@ -910,7 +981,7 @@ function Fill-Matches {
                 [void]$script:ui.MatchList.Children.Add((New-MatchRow $m.PngPath ([string]$m.Name) $sub $pillText ([string]$m.Path)))
             } else {
                 if ($m.Already) { $tsame++ }
-                $title = if ($m.Name) { [string]$m.Name } else { [string]$m.TileId }
+                $title = Get-TileTitle $m                                  # имя приложения; сырой id - только в серой строке ниже
                 $sub = $script:T.TileSub -f $m.IconName, $m.TileId
                 if ($m.Already) { $sub += ' · ' + $script:T.AlreadySet }
                 [void]$script:ui.MatchList.Children.Add((New-MatchRow $m.TilePath $title $sub $script:T.TilesPill ([string]$m.TileId)))
@@ -951,7 +1022,7 @@ function Select-Pack {
     if (-not $Id) { return }
     $script:SelectedId = $Id
     Update-CardHighlight
-    if ($script:Job) { $script:PendingSelect = $Id; return }
+    if ($script:Job -or $script:BgPending) { $script:PendingSelect = $Id; return }
     $pk = $script:Packs | Where-Object { $_.Id -eq $Id } | Select-Object -First 1
     if (-not $pk) { return }
     $script:ui.TxtSelectedPack.Text = $script:T.PackLine -f ('{0} {1}' -f $pk.Name, $pk.Version)
@@ -989,11 +1060,10 @@ function Invoke-Apply {
     $restart = [bool]$script:ui.ChkRestart.IsChecked
     # общие ярлыки при обычных правах: один раз перезапускаем этот скрипт с UAC (режим CLI) и ждём его завершения
     $elevate = ($all -and -not (Test-Admin))
-    Start-Bg -Title $script:T.Applying -Params @{ Id = $Id; Restart = $restart; All = $all; Elevate = $elevate; Tiles = (Get-TilesWanted); NoName = [bool]$script:ui.ChkNoName.IsChecked; Auto = (Get-AutoWanted) } -Body @'
+    Start-Bg -WaitSilent -Title $script:T.Applying -Params @{ Id = $Id; Restart = $restart; All = $all; Elevate = $elevate; Tiles = (Get-TilesWanted); NoName = [bool]$script:ui.ChkNoName.IsChecked; Auto = (Get-AutoWanted) } -Body @'
 param($p)
-$pk = @(Get-Packs) | Where-Object { $_.Id -eq $p.Id } | Select-Object -First 1
-if (-not $pk) { throw 'Пак не найден' }
-Confirm-PackFiles $pk          # иконки именно этого пака качаем сейчас (параллельно), до повышения прав и применения; плитки докачает Apply-Start11Tiles
+# 1) index.json + pack.json этого пака + нужные файлы (иконки, плитки) качаем СЕЙЧАС, до повышения прав; 2) пак заново читаем с диска - ярлыки и плитки ищем и применяем только по свежему паку
+$pk = Sync-PackForApply -Id ([string]$p.Id) -Parts (Get-PackParts -Tiles ([bool]$p.Tiles) -NoName ([bool]$p.NoName))
 # плитки Start11 - в реестре текущего пользователя: применяем здесь, а не в повышенном процессе (там -NoTiles)
 $tr = $null
 $au = [bool]$p.Auto
@@ -1011,12 +1081,12 @@ if ($p.Elevate) {
     if (-not $au) { $a += '-NoAuto' }
     $er = Invoke-ElevatedCli -CliArgs $a
     $tr = & $doTiles $pk
-    return [pscustomobject]@{ Elevated = $true; Elev = $er; Tiles = $tr; Matches = @(Get-Matches -Pack $pk -AllUsers:$true -Auto:$au); TileMatches = @(& $getTiles $pk); PackName = $pk.Name }
+    return [pscustomobject]@{ Elevated = $true; Elev = $er; Tiles = $tr; Matches = @(Get-Matches -Pack $pk -AllUsers:$true -Auto:$au); TileMatches = @(& $getTiles $pk); PackName = $pk.Name; PackVersion = [string]$pk.Version; FromCache = [bool]$pk.FromCache }
 }
 $items = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All) -Auto:$au)
 $r = Apply-Pack -Pack $pk -Items $items -RestartExplorer:([bool]$p.Restart) -NoAuto:(-not $au)
 $tr = & $doTiles $pk
-[pscustomobject]@{ Elevated = $false; Result = $r; Tiles = $tr; Matches = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All) -Auto:$au); TileMatches = @(& $getTiles $pk); PackName = $pk.Name }
+[pscustomobject]@{ Elevated = $false; Result = $r; Tiles = $tr; Matches = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All) -Auto:$au); TileMatches = @(& $getTiles $pk); PackName = $pk.Name; PackVersion = [string]$pk.Version; FromCache = [bool]$pk.FromCache }
 '@ -OnDone {
         param($res)
         if ($res -and $res.Error) { Show-Error $res 'применение'; return }
@@ -1026,14 +1096,16 @@ $tr = & $doTiles $pk
             elseif ($code -eq 0) { Set-Status $script:T.ElevDone }
             elseif ($code -eq 3) { Set-Status $script:T.ElevRefused }
             else { Set-Status ($script:T.ElevFail -f $code) }
+            if ($res.FromCache) { Set-Status ($script:ui.TxtStatus.Text + ' | ' + ($script:T.ApplyCached -f $res.PackVersion)) }
         } else {
             $r = $res.Result
-            $s = $script:T.ApplyDone -f $r.Changed, $r.Same
+            $s = $script:T.ApplyDone -f ('{0} {1}' -f $r.PackName, $r.PackVersion).Trim(), $r.Changed, $r.Same
             if ($r.Failed -gt 0) { $s += ($script:T.ApplyFail -f $r.Failed) }
             if ($r.Auto -gt 0) { $s += ($script:T.ApplyAuto -f $r.Auto) }
             $rh = ''
             try { if ($r.PSObject.Properties['Running']) { $rh = Format-RunningHint @($r.Running) } } catch { }       # приложение запущено - окно может показывать прежнюю иконку (один раз, до 3 имён)
             if ($rh) { $s += ' | ' + $rh }
+            if ($r.FromCache) { $s += ' | ' + ($script:T.ApplyCached -f $r.PackVersion) }       # GitHub недоступен: применён кэш - показываем, чтобы «уже стояли» не казалось поломкой
             Set-Status $s
         }
         if ($res.Tiles) {
@@ -1053,7 +1125,7 @@ $tr = & $doTiles $pk
 function Invoke-Update {
     param([bool]$FirstRun = $false)
     $title = if ($FirstRun) { $script:T.FirstRun } else { $script:T.Updating }
-    Start-Bg -Title $title -Params @{} -Body @'
+    Start-Bg -WaitSilent -Title $title -Params @{} -Body @'
 param($p)
 Update-Packs
 '@ -OnDone {
@@ -1076,7 +1148,7 @@ Update-Packs
 function Invoke-Download {
     param([string]$Id)
     # иконки - всегда; плитки Start11 - только если включены; плитки без подписи - только если выбрано «без подписи» (остальное докачается при применении)
-    Start-Bg -Title $script:T.Downloading -Params @{ Id = $Id; Tiles = (Get-TilesWanted); NoName = [bool]$script:ui.ChkNoName.IsChecked } -Body @'
+    Start-Bg -WaitSilent -Title $script:T.Downloading -Params @{ Id = $Id; Tiles = (Get-TilesWanted); NoName = [bool]$script:ui.ChkNoName.IsChecked } -Body @'
 param($p)
 Install-Pack -Id ([string]$p.Id) -Parts (Get-PackParts -Tiles ([bool]$p.Tiles) -NoName ([bool]$p.NoName))
 '@ -OnDone {
@@ -1092,7 +1164,7 @@ function Invoke-Undo {
     $ans = [System.Windows.MessageBox]::Show($script:Window, $script:T.ConfirmUndo, $script:T.Title, [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question)
     if ($ans -ne [System.Windows.MessageBoxResult]::Yes) { return }
     Stop-AutoPreviews
-    Start-Bg -Title $script:T.Undoing -Params @{ Restart = [bool]$script:ui.ChkRestart.IsChecked } -Body @'
+    Start-Bg -WaitSilent -Title $script:T.Undoing -Params @{ Restart = [bool]$script:ui.ChkRestart.IsChecked } -Body @'
 param($p)
 Undo-Routed -RestartExplorer:([bool]$p.Restart)
 '@ -OnDone {
@@ -1117,7 +1189,7 @@ function Invoke-Uninstall {
     $ans = [System.Windows.MessageBox]::Show($script:Window, $script:T.ConfirmUn, $script:T.Title, [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Warning)
     if ($ans -ne [System.Windows.MessageBoxResult]::Yes) { return }
     Stop-AutoPreviews
-    Start-Bg -Title $script:T.Uninstalling -Params @{ Restart = [bool]$script:ui.ChkRestart.IsChecked } -Body @'
+    Start-Bg -WaitSilent -Title $script:T.Uninstalling -Params @{ Restart = [bool]$script:ui.ChkRestart.IsChecked } -Body @'
 param($p)
 Uninstall-App -RestartExplorer:([bool]$p.Restart)
 '@ -OnDone {
@@ -1190,6 +1262,14 @@ $script:PrevTimer = New-Object System.Windows.Threading.DispatcherTimer
 $script:PrevTimer.Interval = [TimeSpan]::FromMilliseconds(200)
 $script:PrevTimer.Add_Tick({ try { Step-Previews } catch { Show-Error $_ 'превью автоиконок' } })
 
+$script:SilentTimer = New-Object System.Windows.Threading.DispatcherTimer
+$script:SilentTimer.Interval = [TimeSpan]::FromMilliseconds(300)
+$script:SilentTimer.Add_Tick({ try { Step-SilentRefresh } catch { Write-Log ('тихое обновление паков: ' + $_.Exception.Message) } })
+
+$script:WaitTimer = New-Object System.Windows.Threading.DispatcherTimer
+$script:WaitTimer.Interval = [TimeSpan]::FromMilliseconds(100)
+$script:WaitTimer.Add_Tick({ try { Step-BgPending } catch { $script:WaitTimer.Stop(); $script:BgPending = $null; Set-Busy $false; Show-Error $_ 'ожидание обновления паков' } })
+
 $script:UpdTimer = New-Object System.Windows.Threading.DispatcherTimer
 $script:UpdTimer.Interval = [TimeSpan]::FromMilliseconds(250)
 $script:UpdTimer.Add_Tick({ try { Step-UpdateCheck } catch { } })
@@ -1244,7 +1324,8 @@ $script:ui.LnkAuthorMenu.Add_RequestNavigate($script:OnLinkNavigate)
 $script:Window.Add_Closing({
     param($s, $e)
     try {
-        if ($script:Job) { $e.Cancel = $true; Set-Status $script:T.Busy; return }
+        if ($script:Job -or $script:BgPending) { $e.Cancel = $true; Set-Status $script:T.Busy; return }
+        if ($script:SilentCtl) { try { $script:SilentCtl['Cancel'] = $true } catch { } }      # закрываем окно - тихое обновление ничего нового не пишет
         $script:Closing = $true
         Stop-AutoPreviews
     } catch { Show-Error $_ 'закрытие' }
@@ -1277,6 +1358,7 @@ function Start-Initial {
         $first = $script:Packs[0].Id
         if ($st.ContainsKey('Applied') -and $st['Applied'] -and $script:Cards.ContainsKey([string]$st['Applied'].PackId)) { $first = [string]$st['Applied'].PackId }
         Select-Pack $first
+        Start-SilentRefresh            # кэш показан сразу, а index + pack.json + превью всех паков обновляются в фоне при каждом запуске
     }
 }
 

@@ -34,7 +34,8 @@ $script:SI_LogFile = Join-Path $script:SI_Home 'log.txt'
 $script:SI_S11Root = 'Software\Stardock\Start8\Start8.ini'                      # HKCU: настройки Start11 (дерево)
 $script:SI_S11Tiles = $script:SI_S11Root + '\Start8\CustomTiles'                  # имя = id плитки, данные = путь к PNG
 $script:SI_S11BackupFile = Join-Path $script:SI_BackupDir 'start11.json'
-$script:SI_S11Dir = Join-Path $script:SI_Home 'start11'                            # наши плитки (PNG или JPEG; стабильный путь)
+$script:SI_S11Dir = Join-Path $script:SI_Home 'start11'                            # наши плитки: start11\<пак>\<id>.<sha8>.<png|jpg> (путь зависит от содержимого, см. Get-Start11TileDest)
+$script:SI_AppliedDir = Join-Path $script:SI_Home 'applied'                        # применённые иконки: applied\<пак>\<id>.<sha8>.ico (путь зависит от содержимого, см. Get-AppliedIconDest)
 $script:SI_TileExts = @('.png', '.jpg', '.jpeg')                                   # допустимые расширения файлов плиток в паках
 $script:SI_S11Hint = 'Перезапусти Start11 или выйди из системы и зайди снова'
 $script:SI_CodeDir = if ($PSScriptRoot) { $PSScriptRoot } else { $script:SI_AppDir }
@@ -862,8 +863,15 @@ function Sync-PackFiles {
 }
 
 # pack.json и превью пака (иконки и плитки здесь НЕ качаем - см. Install-Pack); возвращает число скачанных файлов
+# Тихое фоновое обновление можно остановить: $Cancel - синхронизированная hashtable с ключом Cancel (ставит GUI, когда начинается Применить / Откат / Удаление).
+# Остановленное обновление новых файлов не пишет.
+function Test-RefreshCancelled {
+    param($Cancel)
+    try { return [bool]($Cancel -and $Cancel['Cancel']) } catch { return $false }
+}
+
 function Update-OnePack {
-    param([string]$BaseUrl, $Entry, [bool]$Force)
+    param([string]$BaseUrl, $Entry, [bool]$Force, $Cancel = $null)
     $id = [string]$Entry.id
     if ($id -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$') { throw "недопустимый id пака '$id'" }
     $path = ([string]$Entry.path).Trim('/')
@@ -881,6 +889,7 @@ function Update-OnePack {
     $needManifest = $Force -or -not (Test-Path -LiteralPath $manLocal)
     if (-not $needManifest) { try { $needManifest = ((Get-FileSha256 $manLocal) -ne $manSha) } catch { $needManifest = $true } }
 
+    if (Test-RefreshCancelled $Cancel) { return 0 }
     $manBytes = $null
     if ($needManifest) {
         $manBytes = Get-WebBytes ($BaseUrl + $manRel) 4194304
@@ -892,12 +901,14 @@ function Update-OnePack {
     if ([string]$man.id -ne $id) { throw "id в pack.json ('$($man.id)') не совпал с index.json" }
     [void](Get-PackFileList $packDir $packUrl $man)          # пути файлов проверяем до сохранения pack.json
 
+    if (Test-RefreshCancelled $Cancel) { return 0 }
     $prevRel = [string]$man.preview
     if ($prevRel -and $Entry.preview_sha256) {
         if (-not (Test-SafeRel $prevRel @('.png'))) { throw "недопустимый preview '$prevRel'" }
         $downloaded += (Sync-File ($packUrl + $prevRel) (Join-Rel $packDir $prevRel) ([string]$Entry.preview_sha256) '.png' -Force:$Force)
     }
     # pack.json пишем последним: если что-то оборвалось, следующая проверка догрузит остальное
+    if (Test-RefreshCancelled $Cancel) { return $downloaded }
     if ($needManifest) { Save-FileAtomic $manLocal $manBytes; $downloaded++ }
     return $downloaded
 }
@@ -984,9 +995,14 @@ function Confirm-PackFiles {
     }
 }
 
+function New-RefreshCancelledResult {
+    param([int]$Downloaded = 0, [string[]]$Updated = @())
+    return [pscustomobject]@{ Ok = $false; Cancelled = $true; Downloaded = $Downloaded; Updated = @($Updated); Errors = @(); Message = 'Обновление остановлено' }
+}
+
 function Update-Packs {
     [CmdletBinding()]
-    param([string]$BaseUrl = $script:SI_BaseUrl, [switch]$Force)
+    param([string]$BaseUrl = $script:SI_BaseUrl, [switch]$Force, $Cancel = $null)
     $errors = New-Object 'System.Collections.Generic.List[string]'
     $updated = New-Object 'System.Collections.Generic.List[string]'
     $total = 0
@@ -1011,16 +1027,18 @@ function Update-Packs {
             }
         }
     } catch { }
+    if (Test-RefreshCancelled $Cancel) { return (New-RefreshCancelledResult) }
     try { Save-FileAtomic (Join-Path $script:SI_PacksDir 'index.json') $idxBytes } catch { Write-Log ('index.json не сохранён: ' + $_.Exception.Message) }   # порядок паков в галерее
     # на каждом запуске - только index.json, pack.json и превью всех паков; иконки и плитки - по требованию (Install-Pack)
     $entries = @($idx.packs)
     $i = 0
     foreach ($entry in $entries) {
         $i++
+        if (Test-RefreshCancelled $Cancel) { Write-Log 'Обновление паков остановлено: началась другая операция'; return (New-RefreshCancelledResult -Downloaded $total -Updated $updated.ToArray()) }
         $pid2 = [string]$entry.id
         Write-Log "Проверяю паки: $i/$($entries.Count) ($pid2)"
         try {
-            $n = Update-OnePack $BaseUrl $entry ([bool]$Force)
+            $n = Update-OnePack $BaseUrl $entry ([bool]$Force) $Cancel
             $total += $n
             if ($n -gt 0) { $updated.Add($pid2); Write-Log "  $pid2 : загружено файлов $n" } else { Write-Log "  $pid2 : актуален" }
         } catch {
@@ -1028,6 +1046,7 @@ function Update-Packs {
             Write-Log "  ошибка в паке $pid2 : $($_.Exception.Message)"
         }
     }
+    if (Test-RefreshCancelled $Cancel) { return (New-RefreshCancelledResult -Downloaded $total -Updated $updated.ToArray()) }
     if ($errors.Count -eq 0) {
         $st = Read-State; $st['LastUpdate'] = (Get-Date).ToString('s'); Save-State $st
     }
@@ -1041,6 +1060,7 @@ function Update-Packs {
 # Поэтому пути IcoPath/PngPath/TilePath - «где файл должен лежать», State - 'ready' | 'stale' | 'none' по иконкам (см. Get-PackState);
 # PartFiles - файлы по частям (icons / tiles / noname), Files - все.
 function Get-Packs {
+    param([string]$OnlyId = '')          # прочитать с диска только этот пак (папка packs\<id>); имя не $Id: переменная $id ниже - id очередного пака
     $res = New-Object 'System.Collections.Generic.List[object]'
     if (-not (Test-Path -LiteralPath $script:SI_PacksDir)) { return @() }
     $order = @{}
@@ -1049,10 +1069,12 @@ function Get-Packs {
         if (Test-Path -LiteralPath $ixf) { $k = 0; foreach ($e in @((Read-JsonFile $ixf).packs)) { $order[[string]$e.id] = $k; $k++ } }
     } catch { }
     foreach ($d in (Get-ChildItem -LiteralPath $script:SI_PacksDir -Directory -ErrorAction SilentlyContinue)) {
+        if ($OnlyId -and $d.Name -ne $OnlyId) { continue }
         $mf = Join-Path $d.FullName 'pack.json'
         if (-not (Test-Path -LiteralPath $mf)) { continue }
         try {
             $j = Read-JsonFile $mf
+            $mSha = ''; try { $mSha = Get-FileSha256 $mf } catch { }
             $id = [string]$j.id
             if ($id -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$') { continue }
             $files = New-Object 'System.Collections.Generic.List[string]'
@@ -1102,12 +1124,176 @@ function Get-Packs {
                 Id = $id; Name = [string]$j.name; Version = [string]$j.version; Author = [string]$j.author
                 License = [string]$j.license; Description = [string]$j.description
                 IconCount = $icons.Count; Dir = $d.FullName; Preview = $prev; Icons = $icons.ToArray()
-                Files = $fileArr; PartFiles = $partFiles; State = $state; Ready = ($state -eq 'ready')
+                Files = $fileArr; PartFiles = $partFiles; State = $state; Ready = ($state -eq 'ready'); ManifestSha = $mSha
                 Auto = $autoP; AutoDeclared = $autoDecl; AutoPath = $autoPath; AutoSha = $autoSha
             })
         } catch { Write-Log "пак $($d.Name) не прочитан: $($_.Exception.Message)" }
     }
     return @($res | Sort-Object @{ Expression = { if ($order.ContainsKey($_.Id)) { [int]$order[$_.Id] } else { 1000 } } }, @{ Expression = { $_.Name } })
+}
+
+# ---------- Свежий пак перед применением (2.5.0) ----------
+# Применять можно только пак, прочитанный с диска ПОСЛЕ обновления index.json / pack.json и докачки файлов: объект Get-Packs, снятый раньше,
+# мог описывать старую версию (другие файлы, другие расширения плиток) - так в 2.4.2 применялся кэш 2.1.0, а новые файлы качались уже после.
+# Sync-PackForApply = Install-Pack (index + pack.json + нужные части) и повторное чтение пака с диска. Нет сети - работаем из кэша, если нужные файлы
+# на месте (иначе ошибка). Объект помечен Synced/SyncedParts: Apply-Pack / Apply-Start11Tiles второй раз его не обновляют.
+function Sync-PackForApply {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Id, [string[]]$Parts = @('icons'), [string]$BaseUrl = $script:SI_BaseUrl)
+    $err = ''
+    try { [void](Install-Pack -Id $Id -Parts $Parts -BaseUrl $BaseUrl) } catch { $err = $_.Exception.Message }
+    $pk = @(Get-Packs -OnlyId $Id) | Select-Object -First 1
+    if (-not $pk) { if ($err) { throw $err }; throw "пак '$Id' не найден" }
+    if ($err) {
+        foreach ($part in @($Parts)) {
+            $files = if ($pk.PartFiles.ContainsKey([string]$part)) { @($pk.PartFiles[[string]$part]) } else { @($pk.Files) }
+            if ((Get-PackState ([string]$pk.Dir) $files ([string]$part)) -eq 'none') { throw $err }
+        }
+        Write-Log ('Не удалось обновить пак с GitHub — применена сохранённая версия ' + [string]$pk.Version)
+        Write-Log ('  причина: ' + $err)
+    }
+    $pk | Add-Member -NotePropertyName FromCache -NotePropertyValue ([bool]$err) -Force      # пак применяется из кэша: обновить с GitHub не удалось
+    $pk | Add-Member -NotePropertyName Synced -NotePropertyValue $true -Force
+    $pk | Add-Member -NotePropertyName SyncedParts -NotePropertyValue @($Parts) -Force
+    return $pk
+}
+
+# Пак для применения: уже свежий (Synced, нужные части) - как есть; иначе Sync-PackForApply. Replaced = pack.json отличается от переданного объекта
+# (тогда ярлыки/плитки, найденные по старому паку, надо сопоставить заново).
+function Resolve-FreshPack {
+    param($Pack, [string[]]$Parts = @('icons'))
+    $same = [pscustomobject]@{ Pack = $Pack; Replaced = $false }
+    if (-not $Pack) { return $same }
+    foreach ($pn in @('Id', 'Dir', 'Files')) { if (-not $Pack.PSObject.Properties[$pn]) { return $same } }
+    if ($Pack.PSObject.Properties['Synced'] -and $Pack.Synced) {
+        $have = @($Pack.SyncedParts)
+        if (@($Parts | Where-Object { $have -notcontains $_ }).Count -eq 0) { return $same }
+    }
+    $fresh = Sync-PackForApply -Id ([string]$Pack.Id) -Parts $Parts
+    $old = if ($Pack.PSObject.Properties['ManifestSha']) { [string]$Pack.ManifestSha } else { '' }
+    return [pscustomobject]@{ Pack = $fresh; Replaced = [bool]($old -and $old -ne [string]$fresh.ManifestSha) }
+}
+
+# Ярлыки, найденные по старому паку -> те же ярлыки (по пути), сопоставленные заново по свежему
+function Convert-ItemsToFreshPack {
+    param($Items, $Pack, [bool]$Auto = $false)
+    $paths = @{}; $all = $false
+    foreach ($m in @($Items)) {
+        if (-not $m -or -not $m.PSObject.Properties['Path']) { continue }
+        $paths[([string]$m.Path).ToLowerInvariant()] = $true
+        if (Test-CommonLocation ([string]$m.Location)) { $all = $true }
+    }
+    if ($paths.Count -eq 0) { return @() }
+    return @(Get-Matches -Pack $Pack -AllUsers:$all -Auto:$Auto | Where-Object { $paths.ContainsKey(([string]$_.Path).ToLowerInvariant()) })
+}
+
+function Convert-TileItemsToFreshPack {
+    param($Items, $Pack, [bool]$NoName = $false, [bool]$Auto = $false)
+    $ids = @{}
+    foreach ($m in @($Items)) { if ($m -and $m.PSObject.Properties['TileId']) { $ids[[string]$m.TileId] = $true } }
+    if ($ids.Count -eq 0) { return @() }
+    return @(Get-Start11Matches -Pack $Pack -NoName:$NoName -Auto:$Auto | Where-Object { $ids.ContainsKey([string]$_.TileId) })
+}
+
+# ---------- Применённые иконки: пути зависят от содержимого (2.5.0) ----------
+# Ярлык указывает не на файл пака, а на копию applied\<пак>\<id>.<sha8>.ico: изменился рисунок - изменился путь, значит изменилась и иконка ярлыка
+# (кэш иконок Windows ключуется путём, на новый путь он ответить прежней картинкой не может). Старые копии того же id, на которые никто
+# не ссылается, удаляются. Всё внутри нашей папки данных.
+function Get-AppliedIconDest {
+    param([string]$PackId, [string]$IconId, [string]$Src)
+    if (-not $Src -or $PackId -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$' -or $IconId -notmatch '^[A-Za-z0-9_\-]+$') { return $null }
+    if (-not (Test-Path -LiteralPath $Src -PathType Leaf)) { return $null }
+    try { $sha = Get-FileSha256 $Src } catch { return $null }
+    return (Join-Path (Join-Path $script:SI_AppliedDir $PackId) ($IconId + '.' + $sha.Substring(0, 8) + '.ico'))
+}
+
+# скопировать .ico пака в applied\ (если такой копии с тем же содержимым ещё нет); возвращает путь копии
+function Publish-AppliedIcon {
+    param([string]$PackId, [string]$IconId, [string]$Src)
+    if ($PackId -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$' -or $IconId -notmatch '^[A-Za-z0-9_\-]+$') { throw "неверный id иконки '$IconId'" }
+    $bytes = [IO.File]::ReadAllBytes($Src)
+    $sha = Get-BytesSha256 $bytes
+    $dest = Join-Path (Join-Path $script:SI_AppliedDir $PackId) ($IconId + '.' + $sha.Substring(0, 8) + '.ico')
+    $have = $false
+    if (Test-Path -LiteralPath $dest -PathType Leaf) { try { $have = ((Get-FileSha256 $dest) -eq $sha) } catch { } }
+    if (-not $have) { Save-FileAtomic $dest $bytes }
+    return $dest
+}
+
+# Удалить прежние копии (<id>.<другой sha8>.ico) тех же id в applied\<пак>\, если на них не ссылается ни один ярлык (и не перечислены в $ExtraRefs).
+# Ссылки читаем со всех ярлыков (в т.ч. общих); не удалось прочитать - ничего не удаляем. Возвращает число удалённых.
+function Clear-StaleAppliedIcons {
+    param([string]$PackId, [string[]]$Dests, [string[]]$ExtraRefs = @())
+    $n = 0
+    try {
+        if ($PackId -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$' -or @($Dests).Count -eq 0) { return 0 }
+        $root = [IO.Path]::GetFullPath($script:SI_AppliedDir)
+        $dir = Join-Path $root $PackId
+        if (-not (Test-Path -LiteralPath $dir -PathType Container)) { return 0 }
+        if (-not (Test-PathUnder ([IO.Path]::GetFullPath($dir)) $root)) { return 0 }
+        if (([IO.File]::GetAttributes($dir) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return 0 }
+        $keep = @{}; $ids = @{}
+        foreach ($d in @($Dests)) {
+            if (-not $d) { continue }
+            $keep[[IO.Path]::GetFullPath($d).ToLowerInvariant()] = $true
+            $ids[[IO.Path]::GetFileName($d).Split('.')[0].ToLowerInvariant()] = $true
+        }
+        $cand = @(Get-ChildItem -LiteralPath $dir -File -ErrorAction SilentlyContinue | Where-Object {
+            $_.Name -match '^(?<id>[A-Za-z0-9_\-]+)\.[0-9a-f]{8}\.ico$' -and $ids.ContainsKey($Matches['id'].ToLowerInvariant()) -and -not $keep.ContainsKey($_.FullName.ToLowerInvariant()) -and (([int]$_.Attributes -band [int][IO.FileAttributes]::ReparsePoint) -eq 0) })
+        if ($cand.Count -eq 0) { return 0 }
+        $refs = @{}
+        $script:SI_LnkReadFails = 0
+        foreach ($lnk in @(Get-ShortcutList -AllUsers)) {
+            $pth = (Split-IconLocation ([Environment]::ExpandEnvironmentVariables([string]$lnk.Icon))).Path.Trim('"')
+            if ($pth) { try { $refs[[IO.Path]::GetFullPath($pth).ToLowerInvariant()] = $true } catch { } }
+        }
+        if ($script:SI_LnkReadFails -gt 0) { Write-Log ('  прежние копии иконок не удалены: не прочитано ярлыков - ' + $script:SI_LnkReadFails); return 0 }      # не знаем, на что ссылается нечитаемый ярлык - не удаляем ничего
+        foreach ($x in @($ExtraRefs)) {
+            if (-not $x) { continue }
+            $pth = (Split-IconLocation ([Environment]::ExpandEnvironmentVariables([string]$x))).Path.Trim('"')
+            if ($pth) { try { $refs[[IO.Path]::GetFullPath($pth).ToLowerInvariant()] = $true } catch { } }
+        }
+        foreach ($f in $cand) {
+            if ($refs.ContainsKey($f.FullName.ToLowerInvariant())) { continue }
+            try { Remove-Item -LiteralPath $f.FullName -Force; $n++; Write-Log "  удалена прежняя копия иконки: $($f.Name)" } catch { }
+        }
+    } catch { Write-Log ('  прежние копии иконок не удалены: ' + $_.Exception.Message) }
+    return $n
+}
+
+# папка applied\ целиком (только внутри папки данных); после полного отката и при удалении приложения.
+# -KeepReferenced (откат): копии, на которые ещё смотрит хоть один ярлык (например, ярлык, закреплённый на панели задач уже после применения:
+# он скопировал путь applied\..., а записи в бэкапе у него нет), не удаляем - иначе он останется с пустой иконкой. Ярлыки не прочитать - не удаляем ничего.
+function Remove-AppliedFiles {
+    param([switch]$KeepReferenced)
+    try {
+        if (-not (Test-Path -LiteralPath $script:SI_AppliedDir)) { return }
+        $root = [IO.Path]::GetFullPath($script:SI_AppliedDir)
+        if (-not (Test-PathUnder $root ([IO.Path]::GetFullPath($script:SI_Home)))) { return }
+        if (([IO.File]::GetAttributes($script:SI_AppliedDir) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return }
+        if ($KeepReferenced) {
+            $refs = @{}
+            foreach ($lnk in @(Get-ShortcutList -AllUsers)) {
+                $pth = (Split-IconLocation ([Environment]::ExpandEnvironmentVariables([string]$lnk.Icon))).Path.Trim('"')
+                if (-not $pth) { continue }
+                try { $full = [IO.Path]::GetFullPath($pth); if (Test-PathUnder $full $root) { $refs[$full.ToLowerInvariant()] = $true } } catch { }
+            }
+            if ($refs.Count -gt 0) {
+                foreach ($d in @(Get-ChildItem -LiteralPath $root -Directory -Force -ErrorAction SilentlyContinue)) {
+                    if (([int]$d.Attributes -band [int][IO.FileAttributes]::ReparsePoint) -ne 0) { continue }
+                    foreach ($f in @(Get-ChildItem -LiteralPath $d.FullName -File -Force -ErrorAction SilentlyContinue)) {
+                        if ($refs.ContainsKey($f.FullName.ToLowerInvariant())) { continue }
+                        if (([int]$f.Attributes -band [int][IO.FileAttributes]::ReparsePoint) -ne 0) { continue }
+                        try { Remove-Item -LiteralPath $f.FullName -Force } catch { }
+                    }
+                }
+                Remove-EmptyDirs $root
+                Write-Log "  applied\: оставлены копии иконок, на которые ещё ссылаются ярлыки: $($refs.Count)"
+                return
+            }
+        }
+        Remove-Item -LiteralPath $script:SI_AppliedDir -Recurse -Force
+    } catch { Write-Log ('applied не удалена: ' + $_.Exception.Message) }
 }
 
 # ---------- Группы иконок (pack.json: icons[].group = apps | games | system | work | creative; необязательно) ----------
@@ -1143,7 +1329,7 @@ function Get-MatchGroups {
         if (-not $m) { continue }
         $k = Get-GroupKey $m.Group
         if (-not $by.ContainsKey($k)) { $by[$k] = New-Object 'System.Collections.Generic.List[object]' }
-        $by[$k].Add([pscustomobject]@{ Kind = 'tile'; Title = $(if ($m.Name) { [string]$m.Name } else { [string]$m.TileId }); Item = $m })
+        $by[$k].Add([pscustomobject]@{ Kind = 'tile'; Title = (Get-TileTitle $m); Item = $m })
     }
     $out = foreach ($k in $by.Keys) {
         [pscustomobject]@{ Group = $k; Rank = (Get-GroupRank $k); Count = $by[$k].Count
@@ -1234,6 +1420,7 @@ function Get-ShortcutRoots {
     return $roots
 }
 
+$script:SI_LnkReadFails = 0          # сколько ярлыков Get-ShortcutList не смог прочитать (сбрасывает и проверяет вызывающий: см. Clear-StaleAppliedIcons)
 function Get-ShortcutList {
     param([switch]$AllUsers)
     $wsh = Get-WshShell
@@ -1251,7 +1438,7 @@ function Get-ShortcutList {
                     Name = $f.BaseName; Path = $f.FullName; Location = $r.Location
                     Target = [string]$sc.TargetPath; Args = [string]$sc.Arguments; Icon = [string]$sc.IconLocation
                 }
-            } catch { Write-Log "  не прочитан ярлык $($f.Name): $($_.Exception.Message)" }
+            } catch { $script:SI_LnkReadFails++; Write-Log "  не прочитан ярлык $($f.Name): $($_.Exception.Message)" }
         }
     }
 }
@@ -1281,10 +1468,11 @@ function Get-Matches {
                 if ($autoP) { $ai = New-AutoLinkItem $s ([string]$Pack.Id) $Overrides; if ($ai) { $out.Add($ai) } }
                 continue
             }
+            $ap = Get-AppliedIconDest ([string]$Pack.Id) ([string]$m.Icon.Id) ([string]$m.Icon.IcoPath)      # куда ярлык должен указывать после применения (нет файла пака - $null)
             $out.Add([pscustomobject]@{
                 Name = $s.Name; Path = $s.Path; Location = $s.Location; Target = $s.Target; Args = $s.Args; Icon = $s.Icon
                 IconId = $m.Icon.Id; IconName = $m.Icon.Name; Group = [string]$m.Icon.Group; IcoPath = $m.Icon.IcoPath; PngPath = $m.Icon.PngPath
-                Rule = $m.Rule; Already = (Test-IconIsSet $s.Icon $m.Icon.IcoPath); Auto = $false
+                AppliedPath = $ap; Rule = $m.Rule; Already = [bool]($ap -and (Test-IconIsSet $s.Icon $ap)); Auto = $false
             })
         } catch { Write-Log "  ошибка сопоставления $($s.Name): $($_.Exception.Message)" }
     }
@@ -1496,9 +1684,16 @@ function Restart-Explorer {
         $files.Add((Join-Path $env:LOCALAPPDATA 'IconCache.db'))
         $exDir = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Explorer'
         foreach ($f in @(Get-ChildItem -LiteralPath $exDir -Filter 'iconcache_*.db' -File -ErrorAction SilentlyContinue)) { $files.Add($f.FullName) }
+        $locked = 0
         foreach ($f in $files) {
             if (-not (Test-Path -LiteralPath $f)) { continue }
-            try { Remove-Item -LiteralPath $f -Force } catch { Write-Log "  кэш занят, не удалён: $f" }
+            try { Remove-Item -LiteralPath $f -Force } catch { $locked++ }
+        }
+        if ($locked -gt 0) {
+            # кэш занят: просим Windows обновить значки (ie4uinit -show + SHCNE_ASSOCCHANGED); это не критично - применённые иконки лежат по новым путям (applied\...<sha8>.ico)
+            Send-AllNotify
+            Invoke-Ie4uinit
+            Write-Log "  кэш иконок занят ($locked файл.) - запросил обновление значков через ie4uinit и SHChangeNotify"
         }
     }
     for ($i = 0; $i -lt 20; $i++) {      # до 10 секунд ждём автоперезапуск проводника
@@ -1515,11 +1710,15 @@ function Restart-Explorer {
     }
 }
 
+function Invoke-Ie4uinit {
+    $ie4 = if ($env:SystemRoot) { Join-Path $env:SystemRoot 'System32\ie4uinit.exe' } else { '' }
+    if ($ie4 -and (Test-Path -LiteralPath $ie4)) { try { Start-Process -FilePath $ie4 -ArgumentList '-show' -WindowStyle Hidden -Wait } catch { } }
+}
+
 function Update-IconView {
     param([bool]$RestartExplorer = $true, [bool]$ClearCache = $true)
     Send-AllNotify
-    $ie4 = if ($env:SystemRoot) { Join-Path $env:SystemRoot 'System32\ie4uinit.exe' } else { '' }
-    if ($ie4 -and (Test-Path -LiteralPath $ie4)) { try { Start-Process -FilePath $ie4 -ArgumentList '-show' -WindowStyle Hidden -Wait } catch { } }
+    Invoke-Ie4uinit
     if ($RestartExplorer) { Restart-Explorer $ClearCache }
 }
 
@@ -1627,7 +1826,13 @@ function Apply-Pack {
     param([Parameter(Mandatory)]$Pack, $Items, [switch]$RestartExplorer, [switch]$NoAuto)
     Assert-ElevationSafe
     Assert-LegacyMigrationComplete               # бэкап прежней версии ещё не перенесён - не применяем
-    Confirm-PackFiles $Pack                      # иконки пака качаем только сейчас (если ещё не скачаны)
+    # сначала index.json + pack.json этого пака + файлы (Install-Pack), потом пак заново читаем с диска: применяем только свежий пак, а не объект из памяти
+    $fr = Resolve-FreshPack $Pack @('icons')
+    $Pack = $fr.Pack
+    if ($fr.Replaced -and $null -ne $Items) {
+        Write-Log 'Пак обновился с момента сканирования - сопоставляю ярлыки заново'
+        $Items = @(Convert-ItemsToFreshPack $Items $Pack ((-not $NoAuto) -and (Get-AutoEnabled)))
+    }
     Write-Log "Применяю пак: $($Pack.Name) $($Pack.Version)"
     Write-LegacyCommonIconsNote
     if ($null -eq $Items) { $Items = @(Get-Matches -Pack $Pack -Auto:((-not $NoAuto) -and (Get-AutoEnabled))) }
@@ -1635,6 +1840,8 @@ function Apply-Pack {
     $changed = 0; $same = 0; $failed = 0; $autoDone = 0; $autoSkipped = 0
     $autoP = $null; $autoTried = $false; $autoReady = $false; $ov = $null
     $running = New-Object 'System.Collections.Generic.List[string]'
+    $dests = New-Object 'System.Collections.Generic.List[string]'          # копии applied\, нужные в этом применении
+    $keepRefs = New-Object 'System.Collections.Generic.List[string]'       # иконки ярлыков, которые остались как были (не удалять копии, на которые они смотрят)
     foreach ($m in @($Items)) {
         try {
             $regen = $false
@@ -1650,15 +1857,22 @@ function Apply-Pack {
                 if (-not $autoReady) { $autoSkipped++; continue }
                 $regen = ((New-AutoLinkFiles $m $autoP ([string]$Pack.Id) $backup) -eq 'generated')      # файлы в кэше актуальны или пересозданы (исходная иконка / стиль изменились)
             }
-            if ($m.Already -and -not $regen) { $same++; continue }
             if (-not (Test-Path -LiteralPath $m.IcoPath -PathType Leaf)) { throw "нет файла иконки $($m.IcoPath)" }
-            $how = 'обновлён файл'
             $ico = [string]$m.IcoPath
+            $already = [bool]$m.Already
+            if (-not (Test-AutoItem $m)) {
+                # ярлык указывает на копию applied\<пак>\<id>.<sha8>.ico: изменился файл иконки - изменился путь - изменилась иконка ярлыка (кэш Windows не отдаст старую)
+                $ico = Publish-AppliedIcon ([string]$Pack.Id) ([string]$m.IconId) ([string]$m.IcoPath)
+                $dests.Add($ico)
+                $already = Test-IconIsSet ([string]$m.Icon) $ico
+            }
+            if ($already -and -not $regen) { $same++; $keepRefs.Add([string]$m.Icon); continue }
+            $how = 'обновлён файл'
             if ((Test-CommonLocation ([string]$m.Location)) -and -not $script:SI_CommonNoteLogged) {
                 $script:SI_CommonNoteLogged = $true
                 Write-Log '  общие ярлыки указывают на иконку в папке данных текущего пользователя: другие пользователи Windows могут видеть стандартные иконки'
             }
-            if (-not $m.Already) {
+            if (-not $already) {
                 Backup-File $backup $m.Path ([string]$m.Icon)
                 $how = Set-LinkIcon $m.Path $ico
             }
@@ -1682,26 +1896,29 @@ function Apply-Pack {
             }
             $ok = if (Test-IconIsSet $after $ico) { 'OK' } else { '??' }
             Write-Log "  $ok $($m.Name)  <-  $($m.IconName)  [$how]"
-            if (-not $m.Already -and (Test-TargetRunning ([string]$m.Target)) -and -not ($running -contains [string]$m.Name)) {
+            if (-not $already -and (Test-TargetRunning ([string]$m.Target)) -and -not ($running -contains [string]$m.Name)) {
                 $running.Add([string]$m.Name)
                 Write-Log "       $($m.Name) запущен — Windows может показывать иконку окна, пока приложение не закрыто"
             }
         } catch {
             $failed++
+            $keepRefs.Add([string]$m.Icon)
             Write-Log "  ошибка с $($m.Name): $($_.Exception.Message)"
         }
     }
+    if ($dests.Count -gt 0) { [void](Clear-StaleAppliedIcons ([string]$Pack.Id) $dests.ToArray() $keepRefs.ToArray()) }
     [void](Set-AppIconState $Pack)               # иконка самого приложения следует за паком (иконка с id 'glyphix')
     $st = Read-State
     if ($changed -gt 0 -or $same -gt 0) {
         $st['Applied'] = @{ PackId = $Pack.Id; Version = $Pack.Version; At = (Get-Date).ToString('s'); Count = ($changed + $same) }
         Save-State $st
     }
-    Write-Log "Заменено: $changed, уже стояли: $same, ошибок: $failed$(if ($autoDone -gt 0 -or $autoSkipped -gt 0) { ', автоиконок: ' + $autoDone + ' (пропущено: ' + $autoSkipped + ')' })"
+    Write-Log "Пак $($Pack.Name) $($Pack.Version): заменено $changed, уже стояли $same, ошибок $failed$(if ($autoDone -gt 0 -or $autoSkipped -gt 0) { ', автоиконок: ' + $autoDone + ' (пропущено: ' + $autoSkipped + ')' })"
     if ($failed -eq 0 -and ($changed + $same) -gt 0) { Invoke-LegacyCleanup }     # прежняя папка данных больше не нужна, если на неё не ссылается ни один ярлык
     $restarted = $false
     if ($changed -gt 0) { Update-IconView -RestartExplorer ([bool]$RestartExplorer) -ClearCache $true; $restarted = [bool]$RestartExplorer }
-    return [pscustomobject]@{ Changed = $changed; Same = $same; Failed = $failed; Total = @($Items).Count; Restarted = $restarted; Auto = $autoDone; AutoSkipped = $autoSkipped; Running = $running.ToArray() }
+    return [pscustomobject]@{ Changed = $changed; Same = $same; Failed = $failed; Total = @($Items).Count; Restarted = $restarted; Auto = $autoDone; AutoSkipped = $autoSkipped; Running = $running.ToArray()
+        PackName = [string]$Pack.Name; PackVersion = [string]$Pack.Version; FromCache = [bool]($Pack.PSObject.Properties['FromCache'] -and $Pack.FromCache) }
 }
 
 # ---------- Плитки Start11 ----------
@@ -1833,6 +2050,25 @@ function Test-Start11 {
 # Подключи Start8, где Start11 хранит id плиток (имена значений = id); остальное дерево Start8.ini не читаем
 $script:SI_S11TileKeys = @('CustomTiles', 'CustomTilesText', 'CustomTilesIcon', 'CustomTilesPainting', 'CustomText')
 
+# id плитки - ссылка (http / https / ftp / mailto или любая scheme://): такие плитки пропускаем везде (кандидаты, сопоставление, список, применение)
+function Test-UrlTileId {
+    param([string]$Id)
+    if (-not $Id) { return $false }
+    $t = $Id.Trim()
+    if ($t -match '^(?i)(https?|ftps?|mailto):') { return $true }
+    return [bool](Get-TileIdInfo $t).Url
+}
+
+# Заголовок плитки в списке: имя из Get-StartApps (или ярлыка), иначе название иконки пака; сырой id - только в серой строке под заголовком
+function Get-TileTitle {
+    param($M)
+    foreach ($pn in @('Name', 'IconName')) {
+        if ($M -and $M.PSObject.Properties[$pn] -and [string]$M.$pn) { return [string]$M.$pn }
+    }
+    if ($M -and $M.PSObject.Properties['TileId']) { return [string]$M.TileId }
+    return ''
+}
+
 # Приложения из Get-StartApps + имена значений из подключей Start8\CustomTiles*, CustomText
 function Get-Start11Candidates {
     $map = @{}
@@ -1843,6 +2079,7 @@ function Get-Start11Candidates {
         if (-not $a) { continue }
         $aid = [string]$a.AppID
         if (-not $aid) { continue }
+        if (Test-UrlTileId $aid) { continue }                                  # плитка-ссылка (https://...): не приложение, в плитки не берём
         $id = $aid -replace '\\', '_'
         if ($map.ContainsKey($id)) { continue }
         $o = [pscustomobject]@{ Id = $id; Name = [string]$a.Name; Source = 'start'; AppId = $aid }
@@ -1854,6 +2091,7 @@ function Get-Start11Candidates {
     }
     foreach ($n in $names) {
         if (-not $n) { continue }
+        if (Test-UrlTileId ([string]$n)) { continue }
         if ($map.ContainsKey($n)) { $map[$n].Source = 'start+reg'; continue }
         $o = [pscustomobject]@{ Id = [string]$n; Name = ''; Source = 'reg'; AppId = '' }
         $map[$n] = $o; $list.Add($o)
@@ -1965,34 +2203,40 @@ function Get-Start11TileExt {
     return '.png'
 }
 
+# start11\<пак>\<id>.<sha8><ext>: путь зависит от содержимого исходной плитки (изменилась картинка - новый путь - Start11 перечитает её, а не отдаст старую из кэша).
+# Исходного файла нет - путь без sha8 (<id><ext>).
 function Get-Start11TileDest {
     param([string]$PackId, [string]$IconId, [string]$Src = '')
-    return (Join-Path (Join-Path $script:SI_S11Dir $PackId) ($IconId + (Get-Start11TileExt $Src)))
+    $name = $IconId
+    if ($Src -and (Test-Path -LiteralPath $Src -PathType Leaf)) { try { $name = $IconId + '.' + (Get-FileSha256 $Src).Substring(0, 8) } catch { } }
+    return (Join-Path (Join-Path $script:SI_S11Dir $PackId) ($name + (Get-Start11TileExt $Src)))
 }
 
-# Удалить файл плитки того же id с другим расширением (после смены .png <-> .jpg). Только внутри нашей папки start11, только обычные файлы,
-# и только если на него не ссылается ни одно значение CustomTiles (другая плитка с тем же рисунком ещё может смотреть на него).
+# Удалить прежние файлы плитки того же id в папке пака (<id>.png / .jpg / <id>.<другой sha8>.png|jpg): после смены содержимого или .png <-> .jpg.
+# Только внутри нашей папки start11, только обычные файлы, и только если на файл не ссылается ни одно значение CustomTiles
+# (другая плитка с тем же рисунком ещё может смотреть на него).
 function Remove-StaleTileFiles {
     param([string]$Dest)
     try {
         $dir = [IO.Path]::GetDirectoryName($Dest)
-        $base = [IO.Path]::GetFileNameWithoutExtension($Dest)
-        $ext = [IO.Path]::GetExtension($Dest).ToLowerInvariant()
+        $id = [IO.Path]::GetFileName($Dest).Split('.')[0]
+        $destFull = [IO.Path]::GetFullPath($Dest)
         $root = [IO.Path]::GetFullPath($script:SI_S11Dir).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
         if (-not ([IO.Path]::GetFullPath($dir) + [IO.Path]::DirectorySeparatorChar).StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { return }
+        if (-not $id -or -not (Test-Path -LiteralPath $dir -PathType Container)) { return }
+        $rx = '^' + [regex]::Escape($id) + '(\.[0-9a-f]{8})?\.(png|jpe?g)$'
         $refs = $null
-        foreach ($e in $script:SI_TileExts) {
-            if ($e -eq $ext) { continue }
-            $p = Join-Path $dir ($base + $e)
-            if (-not (Test-Path -LiteralPath $p -PathType Leaf)) { continue }
+        foreach ($f in @(Get-ChildItem -LiteralPath $dir -File -ErrorAction SilentlyContinue)) {
+            if ($f.Name -notmatch $rx) { continue }
+            if ($f.FullName -ieq $destFull) { continue }
             if ($null -eq $refs) {
                 $refs = @{}
                 foreach ($n in @(Get-S11ValueNames $script:SI_S11Tiles)) { try { $v = Get-S11Value $script:SI_S11Tiles $n; if ($v) { $refs[$v.ToLowerInvariant()] = $true } } catch { } }
             }
-            if ($refs.ContainsKey($p.ToLowerInvariant())) { continue }
-            if (([IO.File]::GetAttributes($p) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { continue }
-            Remove-Item -LiteralPath $p -Force
-            Write-Log "  удалена прежняя плитка: $p"
+            if ($refs.ContainsKey($f.FullName.ToLowerInvariant())) { continue }
+            if (([int]$f.Attributes -band [int][IO.FileAttributes]::ReparsePoint) -ne 0) { continue }
+            Remove-Item -LiteralPath $f.FullName -Force
+            Write-Log "  удалена прежняя плитка: $($f.FullName)"
         }
     } catch { Write-Log ('  прежняя плитка не удалена: ' + $_.Exception.Message) }
 }
@@ -2017,6 +2261,7 @@ function Get-Start11Matches {
     if ($Auto) { $autoP = Get-PackAuto $Pack; if ($null -eq $Overrides) { $Overrides = Get-AutoOverrides } }
     foreach ($c in @($Candidates)) {
         try {
+            if ((Test-UrlTileId ([string]$c.Id)) -or ($c.PSObject.Properties['AppId'] -and (Test-UrlTileId ([string]$c.AppId)))) { continue }     # плитка-ссылка
             $m = Find-TileMatch $index $c.Name $c.Id
             if (-not $m) {
                 if ($autoP) { $ai = New-AutoTileItem $c ([string]$Pack.Id) $Overrides ([bool]$NoName); if ($ai) { $out.Add($ai) } }
@@ -2027,7 +2272,7 @@ function Get-Start11Matches {
             if (-not $src) { continue }
             $dest = Get-Start11TileDest ([string]$Pack.Id) ([string]$m.Icon.Id) $src
             $out.Add([pscustomobject]@{
-                TileId = [string]$c.Id; Name = [string]$c.Name; Source = [string]$c.Source
+                TileId = [string]$c.Id; Name = [string]$c.Name; Title = $(if ([string]$c.Name) { [string]$c.Name } else { [string]$m.Icon.Name }); Source = [string]$c.Source
                 IconId = [string]$m.Icon.Id; IconName = [string]$m.Icon.Name; Group = [string]$m.Icon.Group; TilePath = $src
                 Rule = $m.Rule; Already = (Test-Start11TileSet ([string]$c.Id) $dest $src); Auto = $false
             })
@@ -2216,9 +2461,16 @@ function Apply-Start11Tiles {
     Assert-LegacyMigrationComplete               # бэкап прежней версии ещё не перенесён - не применяем
     $none = [pscustomobject]@{ Changed = 0; Same = 0; Failed = 0; Total = 0; Reload = $null; Hint = '' }
     if (-not (Test-Start11)) { Write-Log 'Start11 не найден - плитки пропускаю.'; return $none }
-    Confirm-PackFiles $Pack -Parts @($(if ($NoName) { 'noname' } else { 'tiles' }))       # плитки докачиваем только сейчас (если ещё не скачаны)
+    # сначала index.json + pack.json + файлы плиток (Install-Pack), потом пак заново читаем с диска: плитки применяем только по свежему pack.json
+    $fr = Resolve-FreshPack $Pack @($(if ($NoName) { 'noname' } else { 'tiles' }))
+    $Pack = $fr.Pack
+    if ($fr.Replaced -and $null -ne $Items) {
+        Write-Log 'Пак обновился с момента сканирования - сопоставляю плитки заново'
+        $Items = @(Convert-TileItemsToFreshPack $Items $Pack ([bool]$NoName) ((-not $NoAuto) -and (Get-AutoEnabled)))
+    }
     Write-Log "Применяю плитки Start11: $($Pack.Name) $($Pack.Version)"
     if ($null -eq $Items) { $Items = @(Get-Start11Matches -Pack $Pack -NoName:$NoName -Auto:((-not $NoAuto) -and (Get-AutoEnabled))) }
+    $Items = @($Items | Where-Object { $_ -and -not (Test-UrlTileId ([string]$_.TileId)) })      # плитки-ссылки (https://...) не трогаем ни при каких условиях
     $preFailed = 0
     if (@($Items | Where-Object { Test-AutoItem $_ }).Count -gt 0) {      # автоплитки: режим приложения + создание .jpg до записи в реестр
         $ri = Resolve-AutoTileItems $Pack $Items ([bool]$NoName)
@@ -2281,7 +2533,7 @@ function Apply-Start11Tiles {
             if (-not $okAll) { $hint = $script:SI_S11Hint; Write-Log $hint }
         }
     }
-    return [pscustomobject]@{ Changed = $changed; Same = $same; Failed = $failed; Total = @($Items).Count; Reload = $reload; Hint = $hint }
+    return [pscustomobject]@{ Changed = $changed; Same = $same; Failed = $failed; Total = @($Items).Count; Reload = $reload; Hint = $hint; PackName = [string]$Pack.Name; PackVersion = [string]$Pack.Version; FromCache = [bool]($Pack.PSObject.Properties['FromCache'] -and $Pack.FromCache) }
 }
 
 # Откат плиток: возвращаем ровно то, что сохранено (значение того же вида или его отсутствие). Как и при применении:
@@ -3778,7 +4030,7 @@ function Undo-All {
     $tail = if ($failed -gt 0) { ", не удалось: $failed (для общих ярлыков отметьте «Также общие ярлыки» - нужны права администратора)" } else { '' }
     Write-Log "Восстановлено: $n$tail"
     if ($failed -eq 0 -and -not $CommonOnly) { Invoke-LegacyCleanup }
-    if ($failed -eq 0 -and -not $CommonOnly -and $pendingCommon -eq 0 -and $backup.Count -eq 0) { Remove-AutoFiles }      # всё возвращено - созданные автоиконки больше не нужны
+    if ($failed -eq 0 -and -not $CommonOnly -and $pendingCommon -eq 0 -and $backup.Count -eq 0) { Remove-AutoFiles; Remove-AppliedFiles -KeepReferenced }      # всё возвращено - созданные автоиконки и копии применённых иконок больше не нужны (копии, на которые ещё смотрит ярлык без записи в бэкапе, остаются)
     if ($n -gt 0) { Update-IconView -RestartExplorer ([bool]$RestartExplorer) -ClearCache $true }
     return [pscustomobject]@{ Restored = $n; Failed = $failed; Skipped = $skipped; Nothing = $false; CommonPending = $pendingCommon; TilesKept = $tilesKept; TilesRestored = $tilesRestored; Hint = $hint }
 }
@@ -4329,6 +4581,7 @@ function Uninstall-App {
     if ($u.PSObject.Properties['TilesKept'] -and $u.TilesKept) { Write-Log 'Start11 работает и не перезапущен: PNG плиток оставлены.' }
     else { Remove-Start11Files }       # PNG плиток - только теперь, когда значения реестра уже возвращены (иначе плитки остались бы без картинок)
     Remove-AutoFiles                     # созданные автоиконки (откат уже вернул все ярлыки)
+    Remove-AppliedFiles                  # копии применённых иконок (applied\)
     Write-LegacyCommonIconsNote          # папка %ProgramData%\Glyphix от 2.4.1 (если есть) - только запись в журнал, не трогаем
     # не держим папку приложения/данных текущей: иначе её не удалить
     $tmpDir = if ($env:TEMP) { $env:TEMP } else { [IO.Path]::GetTempPath() }
