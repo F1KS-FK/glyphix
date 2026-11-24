@@ -1,0 +1,17 @@
+{
+ "schema": 1,
+ "style": "holo",
+ "dark": "#20104a",
+ "mid": "#9f8cff",
+ "light": "#ffd6f6",
+ "rim": "#ffffff",
+ "glow": "#b28cff",
+ "glow_px": 8,
+ "bg": [
+  "#1b1238",
+  "#0a0718"
+ ],
+ "border": "#8fd3ff",
+ "title": "#ffffff",
+ "rainbow": true
+}

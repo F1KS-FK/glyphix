@@ -1,0 +1,17 @@
+{
+ "schema": 1,
+ "style": "pixel",
+ "dark": "#0b1a3a",
+ "mid": "#2f6bff",
+ "light": "#6fd3ff",
+ "rim": "#0b1a3a",
+ "glow": "#2f6bff",
+ "glow_px": 0,
+ "bg": [
+  "#0a1430",
+  "#050a1a"
+ ],
+ "border": "#2f6bff",
+ "title": "#e0f2ff",
+ "pixelate": 24
+}

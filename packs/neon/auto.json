@@ -1,0 +1,16 @@
+{
+ "schema": 1,
+ "style": "neon",
+ "dark": "#12002a",
+ "mid": "#ff3df2",
+ "light": "#7af6ff",
+ "rim": "#ff7bf5",
+ "glow": "#ff2bd6",
+ "glow_px": 10,
+ "bg": [
+  "#12002a",
+  "#05000f"
+ ],
+ "border": "#ff4fd8",
+ "title": "#ffffff"
+}

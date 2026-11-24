@@ -12,9 +12,10 @@
 (закреплённые на панели задач, ярлыки на рабочем столе и в «Пуске», плитки **Start11**) и ставит им иконки из пака.
 
 - **Один клик:** «Применить» — и всё. «Откатить всё» возвращает исходные иконки и плитки.
-- **11 стилей по 127 иконок:** Shadow, Azure, White, Black, Neon, Pixel, Gold, Holo, Glass, System, Sticker — мессенджеры, браузеры, игры и лаунчеры
+- **11 стилей по 217 иконок:** Shadow, Azure, White, Black, Neon, Pixel, Gold, Holo, Glass, System, Sticker — мессенджеры, браузеры, игры и лаунчеры
   (Steam, Roblox, Minecraft, Epic, Riot, Battle.net, CS2, Dota 2…), музыка, системные приложения, работа и творчество.
 - **Плитки Start11:** если установлен Start11, плитки ставятся автоматически (с подписью или без).
+- **Автоиконки:** приложениям, для которых в паке нет иконки, Glyphix сам перекрашивает их родную иконку в стиль пака (локально, без сети; нужен `auto.json` в паке). Для каждого приложения можно выбрать «Авто / Родная / Не трогать»; общий выключатель — галочка внизу окна.
 - **Обновления без архивов:** «Обновить паки» докачивает новое из этого репозитория.
 - **Ничего в фоне:** нет автозапуска, служб и задач планировщика.
 - **Безопасно:** при обновлении скачиваются только картинки (`.png`/`.ico`) и описания паков (`.json`),
@@ -56,6 +57,10 @@ irm https://raw.githubusercontent.com/F1KS-FK/glyphix/main/install.ps1 | iex
 - Общие для всех пользователей ярлыки меняются с галочкой «Также общие ярлыки» (попросит права администратора).
 - Discord, Chrome и др. при обновлении могут пересоздать свои ярлыки — просто нажми «Применить» ещё раз.
 
+## Автор
+
+by **F1KS** · Telegram [@Im_Flawless](https://t.me/Im_Flawless)
+
 ## Лицензия
 
 - Код: **GPL-3.0** © 2026 F1KS — можно использовать и менять, но производные проекты остаются открытыми и указывают автора.
@@ -67,7 +72,7 @@ irm https://raw.githubusercontent.com/F1KS-FK/glyphix/main/install.ps1 | iex
 
 ### English
 
-**Glyphix** applies icon packs (11 styles: Shadow, Azure, White, Black, Neon, Pixel, Gold, Holo, Glass, System, Sticker — 127 icons each) to Windows 10/11 taskbar pins, shortcuts and
+**Glyphix** applies icon packs (11 styles: Shadow, Azure, White, Black, Neon, Pixel, Gold, Holo, Glass, System, Sticker — 217 icons each) to Windows 10/11 taskbar pins, shortcuts and
 Start11 tiles in one click, with undo and in-app updates. No background processes. Install:
 `irm https://raw.githubusercontent.com/F1KS-FK/glyphix/main/install.ps1 | iex`.
 Code: GPL-3.0, icons: CC BY-NC-SA 4.0, © 2026 F1KS.

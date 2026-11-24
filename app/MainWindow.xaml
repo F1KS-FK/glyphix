@@ -277,7 +277,7 @@
     <Grid Grid.Row="2" Margin="28,4,28,6">
       <Grid.RowDefinitions>
         <RowDefinition Height="44"/>
-        <RowDefinition Height="30"/>
+        <RowDefinition Height="Auto" MinHeight="30"/>
       </Grid.RowDefinitions>
       <Grid Grid.Row="0">
         <Grid.ColumnDefinitions>
@@ -296,24 +296,20 @@
           <Hyperlink x:Name="LnkGitHub" NavigateUri="https://github.com/F1KS-FK/glyphix" Foreground="#7F9BFF" TextDecorations="None">GitHub</Hyperlink>
         </TextBlock>
       </Grid>
-      <Grid Grid.Row="1">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
-        <CheckBox x:Name="ChkRestart" Grid.Column="0" Style="{StaticResource DarkCheck}" IsChecked="True" VerticalAlignment="Center" Margin="0,0,24,0"/>
-        <CheckBox x:Name="ChkAllUsers" Grid.Column="1" Style="{StaticResource DarkCheck}" IsChecked="False" VerticalAlignment="Center" Margin="0,0,24,0"/>
-        <CheckBox x:Name="ChkTiles" Grid.Column="2" Style="{StaticResource DarkCheck}" IsChecked="True" VerticalAlignment="Center" Margin="0,0,24,0" Visibility="Collapsed"/>
-        <CheckBox x:Name="ChkNoName" Grid.Column="3" Style="{StaticResource DarkCheck}" IsChecked="False" VerticalAlignment="Center" Visibility="Collapsed"/>
-      </Grid>
+      <!-- галочки: в WrapPanel, на узком окне переносятся на вторую строку (строка действий - Auto, а не фиксированная высота) -->
+      <WrapPanel Grid.Row="1" Orientation="Horizontal">
+        <CheckBox x:Name="ChkRestart" Style="{StaticResource DarkCheck}" IsChecked="True" VerticalAlignment="Center" Margin="0,3,24,3"/>
+        <CheckBox x:Name="ChkAllUsers" Style="{StaticResource DarkCheck}" IsChecked="False" VerticalAlignment="Center" Margin="0,3,24,3"/>
+        <CheckBox x:Name="ChkTiles" Style="{StaticResource DarkCheck}" IsChecked="True" VerticalAlignment="Center" Margin="0,3,24,3" Visibility="Collapsed"/>
+        <CheckBox x:Name="ChkNoName" Style="{StaticResource DarkCheck}" IsChecked="False" VerticalAlignment="Center" Margin="0,3,24,3" Visibility="Collapsed"/>
+        <CheckBox x:Name="ChkAuto" Style="{StaticResource DarkCheck}" IsChecked="True" VerticalAlignment="Center" Margin="0,3,0,3"/>
+      </WrapPanel>
       <Popup x:Name="PopMenu" PlacementTarget="{Binding ElementName=BtnMenu}" Placement="Top" StaysOpen="False" AllowsTransparency="True">
         <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource GhostBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="8" Margin="8">
-          <Grid>
+          <StackPanel>
             <Button x:Name="BtnUninstall" Style="{StaticResource GhostButton}" MinWidth="180"/>
-          </Grid>
+            <TextBlock FontSize="11" Foreground="{StaticResource MutedBrush}" Opacity="0.75" HorizontalAlignment="Center" Margin="0,8,0,2">by F1KS · Telegram <Hyperlink x:Name="LnkAuthorMenu" NavigateUri="https://t.me/Im_Flawless" Foreground="#7F8FC8" TextDecorations="None">@Im_Flawless</Hyperlink></TextBlock>
+          </StackPanel>
         </Border>
       </Popup>
     </Grid>
@@ -330,9 +326,11 @@
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <TextBlock x:Name="TxtStatus" Grid.Column="0" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" VerticalAlignment="Center" Margin="0,0,12,0"/>
-        <Button x:Name="BtnLog" Grid.Column="1" Style="{StaticResource GhostButton}" Height="26" MinWidth="88" Padding="12,0" FontSize="12" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" FontSize="11" Foreground="{StaticResource MutedBrush}" Opacity="0.75" VerticalAlignment="Center" Margin="0,0,14,0">by F1KS · Telegram <Hyperlink x:Name="LnkAuthor" NavigateUri="https://t.me/Im_Flawless" Foreground="#7F8FC8" TextDecorations="None">@Im_Flawless</Hyperlink></TextBlock>
+        <Button x:Name="BtnLog" Grid.Column="2" Style="{StaticResource GhostButton}" Height="26" MinWidth="88" Padding="12,0" FontSize="12" VerticalAlignment="Center"/>
       </Grid>
       <Border x:Name="LogPanel" Grid.Row="2" Visibility="Collapsed" Margin="28,0,28,16" Background="#050815" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10">
         <TextBox x:Name="TxtLog" Height="150" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent" BorderThickness="0" Foreground="#AEB7E0" FontFamily="Consolas" FontSize="12" Padding="10,8"/>

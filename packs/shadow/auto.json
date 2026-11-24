@@ -1,0 +1,16 @@
+{
+ "schema": 1,
+ "style": "shadow",
+ "dark": "#04050b",
+ "mid": "#6a5cff",
+ "light": "#c3d0ff",
+ "rim": "#c3d0ff",
+ "glow": "#5a32ff",
+ "glow_px": 8,
+ "bg": [
+  "#0d1230",
+  "#020208"
+ ],
+ "border": "#8fa2ff",
+ "title": "#ecf0ff"
+}

@@ -1,0 +1,16 @@
+{
+ "schema": 1,
+ "style": "azure",
+ "dark": "#075985",
+ "mid": "#0284c7",
+ "light": "#f0fdff",
+ "rim": "#bae6fd",
+ "glow": "#22d3ee",
+ "glow_px": 8,
+ "bg": [
+  "#06263f",
+  "#01070d"
+ ],
+ "border": "#a5f3fc",
+ "title": "#f0fcff"
+}

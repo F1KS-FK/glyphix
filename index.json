@@ -1,150 +1,150 @@
 {
   "schema": 1,
   "app_min_version": "2.0.0",
-  "updated": "2026-11-23T18:51:57Z",
+  "updated": "2026-11-24T00:20:52Z",
   "packs": [
     {
       "id": "shadow",
       "name": "Shadow",
-      "version": "2.1.0",
+      "version": "2.3.0",
       "author": "F1KS",
       "description": "Чёрные иконки с сине-фиолетовой аурой",
-      "icon_count": 127,
+      "icon_count": 217,
       "path": "packs/shadow/",
       "manifest": "packs/shadow/pack.json",
-      "manifest_sha256": "e298f4f5f2f71d132917fb482e6eecaa9f11712e4f9e6fb29f86087d73e8430f",
+      "manifest_sha256": "d7549290b9fe3343febc1994d9f4ea3ce073702a43e77b1cc0c3456f1c1b70a6",
       "preview": "packs/shadow/preview.png",
-      "preview_sha256": "55c07f85e99237dcd053c1a56022b59050d5755a00a71eeeca0eb0b4d92e7e23"
+      "preview_sha256": "672711d79165f3f9c949039a67851e8fa5e5257c452b1b2ff816ee35b60b8c54"
     },
     {
       "id": "azure",
       "name": "Azure",
-      "version": "2.1.0",
+      "version": "2.3.0",
       "author": "F1KS",
       "description": "Голубые светящиеся иконки",
-      "icon_count": 127,
+      "icon_count": 217,
       "path": "packs/azure/",
       "manifest": "packs/azure/pack.json",
-      "manifest_sha256": "a933b1d2128dccf728bfa0e6fc8b4a03c9ca73f7a869c2ba9b2198523bc3b1e7",
+      "manifest_sha256": "59304561507b553ddfec83848cf588412da3e3e39f82ed1b4c8b42d6a918491d",
       "preview": "packs/azure/preview.png",
-      "preview_sha256": "6ea5ab8f4bd53d283f5d703fc419254004bc7cd12e05771303d9e2c49564c614"
+      "preview_sha256": "28142a4c2b1d365006655aaf694324e054b26480bf337df2115646b38ad185c9"
     },
     {
       "id": "white",
       "name": "White",
-      "version": "2.1.0",
+      "version": "2.3.0",
       "author": "F1KS",
       "description": "Белые минималистичные иконки",
-      "icon_count": 127,
+      "icon_count": 217,
       "path": "packs/white/",
       "manifest": "packs/white/pack.json",
-      "manifest_sha256": "240ee83efa04d5b88e1becc0af4f6ddcd7f913afd3fd21c36ee2850e7b8f0bfc",
+      "manifest_sha256": "35b53abb93c64f65822175c7ca8e2dc5d627133051249871b6f79d57af1941f0",
       "preview": "packs/white/preview.png",
-      "preview_sha256": "6ba4e5bea90a28faa21a0bae2bd2447e47ed3d97f9ce9e1e013f63cac5adf823"
+      "preview_sha256": "d3c19132b5748c1c8506b2ee394e8d72485d90a149482761a1114474dc0d0e7f"
     },
     {
       "id": "black",
       "name": "Black",
-      "version": "2.1.0",
+      "version": "2.3.0",
       "author": "F1KS",
       "description": "Чёрные иконки с серебряной кромкой",
-      "icon_count": 127,
+      "icon_count": 217,
       "path": "packs/black/",
       "manifest": "packs/black/pack.json",
-      "manifest_sha256": "197f9dd82fa49e5eaa9ed4863874cb9f06aead10eb378a0deed98609f0bb970d",
+      "manifest_sha256": "e1ed2c0678631f959d47c07077767070c93083b7d7a364a2e43bf9d1a650a0a0",
       "preview": "packs/black/preview.png",
-      "preview_sha256": "ac9b99e720ed6cfe242e9aca226613facced254cc9eb8534bf66d89686a79e57"
+      "preview_sha256": "29838f511435dd5ac00c1e76bc9f049786c0081ac9ba16d2c8f48a1aa14df8ae"
     },
     {
       "id": "neon",
       "name": "Neon",
-      "version": "2.1.0",
+      "version": "2.3.0",
       "author": "F1KS",
       "description": "Неоновые трубки: светящийся контур голубой–маджента в стиле синтвейв",
-      "icon_count": 127,
+      "icon_count": 217,
       "path": "packs/neon/",
       "manifest": "packs/neon/pack.json",
-      "manifest_sha256": "f35134a5da17b81a3555b64f39e6b66bbe9eacb16761bc76f9a5c733c4131b93",
+      "manifest_sha256": "8fe690473958039892de85f81b7f60b8bb556ded82d00e0648aba446f5921322",
       "preview": "packs/neon/preview.png",
-      "preview_sha256": "02e20f591883bab11bf77aeb030f0d1dabc5d2214472c50ffcc4c825c8c60fc2"
+      "preview_sha256": "1be13333b436ed65629e6a31e61f27751ec12e59a2d5d98a450dc121b2e691c0"
     },
     {
       "id": "pixel",
       "name": "Pixel",
-      "version": "2.1.0",
+      "version": "2.3.0",
       "author": "F1KS",
       "description": "8-битные пиксельные иконки в сине-голубой палитре с тёмным контуром",
-      "icon_count": 127,
+      "icon_count": 217,
       "path": "packs/pixel/",
       "manifest": "packs/pixel/pack.json",
-      "manifest_sha256": "42172d5f4bdc8f92b2e8f1d538f0f8c831d205f48f5a8d770348142d15982795",
+      "manifest_sha256": "a8ebe550ee19e3d3e9a3dc35bb233cc5584f35c0b91733edf87eafdf3b77e1c7",
       "preview": "packs/pixel/preview.png",
-      "preview_sha256": "670c116a392f04480114b1cc098e8ef3dd526dd4f80f212e70e1279291e32881"
+      "preview_sha256": "dc79b4ea4337fcbf81881fd854d89885b020f0682a8e6b71d8cc6cbd8e0479ad"
     },
     {
       "id": "gold",
       "name": "Gold",
-      "version": "2.1.0",
+      "version": "2.3.0",
       "author": "F1KS",
       "description": "Полированное золото с фаской и бликами на тёмной роскошной плитке",
-      "icon_count": 127,
+      "icon_count": 217,
       "path": "packs/gold/",
       "manifest": "packs/gold/pack.json",
-      "manifest_sha256": "dd776fed03c024bcb431c92169823c8df33aa8714bce3bcaa0a124eaeabe5cd8",
+      "manifest_sha256": "26cfffd42ca0623000f6341abb46b4d4ceeb00bc1e295df54a297c8bed8a8ff6",
       "preview": "packs/gold/preview.png",
-      "preview_sha256": "acb28f8108ae4a48b61c4a4a492f9605cf4b903d0f8e75359c5b6e2e102888b4"
+      "preview_sha256": "06f87902c044fe3bb18e9729f2ee9910ea6658a60076a6a0494605eaa54c26a3"
     },
     {
       "id": "holo",
       "name": "Holo",
-      "version": "2.1.0",
+      "version": "2.3.0",
       "author": "F1KS",
       "description": "Голографическое радужное стекло с перламутровым бликом",
-      "icon_count": 127,
+      "icon_count": 217,
       "path": "packs/holo/",
       "manifest": "packs/holo/pack.json",
-      "manifest_sha256": "ef789d5dc6e5cf9ca8ef6efcf61e27edd269e17cb8b43ea96dd168f805552528",
+      "manifest_sha256": "55ce970bc87d68a79f9b7280c3aa7f91b6813d1e0d9ae11f7294196eacf5770d",
       "preview": "packs/holo/preview.png",
-      "preview_sha256": "befaae74025cfb5976723c5865e44819e291521676c75064fe6ceccbfd9c74b4"
+      "preview_sha256": "cdba7d7b0b524268bf46c1d17b72b1147182087ffc1450c1a2617e5954ca1b94"
     },
     {
       "id": "glass",
       "name": "Glass",
-      "version": "2.1.0",
+      "version": "2.3.0",
       "author": "F1KS",
       "description": "Матовое прозрачное стекло с яркой кромкой на цветном фоне",
-      "icon_count": 127,
+      "icon_count": 217,
       "path": "packs/glass/",
       "manifest": "packs/glass/pack.json",
-      "manifest_sha256": "627637ca8b2153a2d49fb00262f22a277ad6e5a7e2c1e7b1e5314e64167eee20",
+      "manifest_sha256": "d4bdee27c74eeba13f040541c4c9f050c3a12ee96f23a36c0504a05642dc394d",
       "preview": "packs/glass/preview.png",
-      "preview_sha256": "917bfa3401c6a726bc8d52c363d176e9e41f4f47bd1b0ab701eb26b3d6fb16dc"
+      "preview_sha256": "aece113289eed4b744e029aa9acc93ade7b8627ae5df71fc824a0cf43dd2bc66"
     },
     {
       "id": "system",
       "name": "System",
-      "version": "2.1.0",
+      "version": "2.3.0",
       "author": "F1KS",
       "description": "Интерфейс «Системы» из Solo Leveling: голубой HUD-глиф в рамке с угловыми скобками и сканлайнами",
-      "icon_count": 127,
+      "icon_count": 217,
       "path": "packs/system/",
       "manifest": "packs/system/pack.json",
-      "manifest_sha256": "3d55e4401e6aca080d509c40a7fd6a39446df481a92936b067ded5388d4987d9",
+      "manifest_sha256": "dd3e7b975d73bf71a68d341a03173da1424a372470b26a9f001dadabaef8d571",
       "preview": "packs/system/preview.png",
-      "preview_sha256": "58a21e677fc8abc131d2d8df3dd04b3fbbfa85b299edfa27f4ee17f9d67ad91b"
+      "preview_sha256": "752dc848b30f1688a5680954742b716e2c22f0163255ae9b6f53f39a5e4b71ad"
     },
     {
       "id": "sticker",
       "name": "Sticker",
-      "version": "2.1.0",
+      "version": "2.3.0",
       "author": "F1KS",
       "description": "Яркие плоские стикеры с толстой белой обводкой и жёсткой тенью",
-      "icon_count": 127,
+      "icon_count": 217,
       "path": "packs/sticker/",
       "manifest": "packs/sticker/pack.json",
-      "manifest_sha256": "3f22f589324573e913caca7a0ffe09878d91c58ebbd2a665dfa67ccf6bbee4bd",
+      "manifest_sha256": "7027b8f0c4e1db065f25557a8cdeb4368b2b4fa23f4ffa8c3f1311f198e361d6",
       "preview": "packs/sticker/preview.png",
-      "preview_sha256": "9266bd9c549b683719a9ad1b9fb0317274d646e50c1a1fbc456eed3d6d10eac2"
+      "preview_sha256": "578945996d932fbee35684ff473cb97b59e4faf19a0892d017ebd141e28a93ba"
     }
   ]
 }

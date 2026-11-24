@@ -3,9 +3,11 @@
   Паки: список (index.json), pack.json и превью обновляются кнопкой «Обновить паки»; иконки и плитки пака качаются по требованию
   (при «Применить» или «Скачать»). Данные прежней версии (Shadow Icons) переносятся при первом запуске.
   GUI:  powershell -STA -File Glyphix.ps1      (обычно запускается через launch.vbs)
-  CLI:  Glyphix.ps1 -Cli [-Update] [-List <пак>] [-Apply <пак>] [-Undo] [-NoRestart] [-AllUsers] [-NoTiles] [-NoName] [-CommonOnly]
+  CLI:  Glyphix.ps1 -Cli [-Update] [-List <пак>] [-Apply <пак>] [-Undo] [-NoRestart] [-AllUsers] [-NoTiles] [-NoName] [-NoAuto] [-CommonOnly]
   Версии:  Glyphix.ps1 -CheckUpdate   (покажет локальную версию и версию на GitHub; приложение само предлагает обновиться кнопкой в шапке)
   Плитки Start11 применяются вместе с ярлыками (если Start11 найден); -NoTiles - без плиток, -NoName - плитки без подписи.
+  Автоиконки (приложения без иконки в паке получают свою родную иконку в стиле пака) включены по умолчанию, если у пака есть auto.json;
+  -NoAuto - без них (общий выключатель и режимы по приложениям - в state.json: AutoIcons, AutoOverrides).
   Прав администратора при запуске НЕ запрашивается. Общие ярлыки (-AllUsers) требуют повышения: GUI сам
   перезапускает этот скрипт в режиме CLI с UAC на одно действие.
   -CommonOnly (с -Undo): откатить только записи общих папок (его использует GUI через повышенный процесс).
@@ -22,6 +24,7 @@ param(
     [switch]$AllUsers,
     [switch]$NoTiles,
     [switch]$NoName,
+    [switch]$NoAuto,
     [switch]$CommonOnly
 )
 
@@ -68,6 +71,7 @@ function Invoke-Cli {
     $all = [bool]$AllUsers
     if ($all -and -not (Test-Admin)) { Write-Host 'Общие ярлыки требуют прав администратора - пропускаю их.'; $all = $false }
     $tilesOn = ((-not $NoTiles) -and (Test-Start11))
+    $autoOn = ((-not $NoAuto) -and (Get-AutoEnabled))
     $packs = @(Get-Packs)
     if ($Update -or $packs.Count -eq 0) {
         $r = Update-Packs
@@ -88,7 +92,7 @@ function Invoke-Cli {
             Write-Host ("Пак '{0}' не найден. Доступные: {1}" -f $id, (($packs | ForEach-Object { $_.Id }) -join ', '))
             return 2
         }
-        $items = @(Get-Matches -Pack $pk -AllUsers:$all)
+        $items = @(Get-Matches -Pack $pk -AllUsers:$all -Auto:$autoOn)
         if ($mode -eq 'List') {
             Write-Host ("Пак: {0} {1}, иконок: {2}; найдено ярлыков: {3}" -f $pk.Name, $pk.Version, $pk.IconCount, $items.Count)
             foreach ($m in $items) {
@@ -96,7 +100,7 @@ function Invoke-Cli {
                 Write-Host ("  [{0,-7}] {1,-32} -> {2} ({3}){4}" -f $m.Location, $m.Name, $m.IconName, $m.Rule, $mark)
             }
             if ($tilesOn) {
-                $tiles = @(Get-Start11Matches -Pack $pk -NoName:$NoName)
+                $tiles = @(Get-Start11Matches -Pack $pk -NoName:$NoName -Auto:$autoOn)
                 Write-Host ("Плитки Start11: {0}" -f $tiles.Count)
                 foreach ($m in $tiles) {
                     $mark = if ($m.Already) { ' (уже стоит)' } else { '' }
@@ -105,10 +109,10 @@ function Invoke-Cli {
             }
         } else {
             if (Test-LegacyMigrationIncomplete) { Write-Log $script:SI_MigrationPendingMsg; return 4 }     # бэкап прежней версии ещё не перенесён
-            $r = Apply-Pack -Pack $pk -Items $items -RestartExplorer:(-not $NoRestart)
+            $r = Apply-Pack -Pack $pk -Items $items -RestartExplorer:(-not $NoRestart) -NoAuto:(-not $autoOn)
             if ($r.Failed -gt 0) { $code = 1 }
             if ($tilesOn) {
-                $tr = Apply-Start11Tiles -Pack $pk -NoName:$NoName -NoReload:$NoRestart
+                $tr = Apply-Start11Tiles -Pack $pk -NoName:$NoName -NoReload:$NoRestart -NoAuto:(-not $autoOn)
                 if ($tr.Failed -gt 0) { $code = 1 }
                 if ($tr.Hint) { Write-Host $tr.Hint }
             }
@@ -271,6 +275,22 @@ $T = @{
     TilesDone    = 'Плитки Start11: заменено {0}, уже стояли {1}'
     TilesFail    = ', ошибок: {0}'
     TilesUndone  = ', плиток Start11: {0}'
+    Auto         = 'Автоиконки для остальных приложений'
+    AutoTip      = 'Приложения, для которых в паке нет иконки, получат СВОЮ родную иконку в стиле пака (создаётся на этом компьютере, сеть не нужна)'
+    AutoBadge    = 'авто'
+    AutoFound    = 'Автоиконок: {0}'
+    AutoNotSupported = 'В этом паке нет параметров автоиконок (auto.json) - для остальных приложений иконки не создаются.'
+    AutoSub      = 'Своя иконка в стиле пака'
+    AutoTileSub  = 'Плитка в стиле пака · id: {0}'
+    AutoMode_Auto   = 'Авто'
+    AutoMode_Native = 'Родная'
+    AutoMode_Off    = 'Не трогать'
+    AutoModeTip_Auto   = 'Перекрасить иконку приложения в стиль пака'
+    AutoModeTip_Native = 'Оставить родную иконку приложения'
+    AutoModeTip_Off    = 'Ничего не менять у этого приложения'
+    AutoModeSet  = 'Для «{0}»: {1}'
+    ApplyAuto    = ', автоиконок: {0}'
+    Group_auto   = 'Автоиконки'
 }
 
 # ---- загрузка XAML ----
@@ -286,7 +306,7 @@ try {
 }
 $script:ui = @{}
 $names = @('ImgLogo', 'TxtVersion', 'TxtAdmin', 'TxtPacksTitle', 'PackList', 'TxtEmpty', 'TxtMatchTitle', 'TxtSelectedPack', 'MatchList',
-    'TxtMatchSummary', 'BtnUpdate', 'BtnUndo', 'BtnOpen', 'BtnMenu', 'ChkRestart', 'ChkAllUsers', 'ChkTiles', 'ChkNoName', 'LnkGitHub', 'PopMenu', 'BtnUninstall',
+    'TxtMatchSummary', 'BtnUpdate', 'BtnUndo', 'BtnOpen', 'BtnMenu', 'ChkRestart', 'ChkAllUsers', 'ChkTiles', 'ChkNoName', 'ChkAuto', 'LnkGitHub', 'LnkAuthor', 'LnkAuthorMenu', 'PopMenu', 'BtnUninstall',
     'PrgBusy', 'TxtStatus', 'BtnLog', 'LogPanel', 'TxtLog', 'BtnAppUpdate')
 foreach ($n in $names) {
     $script:ui[$n] = $script:Window.FindName($n)
@@ -306,6 +326,10 @@ $script:UpdateInfo = $null
 $script:DataHome = $script:SI_Home
 $script:HasStart11 = $false
 try { $script:HasStart11 = [bool](Test-Start11) } catch { }
+$script:AutoThumbs = @{}          # 'ключ|l' (ярлык) / 'ключ|t' (плитка) -> Image-элементы строк: сюда ложится превью, когда фон его создал
+$script:AutoRows = @{}            # ключ приложения -> строки (для синхронного переключения режима)
+$script:PrevJob = $null           # фоновая генерация автоиконок для превью (отдельно от $script:Job: окно не блокируется)
+$script:PrevOld = @()             # остановленные, но ещё не завершившиеся задания превью
 
 function Get-Res { param([string]$Key) return $script:Window.FindResource($Key) }
 
@@ -669,19 +693,215 @@ function New-GroupHeader {
     return $tb
 }
 
-# ярлыки и плитки, сгруппированные по группе иконки (apps, games, system, work, creative, прочее); внутри группы - по названию
+# ---- автоиконки: превью в фоне и выбор режима ----
+function Get-AutoWanted { return [bool]$script:ui.ChkAuto.IsChecked }
+
+function New-AutoChip {
+    param([string]$Mode)
+    $c = New-Object System.Windows.Controls.Border
+    $c.CornerRadius = New-Object System.Windows.CornerRadius(7)
+    $c.Padding = New-Object System.Windows.Thickness(9, 2, 9, 2)
+    $c.Margin = New-Object System.Windows.Thickness(0, 0, 6, 0)
+    $c.Cursor = [System.Windows.Input.Cursors]::Hand
+    $c.ToolTip = $script:T['AutoModeTip_' + $Mode]
+    $c.Child = New-Text $script:T['AutoMode_' + $Mode] 11 'MutedBrush'
+    return $c
+}
+
+function Set-AutoChipLook {
+    param($Chips, [string]$Mode)
+    foreach ($c in @($Chips)) {
+        if ([string]$c.Tag.Mode -eq $Mode) { $c.Background = (Get-Res 'AccentBrush'); $c.Child.Foreground = (Get-Res 'TextBrush') }
+        else { $c.Background = (Get-Res 'GhostBrush'); $c.Child.Foreground = (Get-Res 'MutedBrush') }
+    }
+}
+
+# режим приложения: в state.json и во всех его строках (ярлыки в разных папках и плитка делят один режим)
+function Set-AutoRowsMode {
+    param([string]$Key, [string]$Mode)
+    foreach ($r in @($script:AutoRows[$Key])) {
+        Set-AutoChipLook $r.Chips $Mode
+        $r.Row.Opacity = if ($Mode -eq 'Auto') { 1.0 } else { 0.6 }
+    }
+}
+
+# строка автоиконки: превью, имя, значок «авто» и выбор режима (Авто / Родная / Не трогать)
+function New-AutoRow {
+    param($M, [bool]$IsTile)
+    $row = New-Object System.Windows.Controls.Border
+    $row.Background = (Get-Res 'RowBrush')
+    $row.CornerRadius = New-Object System.Windows.CornerRadius(10)
+    $row.Padding = New-Object System.Windows.Thickness(10, 6, 10, 6)
+    $row.Margin = New-Object System.Windows.Thickness(0, 0, 0, 6)
+    $row.SnapsToDevicePixels = $true
+    $row.ToolTip = $(if ($IsTile) { [string]$M.TileId } else { [string]$M.Path })
+    $g = New-Object System.Windows.Controls.Grid
+    $r1 = New-Object System.Windows.Controls.RowDefinition; $r1.Height = New-Object System.Windows.GridLength(46)
+    $r2 = New-Object System.Windows.Controls.RowDefinition; $r2.Height = [System.Windows.GridLength]::Auto
+    [void]$g.RowDefinitions.Add($r1); [void]$g.RowDefinitions.Add($r2)
+    $top = New-Object System.Windows.Controls.Grid
+    $d1 = New-Object System.Windows.Controls.ColumnDefinition; $d1.Width = [System.Windows.GridLength]::Auto
+    $d2 = New-Object System.Windows.Controls.ColumnDefinition; $d2.Width = New-Object System.Windows.GridLength(1, [System.Windows.GridUnitType]::Star)
+    $d3 = New-Object System.Windows.Controls.ColumnDefinition; $d3.Width = [System.Windows.GridLength]::Auto
+    [void]$top.ColumnDefinitions.Add($d1); [void]$top.ColumnDefinitions.Add($d2); [void]$top.ColumnDefinitions.Add($d3)
+    $im = New-Object System.Windows.Controls.Image
+    $im.Width = 34; $im.Height = 34
+    $im.VerticalAlignment = 'Center'
+    $prev = $(if ($IsTile) { [string]$M.TilePath } else { [string]$M.PngPath })
+    $src = New-Img $prev 68
+    if ($src) { $im.Source = $src }
+    [void]$top.Children.Add($im)
+    $thumbKey = [string]$M.SafeKey + $(if ($IsTile) { '|t' } else { '|l' })
+    if (-not $script:AutoThumbs.ContainsKey($thumbKey)) { $script:AutoThumbs[$thumbKey] = New-Object 'System.Collections.Generic.List[object]' }
+    $script:AutoThumbs[$thumbKey].Add($im)
+    $tx = New-Object System.Windows.Controls.StackPanel
+    $tx.Margin = New-Object System.Windows.Thickness(12, 0, 8, 0)
+    $tx.VerticalAlignment = 'Center'
+    $n1 = New-Text ([string]$M.Name) 13 'TextBrush' 'SemiBold'
+    $n1.TextTrimming = 'CharacterEllipsis'
+    [void]$tx.Children.Add($n1)
+    $sub = $(if ($IsTile) { $script:T.AutoTileSub -f $M.TileId } else { $script:T.AutoSub })
+    if ($M.Already) { $sub += ' · ' + $script:T.AlreadySet }
+    $n2 = New-Text $sub 11 'MutedBrush'
+    $n2.TextTrimming = 'CharacterEllipsis'
+    [void]$tx.Children.Add($n2)
+    [System.Windows.Controls.Grid]::SetColumn($tx, 1)
+    [void]$top.Children.Add($tx)
+    $badge = New-Object System.Windows.Controls.Border
+    $badge.Background = (Get-Res 'AccentBrush')
+    $badge.CornerRadius = New-Object System.Windows.CornerRadius(8)
+    $badge.Padding = New-Object System.Windows.Thickness(8, 2, 8, 2)
+    $badge.VerticalAlignment = 'Center'
+    $badge.Child = New-Text $script:T.AutoBadge 11 'TextBrush' 'SemiBold'
+    [System.Windows.Controls.Grid]::SetColumn($badge, 2)
+    [void]$top.Children.Add($badge)
+    [void]$g.Children.Add($top)
+    $chipRow = New-Object System.Windows.Controls.StackPanel
+    $chipRow.Orientation = 'Horizontal'
+    $chipRow.Margin = New-Object System.Windows.Thickness(46, 2, 0, 0)
+    $chips = @()
+    foreach ($mode in @('Auto', 'Native', 'Off')) {
+        $c = New-AutoChip $mode
+        $c.Tag = @{ Key = [string]$M.AutoKey; Mode = $mode; Name = [string]$M.Name }
+        $c.Add_MouseLeftButtonUp({
+            param($s, $e)
+            try {
+                $t = $s.Tag
+                Set-AutoOverride $t.Key $t.Mode
+                Set-AutoRowsMode $t.Key $t.Mode
+                Set-Status ($script:T.AutoModeSet -f $t.Name, $script:T['AutoMode_' + $t.Mode])
+            } catch { Show-Error $_ 'режим автоиконки' }
+        })
+        [void]$chipRow.Children.Add($c)
+        $chips += $c
+    }
+    [System.Windows.Controls.Grid]::SetRow($chipRow, 1)
+    [void]$g.Children.Add($chipRow)
+    $row.Child = $g
+    $key = [string]$M.AutoKey
+    if (-not $script:AutoRows.ContainsKey($key)) { $script:AutoRows[$key] = New-Object 'System.Collections.Generic.List[object]' }
+    $script:AutoRows[$key].Add(@{ Row = $row; Chips = $chips })
+    Set-AutoChipLook $chips ([string]$M.AutoMode)
+    if ([string]$M.AutoMode -ne 'Auto') { $row.Opacity = 0.6 }
+    return $row
+}
+
+function Set-AutoThumb {
+    param([string]$Line)
+    $p = $Line.Split('|')
+    if ($p.Count -lt 3) { return }
+    $k = $p[0] + '|' + $p[1]
+    if (-not $script:AutoThumbs.ContainsKey($k)) { return }
+    $path = $Line.Substring($p[0].Length + $p[1].Length + 2)
+    $src = New-Img $path 68
+    if (-not $src) { return }
+    foreach ($im in @($script:AutoThumbs[$k])) { $im.Source = $src }
+}
+
+# превью автоиконок создаёт отдельное фоновое задание (свой runspace): список остаётся отзывчивым, картинки появляются по мере готовности
+function Stop-AutoPreviews {
+    $j = $script:PrevJob
+    if ($j) {
+        try { $j.Ctl['Stop'] = $true } catch { }
+        $script:PrevOld = @($script:PrevOld) + @($j)
+        $script:PrevJob = $null
+    }
+}
+
+function Start-AutoPreviews {
+    param($Links, $Tiles)
+    Stop-AutoPreviews
+    if ($script:Closing -or -not $script:SelectedId) { return }
+    $its = @(@($Links) + @($Tiles) | Where-Object { (Test-AutoItem $_) -and [string]$_.AutoMode -eq 'Auto' })
+    if ($its.Count -eq 0) { return }
+    $out = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+    $ctl = @{ Stop = $false }
+    try {
+        $j = Start-EngineJob -EngineText $script:EngineText -CodeDir $script:Root -Params @{ Id = [string]$script:SelectedId; Items = $its; Out = $out; Ctl = $ctl; NoName = [bool]$script:ui.ChkNoName.IsChecked } -Body @'
+param($p)
+$pk = @(Get-Packs) | Where-Object { $_.Id -eq $p.Id } | Select-Object -First 1
+if (-not $pk) { return }
+$auto = Get-PackAuto $pk
+if (-not $auto) { return }
+[void](Initialize-AutoNative)
+$bk = @{}
+try { $bk = Load-Backup } catch { }
+foreach ($it in @($p.Items)) {
+    if ($p.Ctl['Stop']) { break }
+    try {
+        $isTile = [bool]$it.PSObject.Properties['TileId']
+        [void](New-AutoFiles $it $auto ([string]$p.Id) $bk ([bool]$p.NoName))
+        $pp = Get-AutoPaths ([string]$p.Id) ([string]$it.SafeKey)
+        $p.Out.Enqueue(([string]$it.SafeKey + '|' + $(if ($isTile) { 't' } else { 'l' }) + '|' + $(if ($isTile) { $pp.Tile } else { $pp.Png })))
+    } catch { Write-Log ('  автоиконка ' + [string]$it.Name + ': ' + $_.Exception.Message) }
+}
+'@
+        $j.Out = $out; $j.Ctl = $ctl
+        $script:PrevJob = $j
+        $script:PrevTimer.Start()
+    } catch { $script:PrevJob = $null; Write-Log ('Превью автоиконок не запущено: ' + $_.Exception.Message) }
+}
+
+function Step-Previews {
+    $j = $script:PrevJob
+    $line = $null
+    if ($j) {
+        while ($j.Queue.TryDequeue([ref]$line)) { Add-LogLine $line }
+        while ($j.Out.TryDequeue([ref]$line)) { Set-AutoThumb $line }
+        if ($j.Async.IsCompleted) {
+            while ($j.Out.TryDequeue([ref]$line)) { Set-AutoThumb $line }
+            [void](Receive-EngineJob $j)
+            $script:PrevJob = $null
+        }
+    }
+    $left = @()
+    foreach ($o in @($script:PrevOld)) {
+        if ($o.Async.IsCompleted) { [void](Receive-EngineJob $o) } else { $left += $o }
+    }
+    $script:PrevOld = $left
+    if (-not $script:PrevJob -and $script:PrevOld.Count -eq 0) { $script:PrevTimer.Stop() }
+}
+
+# ярлыки и плитки, сгруппированные по группе иконки (apps, games, system, work, creative, автоиконки, прочее); внутри группы - по названию
 function Fill-Matches {
     param($Matches2, $TileMatches)
+    Stop-AutoPreviews
     $script:ui.MatchList.Children.Clear()
-    $items = @($Matches2 | Where-Object { $_ })
-    $tiles = @($TileMatches | Where-Object { $_ })
+    $script:AutoThumbs = @{}; $script:AutoRows = @{}
+    $all = @($Matches2 | Where-Object { $_ })
+    $allT = @($TileMatches | Where-Object { $_ })
+    $items = @($all | Where-Object { -not (Test-AutoItem $_) })
+    $tiles = @($allT | Where-Object { -not (Test-AutoItem $_) })
+    $autoCount = @($all | Where-Object { Test-AutoItem $_ }).Count + @($allT | Where-Object { Test-AutoItem $_ }).Count
     $same = 0; $tsame = 0
-    foreach ($g in @(Get-MatchGroups $items $tiles)) {
+    foreach ($g in @(Get-MatchGroups $all $allT)) {
         [void]$script:ui.MatchList.Children.Add((New-GroupHeader ($script:T.GroupHeader -f (Get-GroupTitle ([string]$g.Group)), $g.Count)))
         foreach ($r in $g.Rows) {
           try {
             $m = $r.Item
-            if ($r.Kind -eq 'link') {
+            if (Test-AutoItem $m) {
+                [void]$script:ui.MatchList.Children.Add((New-AutoRow $m ($r.Kind -eq 'tile')))
+            } elseif ($r.Kind -eq 'link') {
                 if ($m.Already) { $same++ }
                 $sub = "{0}: {1}" -f $script:T.IconWord, $m.IconName
                 if ($m.Already) { $sub += ' · ' + $script:T.AlreadySet }
@@ -698,7 +918,7 @@ function Fill-Matches {
           } catch { Show-Error $_ 'строка списка' }
         }
     }
-    if ($items.Count -eq 0 -and $tiles.Count -eq 0) {
+    if ($items.Count -eq 0 -and $tiles.Count -eq 0 -and $autoCount -eq 0) {
         $s = $script:T.NoneFound
     } else {
         $s = if ($items.Count -gt 0) { $script:T.Found -f $items.Count } else { '' }
@@ -708,11 +928,17 @@ function Fill-Matches {
             $s += ($script:T.TilesFound -f $tiles.Count)
             if ($tsame -gt 0) { $s += ($script:T.FoundSame -f $tsame) }
         }
+        if ($autoCount -gt 0) {
+            if ($s) { $s += "`n" }
+            $s += ($script:T.AutoFound -f $autoCount)
+        }
     }
     if (-not [bool]$script:ui.ChkAllUsers.IsChecked) { $s += "`n" + $script:T.AdminNote }
     $sel = $script:Packs | Where-Object { $_.Id -eq $script:SelectedId } | Select-Object -First 1
     if ($sel -and $sel.State -ne 'ready') { $s += "`n" + $script:T.NotReadyNote }
+    if ($sel -and (Get-AutoWanted) -and -not $sel.AutoDeclared) { $s += "`n" + $script:T.AutoNotSupported }
     $script:ui.TxtMatchSummary.Text = $s
+    Start-AutoPreviews $all $allT
 }
 
 # плитки Start11 включены: Start11 найден и галочка стоит
@@ -731,13 +957,15 @@ function Select-Pack {
     $script:ui.TxtSelectedPack.Text = $script:T.PackLine -f ('{0} {1}' -f $pk.Name, $pk.Version)
     $script:ui.MatchList.Children.Clear()
     $script:ui.TxtMatchSummary.Text = $script:T.Scanning
-    Start-Bg -Title $script:T.Scanning -Params @{ Id = $Id; All = [bool]$script:ui.ChkAllUsers.IsChecked; Tiles = (Get-TilesWanted); NoName = [bool]$script:ui.ChkNoName.IsChecked } -Body @'
+    Stop-AutoPreviews
+    Start-Bg -Title $script:T.Scanning -Params @{ Id = $Id; All = [bool]$script:ui.ChkAllUsers.IsChecked; Tiles = (Get-TilesWanted); NoName = [bool]$script:ui.ChkNoName.IsChecked; Auto = (Get-AutoWanted) } -Body @'
 param($p)
 $pk = @(Get-Packs) | Where-Object { $_.Id -eq $p.Id } | Select-Object -First 1
 if (-not $pk) { throw 'Пак не найден' }
+$au = [bool]$p.Auto
 $tm = @()
-if ($p.Tiles) { try { $tm = @(Get-Start11Matches -Pack $pk -NoName:([bool]$p.NoName)) } catch { Write-Log ('Плитки Start11: ' + $_.Exception.Message) } }
-[pscustomobject]@{ Matches = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All)); TileMatches = $tm }
+if ($p.Tiles) { try { $tm = @(Get-Start11Matches -Pack $pk -NoName:([bool]$p.NoName) -Auto:$au) } catch { Write-Log ('Плитки Start11: ' + $_.Exception.Message) } }
+[pscustomobject]@{ Matches = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All) -Auto:$au); TileMatches = $tm }
 '@ -OnDone {
         param($res)
         if ($res -and $res.Error) { Show-Error $res 'сканирование ярлыков'; $script:ui.TxtMatchSummary.Text = ''; return }
@@ -756,36 +984,39 @@ function Invoke-Apply {
     }
     $script:SelectedId = $Id
     Update-CardHighlight
+    Stop-AutoPreviews
     $all = [bool]$script:ui.ChkAllUsers.IsChecked
     $restart = [bool]$script:ui.ChkRestart.IsChecked
     # общие ярлыки при обычных правах: один раз перезапускаем этот скрипт с UAC (режим CLI) и ждём его завершения
     $elevate = ($all -and -not (Test-Admin))
-    Start-Bg -Title $script:T.Applying -Params @{ Id = $Id; Restart = $restart; All = $all; Elevate = $elevate; Tiles = (Get-TilesWanted); NoName = [bool]$script:ui.ChkNoName.IsChecked } -Body @'
+    Start-Bg -Title $script:T.Applying -Params @{ Id = $Id; Restart = $restart; All = $all; Elevate = $elevate; Tiles = (Get-TilesWanted); NoName = [bool]$script:ui.ChkNoName.IsChecked; Auto = (Get-AutoWanted) } -Body @'
 param($p)
 $pk = @(Get-Packs) | Where-Object { $_.Id -eq $p.Id } | Select-Object -First 1
 if (-not $pk) { throw 'Пак не найден' }
 Confirm-PackFiles $pk          # иконки именно этого пака качаем сейчас (параллельно), до повышения прав и применения; плитки докачает Apply-Start11Tiles
 # плитки Start11 - в реестре текущего пользователя: применяем здесь, а не в повышенном процессе (там -NoTiles)
 $tr = $null
+$au = [bool]$p.Auto
 $doTiles = { param($packObj)
     if (-not $p.Tiles) { return $null }
-    try { return (Apply-Start11Tiles -Pack $packObj -NoName:([bool]$p.NoName)) } catch { Write-Log ('Плитки Start11: ' + $_.Exception.Message); return [pscustomobject]@{ Changed = 0; Same = 0; Failed = 1; Hint = '' } }
+    try { return (Apply-Start11Tiles -Pack $packObj -NoName:([bool]$p.NoName) -NoAuto:(-not $au)) } catch { Write-Log ('Плитки Start11: ' + $_.Exception.Message); return [pscustomobject]@{ Changed = 0; Same = 0; Failed = 1; Hint = '' } }
 }
 $getTiles = { param($packObj)
     if (-not $p.Tiles) { return @() }
-    try { return @(Get-Start11Matches -Pack $packObj -NoName:([bool]$p.NoName)) } catch { return @() }
+    try { return @(Get-Start11Matches -Pack $packObj -NoName:([bool]$p.NoName) -Auto:$au) } catch { return @() }
 }
 if ($p.Elevate) {
     $a = @('-Cli', '-Apply', [string]$p.Id, '-AllUsers', '-NoTiles')
     if (-not $p.Restart) { $a += '-NoRestart' }
+    if (-not $au) { $a += '-NoAuto' }
     $er = Invoke-ElevatedCli -CliArgs $a
     $tr = & $doTiles $pk
-    return [pscustomobject]@{ Elevated = $true; Elev = $er; Tiles = $tr; Matches = @(Get-Matches -Pack $pk -AllUsers:$true); TileMatches = @(& $getTiles $pk); PackName = $pk.Name }
+    return [pscustomobject]@{ Elevated = $true; Elev = $er; Tiles = $tr; Matches = @(Get-Matches -Pack $pk -AllUsers:$true -Auto:$au); TileMatches = @(& $getTiles $pk); PackName = $pk.Name }
 }
-$items = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All))
-$r = Apply-Pack -Pack $pk -Items $items -RestartExplorer:([bool]$p.Restart)
+$items = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All) -Auto:$au)
+$r = Apply-Pack -Pack $pk -Items $items -RestartExplorer:([bool]$p.Restart) -NoAuto:(-not $au)
 $tr = & $doTiles $pk
-[pscustomobject]@{ Elevated = $false; Result = $r; Tiles = $tr; Matches = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All)); TileMatches = @(& $getTiles $pk); PackName = $pk.Name }
+[pscustomobject]@{ Elevated = $false; Result = $r; Tiles = $tr; Matches = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All) -Auto:$au); TileMatches = @(& $getTiles $pk); PackName = $pk.Name }
 '@ -OnDone {
         param($res)
         if ($res -and $res.Error) { Show-Error $res 'применение'; return }
@@ -799,6 +1030,7 @@ $tr = & $doTiles $pk
             $r = $res.Result
             $s = $script:T.ApplyDone -f $r.Changed, $r.Same
             if ($r.Failed -gt 0) { $s += ($script:T.ApplyFail -f $r.Failed) }
+            if ($r.Auto -gt 0) { $s += ($script:T.ApplyAuto -f $r.Auto) }
             Set-Status $s
         }
         if ($res.Tiles) {
@@ -807,6 +1039,7 @@ $tr = & $doTiles $pk
             if ($res.Tiles.Hint) { $ts += '. ' + $res.Tiles.Hint }
             Set-Status ($script:ui.TxtStatus.Text + ' | ' + $ts)
         }
+        Set-WindowIcon                 # иконка приложения из применённого пака (если в паке есть 'glyphix') - сразу, без перезапуска
         Rebuild-Packs
         $pk = $script:Packs | Where-Object { $_.Id -eq $script:SelectedId } | Select-Object -First 1
         if ($pk) { $script:ui.TxtSelectedPack.Text = $script:T.PackLine -f ('{0} {1}' -f $pk.Name, $pk.Version) }
@@ -855,6 +1088,7 @@ Install-Pack -Id ([string]$p.Id) -Parts (Get-PackParts -Tiles ([bool]$p.Tiles) -
 function Invoke-Undo {
     $ans = [System.Windows.MessageBox]::Show($script:Window, $script:T.ConfirmUndo, $script:T.Title, [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question)
     if ($ans -ne [System.Windows.MessageBoxResult]::Yes) { return }
+    Stop-AutoPreviews
     Start-Bg -Title $script:T.Undoing -Params @{ Restart = [bool]$script:ui.ChkRestart.IsChecked } -Body @'
 param($p)
 Undo-Routed -RestartExplorer:([bool]$p.Restart)
@@ -870,6 +1104,7 @@ Undo-Routed -RestartExplorer:([bool]$p.Restart)
             if ($res.Hint) { $s += '. ' + $res.Hint }
             Set-Status $s
         }
+        Set-WindowIcon                 # откат убрал AppIcon из state.json - возвращаем assets\app.ico
         Rebuild-Packs
         if ($script:SelectedId) { Select-Pack $script:SelectedId }
     }
@@ -878,6 +1113,7 @@ Undo-Routed -RestartExplorer:([bool]$p.Restart)
 function Invoke-Uninstall {
     $ans = [System.Windows.MessageBox]::Show($script:Window, $script:T.ConfirmUn, $script:T.Title, [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Warning)
     if ($ans -ne [System.Windows.MessageBoxResult]::Yes) { return }
+    Stop-AutoPreviews
     Start-Bg -Title $script:T.Uninstalling -Params @{ Restart = [bool]$script:ui.ChkRestart.IsChecked } -Body @'
 param($p)
 Uninstall-App -RestartExplorer:([bool]$p.Restart)
@@ -911,6 +1147,9 @@ $script:ui.ChkAllUsers.ToolTip = $script:T.AllUsersTip
 $script:ui.ChkRestart.ToolTip = $script:T.RestartTip
 $script:ui.ChkTiles.Content = $script:T.Tiles
 $script:ui.ChkNoName.Content = $script:T.TilesNoName
+$script:ui.ChkAuto.Content = $script:T.Auto
+$script:ui.ChkAuto.ToolTip = $script:T.AutoTip
+$script:ui.ChkAuto.IsChecked = (Get-AutoEnabled)
 # галочки плиток видны только если Start11 найден (ключ реестра есть)
 $script:ui.ChkTiles.Visibility = if ($script:HasStart11) { 'Visible' } else { 'Collapsed' }
 $script:ui.ChkNoName.Visibility = if ($script:HasStart11) { 'Visible' } else { 'Collapsed' }
@@ -922,18 +1161,31 @@ $script:Window.Title = $script:T.Title
 
 $logo = New-Img (Join-Path (Join-Path $script:Root 'assets') 'logo_tile.png') 96
 if ($logo) { $script:ui.ImgLogo.Source = $logo }
-try {
-    $icoPath = Join-Path (Join-Path $script:Root 'assets') 'app.ico'
-    if (Test-Path -LiteralPath $icoPath) {
-        $script:Window.Icon = [System.Windows.Media.Imaging.BitmapFrame]::Create((New-Object System.Uri($icoPath)), [System.Windows.Media.Imaging.BitmapCreateOptions]::None, [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad)
-    }
-} catch { }
+# иконка окна: иконка 'glyphix' применённого пака (state.json -> AppIcon), иначе assets\app.ico; BitmapFrame + OnLoad - файл не остаётся занятым
+function Set-WindowIcon {
+    try {
+        $fallback = Join-Path (Join-Path $script:Root 'assets') 'app.ico'
+        $icoPath = Get-AppIconPath $fallback
+        foreach ($cand in @($icoPath, $fallback)) {
+            if (-not $cand -or -not (Test-Path -LiteralPath $cand -PathType Leaf)) { continue }
+            try {
+                $script:Window.Icon = [System.Windows.Media.Imaging.BitmapFrame]::Create((New-Object System.Uri($cand)), [System.Windows.Media.Imaging.BitmapCreateOptions]::None, [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad)
+                return
+            } catch { Write-Log ('иконка окна не загружена: ' + $cand + ' - ' + $_.Exception.Message) }
+        }
+    } catch { }
+}
+Set-WindowIcon
 
 Set-EngineLogHandler { param($m) Add-LogLine $m }
 
 $script:Timer = New-Object System.Windows.Threading.DispatcherTimer
 $script:Timer.Interval = [TimeSpan]::FromMilliseconds(120)
 $script:Timer.Add_Tick({ try { Step-Job } catch { Show-Error $_ 'таймер' } })
+
+$script:PrevTimer = New-Object System.Windows.Threading.DispatcherTimer
+$script:PrevTimer.Interval = [TimeSpan]::FromMilliseconds(200)
+$script:PrevTimer.Add_Tick({ try { Step-Previews } catch { Show-Error $_ 'превью автоиконок' } })
 
 $script:UpdTimer = New-Object System.Windows.Threading.DispatcherTimer
 $script:UpdTimer.Interval = [TimeSpan]::FromMilliseconds(250)
@@ -956,6 +1208,12 @@ $script:ui.ChkTiles.Add_Click({
     } catch { Show-Error $_ }
 })
 $script:ui.ChkNoName.Add_Click({ try { if ($script:SelectedId) { Select-Pack $script:SelectedId } } catch { Show-Error $_ 'плитки без подписи' } })
+$script:ui.ChkAuto.Add_Click({
+    try {
+        Set-AutoEnabled ([bool]$script:ui.ChkAuto.IsChecked)
+        if ($script:SelectedId) { Select-Pack $script:SelectedId }
+    } catch { Show-Error $_ 'автоиконки' }
+})
 $script:ui.BtnMenu.Add_Click({ try { $script:ui.PopMenu.IsOpen = (-not $script:ui.PopMenu.IsOpen) } catch { Show-Error $_ 'меню' } })
 $script:ui.BtnUninstall.Add_Click({ try { $script:ui.PopMenu.IsOpen = $false; Invoke-Uninstall } catch { Show-Error $_ 'Удалить приложение' } })
 $script:ui.BtnLog.Add_Click({
@@ -964,7 +1222,7 @@ $script:ui.BtnLog.Add_Click({
         else { $script:ui.LogPanel.Visibility = 'Visible'; $script:ui.BtnLog.Content = $script:T.LogHide }
     } catch { Show-Error $_ 'журнал' }
 })
-$script:ui.LnkGitHub.Add_RequestNavigate({
+$script:OnLinkNavigate = {
     param($s, $e)
     try {
         $url = $e.Uri.AbsoluteUri
@@ -976,12 +1234,16 @@ $script:ui.LnkGitHub.Add_RequestNavigate({
         }
     } catch { Show-Error $_ }
     $e.Handled = $true
-})
+}
+$script:ui.LnkGitHub.Add_RequestNavigate($script:OnLinkNavigate)
+$script:ui.LnkAuthor.Add_RequestNavigate($script:OnLinkNavigate)
+$script:ui.LnkAuthorMenu.Add_RequestNavigate($script:OnLinkNavigate)
 $script:Window.Add_Closing({
     param($s, $e)
     try {
         if ($script:Job) { $e.Cancel = $true; Set-Status $script:T.Busy; return }
         $script:Closing = $true
+        Stop-AutoPreviews
     } catch { Show-Error $_ 'закрытие' }
 })
 # последняя линия обороны: необработанное исключение в обработчике WPF - в журнал со стеком, окно остаётся открытым

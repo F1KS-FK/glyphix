@@ -1,0 +1,17 @@
+{
+ "schema": 1,
+ "style": "sticker",
+ "dark": "#2a1a5e",
+ "mid": "#7c5cff",
+ "light": "#ffffff",
+ "rim": "#ffffff",
+ "glow": "#000000",
+ "glow_px": 0,
+ "bg": [
+  "#1d1f2b",
+  "#0e0f16"
+ ],
+ "border": "#3a3d52",
+ "title": "#ffffff",
+ "sticker": true
+}

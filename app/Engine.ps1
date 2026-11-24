@@ -34,7 +34,8 @@ $script:SI_LogFile = Join-Path $script:SI_Home 'log.txt'
 $script:SI_S11Root = 'Software\Stardock\Start8\Start8.ini'                      # HKCU: настройки Start11 (дерево)
 $script:SI_S11Tiles = $script:SI_S11Root + '\Start8\CustomTiles'                  # имя = id плитки, данные = путь к PNG
 $script:SI_S11BackupFile = Join-Path $script:SI_BackupDir 'start11.json'
-$script:SI_S11Dir = Join-Path $script:SI_Home 'start11'                            # наши PNG плиток (стабильный путь)
+$script:SI_S11Dir = Join-Path $script:SI_Home 'start11'                            # наши плитки (PNG или JPEG; стабильный путь)
+$script:SI_TileExts = @('.png', '.jpg', '.jpeg')                                   # допустимые расширения файлов плиток в паках
 $script:SI_S11Hint = 'Перезапусти Start11 или выйди из системы и зайди снова'
 $script:SI_CodeDir = if ($PSScriptRoot) { $PSScriptRoot } else { $script:SI_AppDir }
 $script:SI_OnLog = $null
@@ -778,7 +779,7 @@ function Sync-File {
 
 # Части пака: 'icons' - .ico и .png иконок (нужны всегда); 'tiles' - плитки Start11 с подписью; 'noname' - плитки без подписи.
 # Плитка без файла file_noname при «без подписи» берётся обычная (так выбирает Get-Start11Matches), поэтому такой file относится к обеим частям.
-$script:SI_AllParts = @('icons', 'tiles', 'noname')
+$script:SI_AllParts = @('icons', 'tiles', 'noname', 'auto')       # 'auto' - только auto.json пака (параметры автоиконок; он же входит в 'icons')
 
 # Части пака, нужные при текущих настройках: иконки всегда; плитки включены -> 'tiles', или 'noname' при «без подписи» (обычные тогда не нужны)
 function Get-PackParts {
@@ -809,6 +810,12 @@ function Get-PackFileList {
             & $add $rel ([string]$ic.($pair[0] + '_sha256')) $pair[1] @('icons')
         }
     }
+    $autoEnt = $Manifest.PSObject.Properties['auto']                          # auto.json: параметры автоиконок (нет записи - пак без автоиконок)
+    if ($autoEnt -and $autoEnt.Value -and [string]$autoEnt.Value.file) {
+        $arel = [string]$autoEnt.Value.file
+        if (-not (Test-SafeRel $arel @('.json'))) { throw "недопустимый путь файла '$arel'" }
+        & $add $arel ([string]$autoEnt.Value.sha256) '.json' @('icons', 'auto')
+    }
     foreach ($tl in @($Manifest.tiles)) {
         if (-not $tl) { continue }
         $tId = [string]$tl.id
@@ -817,9 +824,9 @@ function Get-PackFileList {
         foreach ($pair in @(@('file', 'sha256'), @('file_noname', 'sha256_noname'))) {
             $rel = [string]$tl.($pair[0])
             if (-not $rel) { continue }
-            if (-not (Test-SafeRel $rel @('.png'))) { throw "недопустимый путь файла '$rel'" }
+            if (-not (Test-SafeRel $rel $script:SI_TileExts)) { throw "недопустимый путь файла '$rel'" }
             $fp = if ($pair[0] -eq 'file_noname') { @('noname') } elseif ($hasNoName) { @('tiles') } else { @('tiles', 'noname') }
-            & $add $rel ([string]$tl.($pair[1])) '.png' $fp
+            & $add $rel ([string]$tl.($pair[1])) ([IO.Path]::GetExtension($rel).ToLowerInvariant()) $fp
         }
     }
     return $list.ToArray()
@@ -1049,6 +1056,7 @@ function Get-Packs {
             $id = [string]$j.id
             if ($id -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$') { continue }
             $files = New-Object 'System.Collections.Generic.List[string]'
+            $pAuto = New-Object 'System.Collections.Generic.List[string]'
             $pIcons = New-Object 'System.Collections.Generic.List[string]'; $pTiles = New-Object 'System.Collections.Generic.List[string]'; $pNoName = New-Object 'System.Collections.Generic.List[string]'
             $tileMap = @{}
             foreach ($tl in @($j.tiles)) {
@@ -1056,8 +1064,8 @@ function Get-Packs {
                 $tId = [string]$tl.id
                 if ($tId -notmatch '^[A-Za-z0-9_\-]+$') { continue }
                 $tp = $null; $tn = $null
-                if ($tl.file -and (Test-SafeRel ([string]$tl.file) @('.png'))) { $tp = Join-Rel $d.FullName ([string]$tl.file); $files.Add($tp); $pTiles.Add($tp) }
-                if ($tl.file_noname -and (Test-SafeRel ([string]$tl.file_noname) @('.png'))) { $tn = Join-Rel $d.FullName ([string]$tl.file_noname); $files.Add($tn); $pNoName.Add($tn) }
+                if ($tl.file -and (Test-SafeRel ([string]$tl.file) $script:SI_TileExts)) { $tp = Join-Rel $d.FullName ([string]$tl.file); $files.Add($tp); $pTiles.Add($tp) }
+                if ($tl.file_noname -and (Test-SafeRel ([string]$tl.file_noname) $script:SI_TileExts)) { $tn = Join-Rel $d.FullName ([string]$tl.file_noname); $files.Add($tn); $pNoName.Add($tn) }
                 if ($tp -and -not $tn) { $pNoName.Add($tp) }                  # нет плитки без подписи - при «без подписи» берётся обычная
                 if ($tp -or $tn) { $tileMap[$tId] = @{ Tile = $tp; NoName = $tn } }
             }
@@ -1074,19 +1082,28 @@ function Get-Packs {
                 if ($tileMap.ContainsKey([string]$ic.id)) { $tilePath = $tileMap[[string]$ic.id].Tile; $tileNoName = $tileMap[[string]$ic.id].NoName }
                 $icons.Add([pscustomobject]@{ Id = [string]$ic.id; Name = [string]$ic.name; Group = (Get-GroupKey $ic.group); IcoPath = $ico; PngPath = $png; Names = $mn; Exes = $mx; TilePath = $tilePath; TileNoNamePath = $tileNoName })
             }
+            $autoDecl = $false; $autoPath = $null; $autoSha = ''; $autoP = $null
+            $au = $j.PSObject.Properties['auto']                                   # auto.json есть у пака, только если объявлен в pack.json (старые паки - без автоиконок)
+            if ($au -and $au.Value -and [string]$au.Value.file -and (Test-SafeRel ([string]$au.Value.file) @('.json'))) {
+                $autoDecl = $true; $autoSha = [string]$au.Value.sha256
+                $autoPath = Join-Rel $d.FullName ([string]$au.Value.file)
+                $files.Add($autoPath); $pIcons.Add($autoPath); $pAuto.Add($autoPath)
+                if (Test-Path -LiteralPath $autoPath -PathType Leaf) { $autoP = Read-AutoParams $autoPath $autoSha }
+            }
             $prev = $null
             if ($j.preview -and (Test-SafeRel ([string]$j.preview) @('.png'))) {
                 $pv = Join-Rel $d.FullName ([string]$j.preview)
                 if (Test-Path -LiteralPath $pv) { $prev = $pv }
             }
             $fileArr = $files.ToArray()
-            $partFiles = @{ icons = $pIcons.ToArray(); tiles = $pTiles.ToArray(); noname = $pNoName.ToArray() }
+            $partFiles = @{ icons = $pIcons.ToArray(); tiles = $pTiles.ToArray(); noname = $pNoName.ToArray(); auto = $pAuto.ToArray() }
             $state = Get-PackState $d.FullName $partFiles['icons'] 'icons'          # «готов» = иконки; плитки докачиваются при применении плиток
             $res.Add([pscustomobject]@{
                 Id = $id; Name = [string]$j.name; Version = [string]$j.version; Author = [string]$j.author
                 License = [string]$j.license; Description = [string]$j.description
                 IconCount = $icons.Count; Dir = $d.FullName; Preview = $prev; Icons = $icons.ToArray()
                 Files = $fileArr; PartFiles = $partFiles; State = $state; Ready = ($state -eq 'ready')
+                Auto = $autoP; AutoDeclared = $autoDecl; AutoPath = $autoPath; AutoSha = $autoSha
             })
         } catch { Write-Log "пак $($d.Name) не прочитан: $($_.Exception.Message)" }
     }
@@ -1106,6 +1123,7 @@ function Get-GroupKey {
 function Get-GroupRank {
     param([string]$Group)
     if (-not $Group) { return 99 }                                     # без группы - в конец
+    if ($Group -eq 'auto') { return 90 }                               # автоиконки - после всех групп пака
     $i = [Array]::IndexOf($script:SI_GroupOrder, $Group)
     if ($i -lt 0) { return 50 }                                        # незнакомая группа - после известных
     return $i
@@ -1250,18 +1268,23 @@ function Test-IconIsSet {
 
 function Get-Matches {
     [CmdletBinding()]
-    param([Parameter(Mandatory)]$Pack, $Shortcuts, [switch]$AllUsers)
+    param([Parameter(Mandatory)]$Pack, $Shortcuts, [switch]$AllUsers, [switch]$Auto, $Overrides)
     if ($null -eq $Shortcuts) { $Shortcuts = @(Get-ShortcutList -AllUsers:$AllUsers) }
     $index = New-MatchIndex $Pack
     $out = New-Object 'System.Collections.Generic.List[object]'
+    $autoP = $null                                   # -Auto: ярлыки без иконки в паке тоже в списке (Auto = $true), если у пака есть auto.json
+    if ($Auto) { $autoP = Get-PackAuto $Pack; if ($null -eq $Overrides) { $Overrides = Get-AutoOverrides } }
     foreach ($s in @($Shortcuts)) {
         try {
             $m = Find-IconMatch $index $s.Name $s.Target $s.Args
-            if (-not $m) { continue }
+            if (-not $m) {
+                if ($autoP) { $ai = New-AutoLinkItem $s ([string]$Pack.Id) $Overrides; if ($ai) { $out.Add($ai) } }
+                continue
+            }
             $out.Add([pscustomobject]@{
                 Name = $s.Name; Path = $s.Path; Location = $s.Location; Target = $s.Target; Args = $s.Args; Icon = $s.Icon
                 IconId = $m.Icon.Id; IconName = $m.Icon.Name; Group = [string]$m.Icon.Group; IcoPath = $m.Icon.IcoPath; PngPath = $m.Icon.PngPath
-                Rule = $m.Rule; Already = (Test-IconIsSet $s.Icon $m.Icon.IcoPath)
+                Rule = $m.Rule; Already = (Test-IconIsSet $s.Icon $m.Icon.IcoPath); Auto = $false
             })
         } catch { Write-Log "  ошибка сопоставления $($s.Name): $($_.Exception.Message)" }
     }
@@ -1500,27 +1523,87 @@ function Update-IconView {
     if ($RestartExplorer) { Restart-Explorer $ClearCache }
 }
 
+# Иконка самого Glyphix из пака: иконка с id 'glyphix' (предпочитаем .ico, иначе .png), файл должен существовать. Нет - $null.
+function Get-PackAppIcon {
+    param($Pack)
+    foreach ($ic in @($Pack.Icons)) {
+        if ([string]$ic.Id -ine 'glyphix') { continue }
+        foreach ($p in @($ic.IcoPath, $ic.PngPath)) { if ($p -and (Test-Path -LiteralPath ([string]$p) -PathType Leaf)) { return [string]$p } }
+    }
+    return $null
+}
+
+# Запомнить в state.json (AppIcon) иконку приложения из пака; в паке её нет - запись убираем (вернётся assets\app.ico). Возвращает путь или $null.
+function Set-AppIconState {
+    param($Pack)
+    try {
+        $path = Get-PackAppIcon $Pack
+        $st = Read-State
+        if ($path) { $st['AppIcon'] = $path; Save-State $st }
+        elseif ($st.ContainsKey('AppIcon')) { $st.Remove('AppIcon'); Save-State $st }
+        return $path
+    } catch { Write-Log ('иконка приложения: ' + $_.Exception.Message); return $null }
+}
+
+function Clear-AppIconState {
+    try { $st = Read-State; if ($st.ContainsKey('AppIcon')) { $st.Remove('AppIcon'); Save-State $st } } catch { }
+}
+
+# Путь к иконке окна: AppIcon из state.json, если файл есть и лежит в нашей папке packs\ (.ico/.png), иначе $Fallback (assets\app.ico)
+function Get-AppIconPath {
+    param([string]$Fallback = '')
+    try {
+        $st = Read-State
+        if ($st.ContainsKey('AppIcon') -and $st['AppIcon']) {
+            $p = [string]$st['AppIcon']
+            $e = [IO.Path]::GetExtension($p).ToLowerInvariant()
+            $root = [IO.Path]::GetFullPath($script:SI_PacksDir).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+            if (($e -eq '.ico' -or $e -eq '.png') -and [IO.Path]::GetFullPath($p).StartsWith($root, [StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $p -PathType Leaf)) { return $p }
+        }
+    } catch { }
+    return $Fallback
+}
+
 function Apply-Pack {
     [CmdletBinding()]
-    param([Parameter(Mandatory)]$Pack, $Items, [switch]$RestartExplorer)
+    param([Parameter(Mandatory)]$Pack, $Items, [switch]$RestartExplorer, [switch]$NoAuto)
     Assert-ElevationSafe
     Assert-LegacyMigrationComplete               # бэкап прежней версии ещё не перенесён - не применяем
     Confirm-PackFiles $Pack                      # иконки пака качаем только сейчас (если ещё не скачаны)
     Write-Log "Применяю пак: $($Pack.Name) $($Pack.Version)"
-    if ($null -eq $Items) { $Items = @(Get-Matches -Pack $Pack) }
+    if ($null -eq $Items) { $Items = @(Get-Matches -Pack $Pack -Auto:((-not $NoAuto) -and (Get-AutoEnabled))) }
     $backup = Load-Backup
-    $changed = 0; $same = 0; $failed = 0
+    $changed = 0; $same = 0; $failed = 0; $autoDone = 0; $autoSkipped = 0
+    $autoP = $null; $autoTried = $false; $autoReady = $false; $ov = $null
     foreach ($m in @($Items)) {
         try {
-            if ($m.Already) { $same++; continue }
+            $regen = $false
+            if (Test-AutoItem $m) {
+                # автоиконка: режим приложения читаем из state.json в момент применения (его могли поменять после сканирования)
+                if ($null -eq $ov) { $ov = Get-AutoOverrides }
+                if ((Get-AutoMode ([string]$m.AutoKey) $ov) -ne 'Auto') { $autoSkipped++; continue }
+                if (-not $autoTried) {
+                    $autoTried = $true
+                    $autoP = Get-PackAuto $Pack
+                    if ($autoP) { try { $autoReady = Initialize-AutoNative } catch { Write-Log ('Автоиконки недоступны: ' + $_.Exception.Message) } }
+                }
+                if (-not $autoReady) { $autoSkipped++; continue }
+                $regen = ((New-AutoLinkFiles $m $autoP ([string]$Pack.Id) $backup) -eq 'generated')      # файлы в кэше актуальны или пересозданы (исходная иконка / стиль изменились)
+            }
+            if ($m.Already -and -not $regen) { $same++; continue }
             if (-not (Test-Path -LiteralPath $m.IcoPath -PathType Leaf)) { throw "нет файла иконки $($m.IcoPath)" }
-            Backup-File $backup $m.Path ([string]$m.Icon)
-            $how = Set-LinkIcon $m.Path $m.IcoPath
+            $how = 'обновлён файл'
+            if (-not $m.Already) {
+                Backup-File $backup $m.Path ([string]$m.Icon)
+                $how = Set-LinkIcon $m.Path $m.IcoPath
+            }
             $after = [string](Get-WshShell).CreateShortcut($m.Path).IconLocation
             Send-ItemNotify $m.Path
             $changed++
+            if (Test-AutoItem $m) { $autoDone++ }
             # приложение может пересоздать ярлык со своей иконкой - подменяем и сам .ico, на который он указывал
-            if ($m.Icon -match '^(.+?),\s*(-?\d+)$') {
+            # (автоиконки не трогаем: иначе следующий Apply прочитал бы уже стилизованную иконку как исходную)
+            if ((-not (Test-AutoItem $m)) -and $m.Icon -match '^(.+?),\s*(-?\d+)$') {
                 $orig = [Environment]::ExpandEnvironmentVariables($Matches[1].Trim().Trim('"'))
                 if ((Test-IcoSwapPath $orig) -and (Test-Path -LiteralPath $orig -PathType Leaf)) {
                     if ((Get-FileSha256 $orig) -ne (Get-FileSha256 $m.IcoPath)) {
@@ -1539,16 +1622,17 @@ function Apply-Pack {
             Write-Log "  ошибка с $($m.Name): $($_.Exception.Message)"
         }
     }
+    [void](Set-AppIconState $Pack)               # иконка самого приложения следует за паком (иконка с id 'glyphix')
     $st = Read-State
     if ($changed -gt 0 -or $same -gt 0) {
         $st['Applied'] = @{ PackId = $Pack.Id; Version = $Pack.Version; At = (Get-Date).ToString('s'); Count = ($changed + $same) }
         Save-State $st
     }
-    Write-Log "Заменено: $changed, уже стояли: $same, ошибок: $failed"
+    Write-Log "Заменено: $changed, уже стояли: $same, ошибок: $failed$(if ($autoDone -gt 0 -or $autoSkipped -gt 0) { ', автоиконок: ' + $autoDone + ' (пропущено: ' + $autoSkipped + ')' })"
     if ($failed -eq 0 -and ($changed + $same) -gt 0) { Invoke-LegacyCleanup }     # прежняя папка данных больше не нужна, если на неё не ссылается ни один ярлык
     $restarted = $false
     if ($changed -gt 0) { Update-IconView -RestartExplorer ([bool]$RestartExplorer) -ClearCache $true; $restarted = [bool]$RestartExplorer }
-    return [pscustomobject]@{ Changed = $changed; Same = $same; Failed = $failed; Total = @($Items).Count; Restarted = $restarted }
+    return [pscustomobject]@{ Changed = $changed; Same = $same; Failed = $failed; Total = @($Items).Count; Restarted = $restarted; Auto = $autoDone; AutoSkipped = $autoSkipped }
 }
 
 # ---------- Плитки Start11 ----------
@@ -1634,7 +1718,7 @@ function Get-Start11Candidates {
         if (-not $aid) { continue }
         $id = $aid -replace '\\', '_'
         if ($map.ContainsKey($id)) { continue }
-        $o = [pscustomobject]@{ Id = $id; Name = [string]$a.Name; Source = 'start' }
+        $o = [pscustomobject]@{ Id = $id; Name = [string]$a.Name; Source = 'start'; AppId = $aid }
         $map[$id] = $o; $list.Add($o)
     }
     $names = @()
@@ -1644,7 +1728,7 @@ function Get-Start11Candidates {
     foreach ($n in $names) {
         if (-not $n) { continue }
         if ($map.ContainsKey($n)) { $map[$n].Source = 'start+reg'; continue }
-        $o = [pscustomobject]@{ Id = [string]$n; Name = ''; Source = 'reg' }
+        $o = [pscustomobject]@{ Id = [string]$n; Name = ''; Source = 'reg'; AppId = '' }
         $map[$n] = $o; $list.Add($o)
     }
     return $list.ToArray()
@@ -1745,9 +1829,45 @@ function Find-TileMatch {
     return $null
 }
 
+# расширение плитки в нашей папке = расширение исходного файла (.png / .jpg / .jpeg); без источника - .png
+function Get-Start11TileExt {
+    param([string]$Src = '')
+    $e = ''
+    try { $e = [IO.Path]::GetExtension($Src).ToLowerInvariant() } catch { }
+    if ($e -eq '.jpg' -or $e -eq '.jpeg') { return $e }
+    return '.png'
+}
+
 function Get-Start11TileDest {
-    param([string]$PackId, [string]$IconId)
-    return (Join-Path (Join-Path $script:SI_S11Dir $PackId) ($IconId + '.png'))
+    param([string]$PackId, [string]$IconId, [string]$Src = '')
+    return (Join-Path (Join-Path $script:SI_S11Dir $PackId) ($IconId + (Get-Start11TileExt $Src)))
+}
+
+# Удалить файл плитки того же id с другим расширением (после смены .png <-> .jpg). Только внутри нашей папки start11, только обычные файлы,
+# и только если на него не ссылается ни одно значение CustomTiles (другая плитка с тем же рисунком ещё может смотреть на него).
+function Remove-StaleTileFiles {
+    param([string]$Dest)
+    try {
+        $dir = [IO.Path]::GetDirectoryName($Dest)
+        $base = [IO.Path]::GetFileNameWithoutExtension($Dest)
+        $ext = [IO.Path]::GetExtension($Dest).ToLowerInvariant()
+        $root = [IO.Path]::GetFullPath($script:SI_S11Dir).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+        if (-not ([IO.Path]::GetFullPath($dir) + [IO.Path]::DirectorySeparatorChar).StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { return }
+        $refs = $null
+        foreach ($e in $script:SI_TileExts) {
+            if ($e -eq $ext) { continue }
+            $p = Join-Path $dir ($base + $e)
+            if (-not (Test-Path -LiteralPath $p -PathType Leaf)) { continue }
+            if ($null -eq $refs) {
+                $refs = @{}
+                foreach ($n in @(Get-S11ValueNames $script:SI_S11Tiles)) { try { $v = Get-S11Value $script:SI_S11Tiles $n; if ($v) { $refs[$v.ToLowerInvariant()] = $true } } catch { } }
+            }
+            if ($refs.ContainsKey($p.ToLowerInvariant())) { continue }
+            if (([IO.File]::GetAttributes($p) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { continue }
+            Remove-Item -LiteralPath $p -Force
+            Write-Log "  удалена прежняя плитка: $p"
+        }
+    } catch { Write-Log ('  прежняя плитка не удалена: ' + $_.Exception.Message) }
 }
 
 function Test-Start11TileSet {
@@ -1762,22 +1882,27 @@ function Test-Start11TileSet {
 
 function Get-Start11Matches {
     [CmdletBinding()]
-    param([Parameter(Mandatory)]$Pack, $Candidates, [switch]$NoName)
+    param([Parameter(Mandatory)]$Pack, $Candidates, [switch]$NoName, [switch]$Auto, $Overrides)
     if ($null -eq $Candidates) { $Candidates = @(Get-Start11Candidates) }
     $index = New-TileIndex $Pack
     $out = New-Object 'System.Collections.Generic.List[object]'
+    $autoP = $null                                   # -Auto: плитки без иконки в паке - автоплитки (Auto = $true), если у пака есть auto.json
+    if ($Auto) { $autoP = Get-PackAuto $Pack; if ($null -eq $Overrides) { $Overrides = Get-AutoOverrides } }
     foreach ($c in @($Candidates)) {
         try {
             $m = Find-TileMatch $index $c.Name $c.Id
-            if (-not $m) { continue }
+            if (-not $m) {
+                if ($autoP) { $ai = New-AutoTileItem $c ([string]$Pack.Id) $Overrides ([bool]$NoName); if ($ai) { $out.Add($ai) } }
+                continue
+            }
             $src = $m.Icon.TilePath
             if ($NoName -and $m.Icon.TileNoNamePath) { $src = $m.Icon.TileNoNamePath }
             if (-not $src) { continue }
-            $dest = Get-Start11TileDest ([string]$Pack.Id) ([string]$m.Icon.Id)
+            $dest = Get-Start11TileDest ([string]$Pack.Id) ([string]$m.Icon.Id) $src
             $out.Add([pscustomobject]@{
                 TileId = [string]$c.Id; Name = [string]$c.Name; Source = [string]$c.Source
                 IconId = [string]$m.Icon.Id; IconName = [string]$m.Icon.Name; Group = [string]$m.Icon.Group; TilePath = $src
-                Rule = $m.Rule; Already = (Test-Start11TileSet ([string]$c.Id) $dest $src)
+                Rule = $m.Rule; Already = (Test-Start11TileSet ([string]$c.Id) $dest $src); Auto = $false
             })
         } catch { Write-Log "  ошибка сопоставления плитки $($c.Id): $($_.Exception.Message)" }
     }
@@ -1959,23 +2084,29 @@ function Restart-Start11 {
 
 function Apply-Start11Tiles {
     [CmdletBinding()]
-    param([Parameter(Mandatory)]$Pack, $Items, [switch]$NoName, [switch]$NoReload)
+    param([Parameter(Mandatory)]$Pack, $Items, [switch]$NoName, [switch]$NoReload, [switch]$NoAuto)
     Assert-ElevationSafe
     Assert-LegacyMigrationComplete               # бэкап прежней версии ещё не перенесён - не применяем
     $none = [pscustomobject]@{ Changed = 0; Same = 0; Failed = 0; Total = 0; Reload = $null; Hint = '' }
     if (-not (Test-Start11)) { Write-Log 'Start11 не найден - плитки пропускаю.'; return $none }
     Confirm-PackFiles $Pack -Parts @($(if ($NoName) { 'noname' } else { 'tiles' }))       # плитки докачиваем только сейчас (если ещё не скачаны)
     Write-Log "Применяю плитки Start11: $($Pack.Name) $($Pack.Version)"
-    if ($null -eq $Items) { $Items = @(Get-Start11Matches -Pack $Pack -NoName:$NoName) }
+    if ($null -eq $Items) { $Items = @(Get-Start11Matches -Pack $Pack -NoName:$NoName -Auto:((-not $NoAuto) -and (Get-AutoEnabled))) }
+    $preFailed = 0
+    if (@($Items | Where-Object { Test-AutoItem $_ }).Count -gt 0) {      # автоплитки: режим приложения + создание .jpg до записи в реестр
+        $ri = Resolve-AutoTileItems $Pack $Items ([bool]$NoName)
+        $Items = @($ri.Items); $preFailed = [int]$ri.Failed
+        if ($ri.Skipped -gt 0) { Write-Log "Автоплитки: пропущено $($ri.Skipped) (режим «родная»/«не трогать» или автоиконки недоступны)" }
+    }
     $backup = Load-S11Backup           # не читается - исключение до любых изменений, исходные значения не потеряем
-    $changed = 0; $same = 0; $failed = 0
+    $changed = 0; $same = 0; $failed = $preFailed
     # есть что менять -> сначала закрываем Start11, пишем реестр, потом запускаем обратно
     # значения не REG_SZ/REG_EXPAND_SZ не трогаем - ради них Start11 не закрываем
     $needs = @($Items | Where-Object {
         try {
             $kind = Get-S11Kind $script:SI_S11Tiles ([string]$_.TileId)
             if ($kind -and $kind -ne 'String' -and $kind -ne 'ExpandString') { return $false }
-            -not (Test-Start11TileSet ([string]$_.TileId) (Get-Start11TileDest ([string]$Pack.Id) ([string]$_.IconId)) ([string]$_.TilePath))
+            -not (Test-Start11TileSet ([string]$_.TileId) (Get-Start11TileDest ([string]$Pack.Id) ([string]$_.IconId) ([string]$_.TilePath)) ([string]$_.TilePath))
         } catch { $true } })
     $stop = $null; $restarted = $true
     if ($needs.Count -gt 0 -and -not $NoReload) { $stop = Stop-Start11 }
@@ -1984,9 +2115,9 @@ function Apply-Start11Tiles {
         try {
             $id = [string]$m.TileId; $src = [string]$m.TilePath; $icId = [string]$m.IconId
             if (-not $id -or $icId -notmatch '^[A-Za-z0-9_\-]+$') { throw 'неверные данные плитки' }
-            if ($src -notmatch '\.png$' -or -not (Test-Path -LiteralPath $src -PathType Leaf)) { throw "нет файла плитки $src" }
-            $dest = Get-Start11TileDest ([string]$Pack.Id) $icId
-            if (Test-Start11TileSet $id $dest $src) { $same++; continue }
+            if ($src -notmatch '\.(png|jpe?g)$' -or -not (Test-Path -LiteralPath $src -PathType Leaf)) { throw "нет файла плитки $src" }
+            $dest = Get-Start11TileDest ([string]$Pack.Id) $icId $src
+            if (Test-Start11TileSet $id $dest $src) { Remove-StaleTileFiles $dest; $same++; continue }
             $cur = Get-S11Value $script:SI_S11Tiles $id                    # не REG_SZ - исключение, значение не трогаем
             $curKind = 'String'
             if ($null -ne $cur) { $k0 = Get-S11Kind $script:SI_S11Tiles $id; if ($k0 -eq 'ExpandString') { $curKind = 'ExpandString' } }
@@ -1997,6 +2128,7 @@ function Apply-Start11Tiles {
             }
             Set-S11Value $script:SI_S11Tiles $id $dest
             if ((Get-S11Value $script:SI_S11Tiles $id) -ine $dest) { throw 'значение в реестре не записалось' }
+            Remove-StaleTileFiles $dest                                     # реестр уже смотрит на новый файл - старый (.png <-> .jpg) не нужен
             $changed++
             Write-Log "  OK $id  <-  $($m.IconName)"
         } catch {
@@ -2084,6 +2216,1349 @@ function Remove-CopyQuiet {
     try { if ($Copy -and (Test-Path -LiteralPath $Copy)) { Remove-Item -LiteralPath $Copy -Force } } catch { }
 }
 
+# ---------- Автоиконки (2.4.0) ----------
+# Приложения, для которых в применённом паке нет иконки, получают СВОЮ родную иконку, перекрашенную в стиль пака (локально, без сети):
+# пак отдаёт только параметры стиля (packs\<id>\auto.json), всё остальное считается на этом компьютере.
+# Файлы: %LOCALAPPDATA%\Glyphix\auto\<пак>\<ключ>.ico (+ .png превью, .jpg плитка Start11, .key - ключ кэша). Применяются так же, как иконки пака
+# (бэкап, откат, значения Start11), поэтому откат возвращает всё, а папка auto\ после полного отката удаляется.
+$script:SI_AutoDir = Join-Path $script:SI_Home 'auto'
+$script:SI_AutoStyleVersion = 1                         # = GlyphixAuto.AutoStyle.StyleVersion; меняется вместе с алгоритмом - кэш пересоздаётся
+$script:SI_AutoIcoSizes = [int[]]@(16, 24, 32, 48, 64, 128, 256)
+$script:SI_AutoModes = @('Auto', 'Native', 'Off')        # Auto - перекрасить; Native - оставить родную иконку приложения; Off - не трогать
+$script:SI_AutoTileSize = 640
+$script:SI_AutoTileIcon = 384                           # холст иконки для плитки (сжимается в плитку, отсюда чёткость)
+$script:SI_AutoLastError = ''
+
+# C#: чистая стилизация (без System.Drawing/WinAPI - компилируется и проверяется и на Linux) и Windows-часть (оболочка, GDI+, плитка).
+# C# 5 / .NET 4.x: без интерполяции строк, ?., expression-bodied членов.
+$script:SI_AutoStyleCode = @'
+using System;
+using System.IO;
+using System.IO.Compression;
+
+namespace GlyphixAuto
+{
+    // Параметры стиля пака (auto.json). Цвета - 0xRRGGBB.
+    public sealed class AutoParams
+    {
+        public int Dark;
+        public int Mid;
+        public int Light;
+        public int Rim;
+        public int Glow;
+        public int GlowPx;
+        public int Pixelate;
+        public bool Rainbow;
+        public bool Hud;
+        public bool Sticker;
+    }
+
+    // Чистая стилизация пикселей (без System.Drawing и без WinAPI): работает и в тестах на Linux.
+    // Пиксели - BGRA, 4 байта, прозрачность не предумножена (straight alpha), строки сверху вниз.
+    public static class AutoStyle
+    {
+        public const int StyleVersion = 1;
+
+        static float Clamp01(float v) { return v < 0f ? 0f : (v > 1f ? 1f : v); }
+
+        // ---------- BGRA <-> float RGBA (предумноженный) ----------
+        static float[] FromBgra(byte[] bgra, int w, int h)
+        {
+            float[] p = new float[w * h * 4];
+            for (int i = 0, n = w * h; i < n; i++)
+            {
+                float a = bgra[i * 4 + 3] / 255f;
+                p[i * 4] = bgra[i * 4 + 2] / 255f * a;
+                p[i * 4 + 1] = bgra[i * 4 + 1] / 255f * a;
+                p[i * 4 + 2] = bgra[i * 4] / 255f * a;
+                p[i * 4 + 3] = a;
+            }
+            return p;
+        }
+
+        static byte ToByte(float v)
+        {
+            int b = (int)(v * 255f + 0.5f);
+            return (byte)(b < 0 ? 0 : (b > 255 ? 255 : b));
+        }
+
+        static byte[] ToBgra(float[] p, int w, int h)
+        {
+            byte[] o = new byte[w * h * 4];
+            for (int i = 0, n = w * h; i < n; i++)
+            {
+                float a = p[i * 4 + 3];
+                if (a <= 0.001f) continue;
+                o[i * 4 + 3] = ToByte(a);
+                o[i * 4 + 2] = ToByte(p[i * 4] / a);
+                o[i * 4 + 1] = ToByte(p[i * 4 + 1] / a);
+                o[i * 4] = ToByte(p[i * 4 + 2] / a);
+            }
+            return o;
+        }
+
+        // ---------- предумноженная ли картинка (HBITMAP из оболочки бывает и такой) ----------
+        // Предумноженной считаем, если есть полупрозрачные пиксели и нигде цвет не больше альфы.
+        public static bool LooksPremultiplied(byte[] bgra)
+        {
+            bool semi = false;
+            for (int i = 0; i + 3 < bgra.Length; i += 4)
+            {
+                int a = bgra[i + 3];
+                if (bgra[i] > a || bgra[i + 1] > a || bgra[i + 2] > a) return false;
+                if (a > 0 && a < 255) semi = true;
+            }
+            return semi;
+        }
+
+        public static byte[] FixPremultiplied(byte[] bgra)
+        {
+            if (!LooksPremultiplied(bgra)) return bgra;
+            for (int i = 0; i + 3 < bgra.Length; i += 4)
+            {
+                int a = bgra[i + 3];
+                if (a == 0 || a == 255) continue;
+                for (int c = 0; c < 3; c++)
+                {
+                    int v = (bgra[i + c] * 255 + a / 2) / a;
+                    bgra[i + c] = (byte)(v > 255 ? 255 : v);
+                }
+            }
+            return bgra;
+        }
+
+        // есть ли в картинке хоть что-то видимое (не пустая и не полностью прозрачная)
+        public static bool HasContent(byte[] bgra)
+        {
+            int n = 0;
+            for (int i = 3; i < bgra.Length; i += 4) { if (bgra[i] > 16) { n++; if (n >= 16) return true; } }
+            return false;
+        }
+
+        // ---------- изменение размера (предумноженный float RGBA): box-фильтр при уменьшении, билинейно при увеличении ----------
+        static void BuildWeights(int sn, int dn, out int[] start, out float[][] wts)
+        {
+            start = new int[dn];
+            wts = new float[dn][];
+            double ratio = (double)sn / dn;
+            for (int i = 0; i < dn; i++)
+            {
+                if (ratio > 1.0)
+                {
+                    double a = i * ratio, b = (i + 1) * ratio;
+                    int s0 = (int)Math.Floor(a);
+                    int s1 = (int)Math.Ceiling(b) - 1;
+                    if (s0 < 0) s0 = 0;
+                    if (s1 > sn - 1) s1 = sn - 1;
+                    if (s1 < s0) s1 = s0;
+                    int n = s1 - s0 + 1;
+                    float[] w = new float[n];
+                    double sum = 0;
+                    for (int k = 0; k < n; k++)
+                    {
+                        double lo = Math.Max(a, s0 + k), hi = Math.Min(b, s0 + k + 1);
+                        double v = Math.Max(0.0, hi - lo);
+                        w[k] = (float)v;
+                        sum += v;
+                    }
+                    if (sum <= 0) { w[0] = 1f; sum = 1; }
+                    for (int k = 0; k < n; k++) w[k] = (float)(w[k] / sum);
+                    start[i] = s0;
+                    wts[i] = w;
+                }
+                else
+                {
+                    double c = (i + 0.5) * ratio - 0.5;
+                    int s0 = (int)Math.Floor(c);
+                    float f = (float)(c - s0);
+                    int s1 = s0 + 1;
+                    if (s0 < 0) { s0 = 0; f = 0f; }
+                    if (s0 > sn - 1) { s0 = sn - 1; f = 0f; }
+                    if (s1 > sn - 1) s1 = sn - 1;
+                    if (s1 <= s0) { start[i] = s0; wts[i] = new float[] { 1f }; }
+                    else { start[i] = s0; wts[i] = new float[] { 1f - f, f }; }
+                }
+            }
+        }
+
+        static float[] Resample(float[] src, int sw, int sh, int dw, int dh)
+        {
+            if (sw == dw && sh == dh) return (float[])src.Clone();
+            int[] xs; float[][] xw; int[] ys; float[][] yw;
+            BuildWeights(sw, dw, out xs, out xw);
+            BuildWeights(sh, dh, out ys, out yw);
+            float[] tmp = new float[dw * sh * 4];
+            for (int y = 0; y < sh; y++)
+                for (int x = 0; x < dw; x++)
+                {
+                    float[] w = xw[x];
+                    float r = 0, g = 0, b = 0, a = 0;
+                    for (int k = 0; k < w.Length; k++)
+                    {
+                        int si = (y * sw + xs[x] + k) * 4;
+                        r += src[si] * w[k]; g += src[si + 1] * w[k]; b += src[si + 2] * w[k]; a += src[si + 3] * w[k];
+                    }
+                    int di = (y * dw + x) * 4;
+                    tmp[di] = r; tmp[di + 1] = g; tmp[di + 2] = b; tmp[di + 3] = a;
+                }
+            float[] dst = new float[dw * dh * 4];
+            for (int y = 0; y < dh; y++)
+            {
+                float[] w = yw[y];
+                for (int x = 0; x < dw; x++)
+                {
+                    float r = 0, g = 0, b = 0, a = 0;
+                    for (int k = 0; k < w.Length; k++)
+                    {
+                        int si = ((ys[y] + k) * dw + x) * 4;
+                        r += tmp[si] * w[k]; g += tmp[si + 1] * w[k]; b += tmp[si + 2] * w[k]; a += tmp[si + 3] * w[k];
+                    }
+                    int di = (y * dw + x) * 4;
+                    dst[di] = r; dst[di + 1] = g; dst[di + 2] = b; dst[di + 3] = a;
+                }
+            }
+            return dst;
+        }
+
+        public static byte[] Resize(byte[] bgra, int w, int h, int nw, int nh)
+        {
+            return ToBgra(Resample(FromBgra(bgra, w, h), w, h, nw, nh), nw, nh);
+        }
+
+        static float[] NearestUp(float[] src, int sw, int sh, int dw, int dh)
+        {
+            float[] dst = new float[dw * dh * 4];
+            for (int y = 0; y < dh; y++)
+            {
+                int sy = Math.Min(sh - 1, (int)((long)y * sh / dh));
+                for (int x = 0; x < dw; x++)
+                {
+                    int sx = Math.Min(sw - 1, (int)((long)x * sw / dw));
+                    int si = (sy * sw + sx) * 4, di = (y * dw + x) * 4;
+                    dst[di] = src[si]; dst[di + 1] = src[si + 1]; dst[di + 2] = src[si + 2]; dst[di + 3] = src[si + 3];
+                }
+            }
+            return dst;
+        }
+
+        // ---------- маски (float 0..1, w*h) ----------
+        static float[] Dilate(float[] m, int w, int h, int r)
+        {
+            if (r < 1) return (float[])m.Clone();
+            int cnt = 0;
+            int[] dx = new int[(2 * r + 1) * (2 * r + 1)];
+            int[] dy = new int[dx.Length];
+            for (int y = -r; y <= r; y++)
+                for (int x = -r; x <= r; x++)
+                    if (x * x + y * y <= r * r + 1) { dx[cnt] = x; dy[cnt] = y; cnt++; }
+            float[] o = new float[w * h];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    float best = 0f;
+                    for (int k = 0; k < cnt; k++)
+                    {
+                        int xx = x + dx[k], yy = y + dy[k];
+                        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+                        float v = m[yy * w + xx];
+                        if (v > best) { best = v; if (best >= 1f) break; }
+                    }
+                    o[y * w + x] = best;
+                }
+            return o;
+        }
+
+        // минимум по кругу (эрозия); за краем холста - 0
+        static float[] Erode(float[] m, int w, int h, int r)
+        {
+            int cnt = 0;
+            int[] dx = new int[(2 * r + 1) * (2 * r + 1)];
+            int[] dy = new int[dx.Length];
+            for (int y = -r; y <= r; y++)
+                for (int x = -r; x <= r; x++)
+                    if (x * x + y * y <= r * r + 1) { dx[cnt] = x; dy[cnt] = y; cnt++; }
+            float[] o = new float[w * h];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    float best = 1f;
+                    for (int k = 0; k < cnt && best > 0f; k++)
+                    {
+                        int xx = x + dx[k], yy = y + dy[k];
+                        float v = (xx < 0 || yy < 0 || xx >= w || yy >= h) ? 0f : m[yy * w + xx];
+                        if (v < best) best = v;
+                    }
+                    o[y * w + x] = best;
+                }
+            return o;
+        }
+
+        static void Box1D(float[] src, float[] dst, int n, int stride, int offset, int r, float[] pre)
+        {
+            pre[0] = 0f;
+            for (int i = 0; i < n; i++) pre[i + 1] = pre[i] + src[offset + i * stride];
+            float div = 2 * r + 1;
+            for (int i = 0; i < n; i++)
+            {
+                int lo = i - r; if (lo < 0) lo = 0;
+                int hi = i + r + 1; if (hi > n) hi = n;
+                dst[offset + i * stride] = (pre[hi] - pre[lo]) / div;
+            }
+        }
+
+        // три прохода коробочного размытия ~ гауссиан; за краем маска нулевая
+        static float[] Blur(float[] m, int w, int h, int r)
+        {
+            if (r < 1) return (float[])m.Clone();
+            float[] a = (float[])m.Clone();
+            float[] b = new float[a.Length];
+            float[] pre = new float[Math.Max(w, h) + 1];
+            for (int pass = 0; pass < 3; pass++)
+            {
+                for (int y = 0; y < h; y++) Box1D(a, b, w, 1, y * w, r, pre);
+                for (int x = 0; x < w; x++) Box1D(b, a, h, w, x, r, pre);
+            }
+            return a;
+        }
+
+        static float[] Shift(float[] m, int w, int h, int dx, int dy)
+        {
+            float[] o = new float[m.Length];
+            for (int y = 0; y < h; y++)
+            {
+                int sy = y - dy;
+                if (sy < 0 || sy >= h) continue;
+                for (int x = 0; x < w; x++)
+                {
+                    int sx = x - dx;
+                    if (sx < 0 || sx >= w) continue;
+                    o[y * w + x] = m[sy * w + sx];
+                }
+            }
+            return o;
+        }
+
+        // слой цвета с маской поверх накопленного результата (предумноженный float RGBA)
+        static void OverMask(float[] dst, float[] mask, int rgb, float mul)
+        {
+            float cr = ((rgb >> 16) & 255) / 255f, cg = ((rgb >> 8) & 255) / 255f, cb = (rgb & 255) / 255f;
+            for (int i = 0; i < mask.Length; i++)
+            {
+                float la = Clamp01(mask[i] * mul);
+                if (la <= 0f) continue;
+                float k = 1f - la;
+                dst[i * 4] = cr * la + dst[i * 4] * k;
+                dst[i * 4 + 1] = cg * la + dst[i * 4 + 1] * k;
+                dst[i * 4 + 2] = cb * la + dst[i * 4 + 2] * k;
+                dst[i * 4 + 3] = la + dst[i * 4 + 3] * k;
+            }
+        }
+
+        static void Hsv(float h, float s, float v, out float r, out float g, out float b)
+        {
+            h = h - (float)Math.Floor(h / 360f) * 360f;
+            float c = v * s;
+            float hp = h / 60f;
+            float x = c * (1f - Math.Abs(hp % 2f - 1f));
+            float r1 = 0, g1 = 0, b1 = 0;
+            if (hp < 1) { r1 = c; g1 = x; }
+            else if (hp < 2) { r1 = x; g1 = c; }
+            else if (hp < 3) { g1 = c; b1 = x; }
+            else if (hp < 4) { g1 = x; b1 = c; }
+            else if (hp < 5) { r1 = x; b1 = c; }
+            else { r1 = c; b1 = x; }
+            float m = v - c;
+            r = r1 + m; g = g1 + m; b = b1 + m;
+        }
+
+        // ---------- главная функция ----------
+        // Иконка (любого размера) -> холст canvas x canvas (256 для .ico, больше для плиток): обрезка по видимой части, вписывание с полями ~8%
+        // (поля увеличиваются под свечение), опционально пикселизация, дуотон по яркости (тёмный -> средний -> светлый) или радуга,
+        // потом слои: тень/белый контур (sticker) либо свечение и кайма; сверху сама иконка. Прозрачность иконки сохраняется.
+        public static byte[] Stylize(byte[] bgra, int w, int h, AutoParams p, int canvas)
+        {
+            if (bgra == null || w < 1 || h < 1 || bgra.Length < w * h * 4) throw new ArgumentException("bitmap");
+            if (p == null) throw new ArgumentNullException("p");
+            if (canvas < 16 || canvas > 2048) throw new ArgumentException("canvas");
+            float s = canvas / 256f;
+            int n = canvas * canvas;
+            float[] src = FromBgra(bgra, w, h);
+
+            int x0 = w, y0 = h, x1 = -1, y1 = -1;
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                    if (src[(y * w + x) * 4 + 3] > 0.04f)
+                    {
+                        if (x < x0) x0 = x; if (x > x1) x1 = x;
+                        if (y < y0) y0 = y; if (y > y1) y1 = y;
+                    }
+            if (x1 < 0) return new byte[n * 4];
+            int cw = x1 - x0 + 1, ch = y1 - y0 + 1;
+            float[] crop = new float[cw * ch * 4];
+            for (int y = 0; y < ch; y++) Array.Copy(src, ((y0 + y) * w + x0) * 4, crop, y * cw * 4, cw * 4);
+
+            float glowR = p.GlowPx * s;
+            float margin = Math.Max(canvas * 0.08f, glowR * 1.3f + 3f);
+            if (margin > canvas * 0.2f) margin = canvas * 0.2f;
+            float scale = (canvas - 2f * margin) / Math.Max(cw, ch);
+            int nw = Math.Max(1, (int)Math.Round(cw * scale));
+            int nh = Math.Max(1, (int)Math.Round(ch * scale));
+            float[] fit = Resample(crop, cw, ch, nw, nh);
+            if (p.Pixelate >= 2)
+            {
+                int pw = Math.Max(1, (int)Math.Round((double)p.Pixelate * nw / Math.Max(nw, nh)));
+                int ph = Math.Max(1, (int)Math.Round((double)p.Pixelate * nh / Math.Max(nw, nh)));
+                fit = NearestUp(Resample(fit, nw, nh, pw, ph), pw, ph, nw, nh);
+            }
+            float[] shape = new float[n * 4];
+            int ox = (canvas - nw) / 2, oy = (canvas - nh) / 2;
+            for (int y = 0; y < nh; y++) Array.Copy(fit, y * nw * 4, shape, ((oy + y) * canvas + ox) * 4, nw * 4);
+
+            // яркость и растяжение по 5%..95% (альфа-взвешенно)
+            float[] lum = new float[n];
+            int[] hist = new int[256];
+            int cnt = 0;
+            for (int i = 0; i < n; i++)
+            {
+                float a = shape[i * 4 + 3];
+                if (a <= 0.02f) continue;
+                float r = Clamp01(shape[i * 4] / a), g = Clamp01(shape[i * 4 + 1] / a), b = Clamp01(shape[i * 4 + 2] / a);
+                float l = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                lum[i] = l;
+                if (a > 0.5f) { hist[(int)(l * 255f)]++; cnt++; }
+            }
+            float lo = 0f, hi = 1f;
+            if (cnt > 20)
+            {
+                int acc = 0, i5 = 0, i95 = 255;
+                bool got5 = false;
+                for (int i = 0; i < 256; i++)
+                {
+                    acc += hist[i];
+                    if (!got5 && acc >= cnt * 0.05) { i5 = i; got5 = true; }
+                    if (acc >= cnt * 0.95) { i95 = i; break; }
+                }
+                if (i95 - i5 >= 16) { lo = i5 / 255f; hi = i95 / 255f; }
+            }
+            float dr = ((p.Dark >> 16) & 255) / 255f, dg = ((p.Dark >> 8) & 255) / 255f, db = (p.Dark & 255) / 255f;
+            float mr = ((p.Mid >> 16) & 255) / 255f, mg = ((p.Mid >> 8) & 255) / 255f, mb = (p.Mid & 255) / 255f;
+            float lr = ((p.Light >> 16) & 255) / 255f, lg = ((p.Light >> 8) & 255) / 255f, lb = (p.Light & 255) / 255f;
+            int hudStep = Math.Max(3, (int)Math.Round(4 * s)), hudThick = Math.Max(1, (int)Math.Round(s));
+
+            float[] sh = new float[n * 4];
+            float[] alpha = new float[n];
+            for (int y = 0; y < canvas; y++)
+                for (int x = 0; x < canvas; x++)
+                {
+                    int i = y * canvas + x;
+                    float a = shape[i * 4 + 3];
+                    if (a <= 0.0005f) continue;
+                    alpha[i] = a;
+                    float t = Clamp01((lum[i] - lo) / (hi - lo));
+                    float cr, cg, cb;
+                    if (p.Rainbow)
+                    {
+                        Hsv((x + y) / (2f * canvas) * 360f, 0.85f, 0.25f + 0.75f * t, out cr, out cg, out cb);
+                    }
+                    else if (t < 0.5f)
+                    {
+                        float u = t * 2f;
+                        cr = dr + (mr - dr) * u; cg = dg + (mg - dg) * u; cb = db + (mb - db) * u;
+                    }
+                    else
+                    {
+                        float u = (t - 0.5f) * 2f;
+                        cr = mr + (lr - mr) * u; cg = mg + (lg - mg) * u; cb = mb + (lb - mb) * u;
+                    }
+                    if (p.Hud && (y % hudStep) < hudThick) { cr *= 0.72f; cg *= 0.72f; cb *= 0.72f; }
+                    sh[i * 4] = cr * a; sh[i * 4 + 1] = cg * a; sh[i * 4 + 2] = cb * a; sh[i * 4 + 3] = a;
+                }
+
+            float[] outp = new float[n * 4];
+            if (p.Sticker)
+            {
+                int rr = Math.Max(2, (int)Math.Round(6 * s));
+                float[] d = Dilate(alpha, canvas, canvas, rr);
+                d = Blur(d, canvas, canvas, 1);
+                for (int i = 0; i < n; i++) d[i] = Clamp01(d[i] * 1.5f);
+                float[] shadow = Blur(Shift(d, canvas, canvas, (int)Math.Round(2 * s), (int)Math.Round(4 * s)), canvas, canvas, Math.Max(1, (int)Math.Round(2 * s)));
+                OverMask(outp, shadow, 0x000000, 0.55f);
+                OverMask(outp, d, 0xFFFFFF, 1f);
+            }
+            else
+            {
+                if (p.GlowPx > 0)
+                {
+                    float[] gl = Blur(alpha, canvas, canvas, Math.Max(1, (int)Math.Round(glowR / 2f)));
+                    OverMask(outp, gl, p.Glow, 1.8f);
+                }
+                int rimR = Math.Max(1, (int)Math.Round((p.Hud ? 2.5f : 2f) * s));
+                OverMask(outp, Dilate(alpha, canvas, canvas, rimR), p.Rim, 1f);
+            }
+            // внутри формы (все пиксели в радиусе 3 px хоть немного непрозрачны) подложки нет: полупрозрачная заливка иконки остаётся такой, какая была
+            float[] inner = Erode(alpha, canvas, canvas, Math.Max(2, (int)Math.Round(3 * s)));
+            for (int i = 0; i < n; i++)
+            {
+                float keep = 1f - Clamp01(inner[i] * 4f);
+                if (keep >= 1f) continue;
+                outp[i * 4] *= keep; outp[i * 4 + 1] *= keep; outp[i * 4 + 2] *= keep; outp[i * 4 + 3] *= keep;
+            }
+            // подложка (свечение, кайма, контур) - только снаружи формы: там, где иконка полупрозрачна, общая прозрачность остаётся её собственной,
+            // а снаружи равна max(иконка, подложка). Подложка p поверх иконки a даёт a + p*(1-a), поэтому берём p' = (u - a) / (1 - a).
+            for (int i = 0; i < n; i++)
+            {
+                float a = alpha[i];
+                float u = outp[i * 4 + 3];
+                if (u <= 0f) continue;
+                if (a >= 0.999f || u <= a)
+                {
+                    outp[i * 4] = 0f; outp[i * 4 + 1] = 0f; outp[i * 4 + 2] = 0f; outp[i * 4 + 3] = 0f;
+                    continue;
+                }
+                float f = (u - a) / (1f - a) / u;
+                outp[i * 4] *= f; outp[i * 4 + 1] *= f; outp[i * 4 + 2] *= f; outp[i * 4 + 3] *= f;
+            }
+            for (int i = 0; i < n; i++)
+            {
+                float a = sh[i * 4 + 3];
+                if (a <= 0f) continue;
+                float k = 1f - a;
+                outp[i * 4] = sh[i * 4] + outp[i * 4] * k;
+                outp[i * 4 + 1] = sh[i * 4 + 1] + outp[i * 4 + 1] * k;
+                outp[i * 4 + 2] = sh[i * 4 + 2] + outp[i * 4 + 2] * k;
+                outp[i * 4 + 3] = a + outp[i * 4 + 3] * k;
+            }
+            return ToBgra(outp, canvas, canvas);
+        }
+
+        // ---------- PNG ----------
+        static uint[] crcTable;
+
+        static uint Crc32(byte[] buf, int off, int len, uint crc)
+        {
+            if (crcTable == null)
+            {
+                uint[] t = new uint[256];
+                for (uint n = 0; n < 256; n++)
+                {
+                    uint c = n;
+                    for (int k = 0; k < 8; k++) c = (c & 1) != 0 ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+                    t[n] = c;
+                }
+                crcTable = t;
+            }
+            crc = crc ^ 0xFFFFFFFFu;
+            for (int i = 0; i < len; i++) crc = crcTable[(crc ^ buf[off + i]) & 255] ^ (crc >> 8);
+            return crc ^ 0xFFFFFFFFu;
+        }
+
+        static void WriteBE(Stream s, uint v)
+        {
+            s.WriteByte((byte)(v >> 24)); s.WriteByte((byte)(v >> 16)); s.WriteByte((byte)(v >> 8)); s.WriteByte((byte)v);
+        }
+
+        static void Chunk(Stream s, string type, byte[] data)
+        {
+            byte[] tb = new byte[4 + data.Length];
+            for (int i = 0; i < 4; i++) tb[i] = (byte)type[i];
+            Array.Copy(data, 0, tb, 4, data.Length);
+            WriteBE(s, (uint)data.Length);
+            s.Write(tb, 0, tb.Length);
+            WriteBE(s, Crc32(tb, 0, tb.Length, 0));
+        }
+
+        static uint Adler32(byte[] d)
+        {
+            uint a = 1, b = 0;
+            for (int i = 0; i < d.Length; i++) { a = (a + d[i]) % 65521u; b = (b + a) % 65521u; }
+            return (b << 16) | a;
+        }
+
+        // BGRA -> PNG (RGBA 8 бит, без фильтров)
+        public static byte[] EncodePng(byte[] bgra, int w, int h)
+        {
+            int stride = w * 4 + 1;
+            byte[] raw = new byte[stride * h];
+            for (int y = 0; y < h; y++)
+            {
+                int ro = y * stride;
+                raw[ro] = 0;
+                for (int x = 0; x < w; x++)
+                {
+                    int si = (y * w + x) * 4, di = ro + 1 + x * 4;
+                    raw[di] = bgra[si + 2]; raw[di + 1] = bgra[si + 1]; raw[di + 2] = bgra[si]; raw[di + 3] = bgra[si + 3];
+                }
+            }
+            MemoryStream z = new MemoryStream();
+            z.WriteByte(0x78); z.WriteByte(0x9C);
+            using (DeflateStream ds = new DeflateStream(z, CompressionMode.Compress, true)) { ds.Write(raw, 0, raw.Length); }
+            WriteBE(z, Adler32(raw));
+            MemoryStream ms = new MemoryStream();
+            byte[] sig = new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 };
+            ms.Write(sig, 0, sig.Length);
+            MemoryStream ih = new MemoryStream();
+            WriteBE(ih, (uint)w); WriteBE(ih, (uint)h);
+            ih.WriteByte(8); ih.WriteByte(6); ih.WriteByte(0); ih.WriteByte(0); ih.WriteByte(0);
+            Chunk(ms, "IHDR", ih.ToArray());
+            Chunk(ms, "IDAT", z.ToArray());
+            Chunk(ms, "IEND", new byte[0]);
+            return ms.ToArray();
+        }
+
+        // ---------- ICO из PNG-кадров ----------
+        public static byte[] BuildIco(byte[][] pngs, int[] sizes)
+        {
+            int n = pngs.Length;
+            MemoryStream ms = new MemoryStream();
+            BinaryWriter bw = new BinaryWriter(ms);
+            bw.Write((ushort)0); bw.Write((ushort)1); bw.Write((ushort)n);
+            int offset = 6 + 16 * n;
+            for (int i = 0; i < n; i++)
+            {
+                byte sz = (byte)(sizes[i] >= 256 ? 0 : sizes[i]);
+                bw.Write(sz); bw.Write(sz); bw.Write((byte)0); bw.Write((byte)0);
+                bw.Write((ushort)1); bw.Write((ushort)32);
+                bw.Write((uint)pngs[i].Length); bw.Write((uint)offset);
+                offset += pngs[i].Length;
+            }
+            for (int i = 0; i < n; i++) bw.Write(pngs[i]);
+            bw.Flush();
+            return ms.ToArray();
+        }
+
+        // квадратный холст size0 x size0 -> .ico с кадрами указанных размеров (PNG)
+        public static byte[] MakeIco(byte[] bgra, int size0, int[] sizes)
+        {
+            float[] pm = FromBgra(bgra, size0, size0);
+            byte[][] frames = new byte[sizes.Length][];
+            for (int i = 0; i < sizes.Length; i++)
+            {
+                byte[] f = ToBgra(Resample(pm, size0, size0, sizes[i], sizes[i]), sizes[i], sizes[i]);
+                frames[i] = EncodePng(f, sizes[i], sizes[i]);
+            }
+            return BuildIco(frames, sizes);
+        }
+    }
+}
+'@
+
+$script:SI_AutoShellCode = @'
+namespace GlyphixAuto
+{
+    using System;
+    using System.Drawing;
+    using System.Drawing.Drawing2D;
+    using System.Drawing.Imaging;
+    using System.Drawing.Text;
+    using System.IO;
+    using System.Runtime.InteropServices;
+
+    // Только Windows: родная иконка приложения (оболочка / ассоциированная иконка) и плитка Start11 (GDI+).
+    public static class AutoShell
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SIZE { public int cx; public int cy; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct BITMAP
+        {
+            public int bmType;
+            public int bmWidth;
+            public int bmHeight;
+            public int bmWidthBytes;
+            public ushort bmPlanes;
+            public ushort bmBitsPixel;
+            public IntPtr bmBits;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct BITMAPINFO
+        {
+            public uint biSize;
+            public int biWidth;
+            public int biHeight;
+            public ushort biPlanes;
+            public ushort biBitCount;
+            public uint biCompression;
+            public uint biSizeImage;
+            public int biXPelsPerMeter;
+            public int biYPelsPerMeter;
+            public uint biClrUsed;
+            public uint biClrImportant;
+            public uint bmiColors;
+        }
+
+        [ComImport, Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        public interface IShellItemImageFactory
+        {
+            [PreserveSig]
+            int GetImage(SIZE size, int flags, out IntPtr phbm);
+        }
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = true)]
+        static extern int SHCreateItemFromParsingName([MarshalAs(UnmanagedType.LPWStr)] string path, IntPtr pbc, ref Guid riid,
+            [MarshalAs(UnmanagedType.Interface)] out IShellItemImageFactory ppv);
+
+        [DllImport("gdi32.dll")]
+        static extern int GetObject(IntPtr h, int c, out BITMAP pv);
+
+        [DllImport("gdi32.dll")]
+        static extern bool DeleteObject(IntPtr h);
+
+        [DllImport("gdi32.dll")]
+        static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+
+        [DllImport("gdi32.dll")]
+        static extern bool DeleteDC(IntPtr hdc);
+
+        [DllImport("gdi32.dll")]
+        static extern int GetDIBits(IntPtr hdc, IntPtr hbm, uint start, uint lines, byte[] bits, ref BITMAPINFO bmi, uint usage);
+
+        // HBITMAP -> BGRA (сверху вниз). Без альфа-канала (все нули) - считаем непрозрачной.
+        static byte[] HbitmapToBgra(IntPtr hbm, out int w, out int h)
+        {
+            w = 0; h = 0;
+            BITMAP bm;
+            if (GetObject(hbm, Marshal.SizeOf(typeof(BITMAP)), out bm) == 0) return null;
+            w = bm.bmWidth; h = Math.Abs(bm.bmHeight);
+            if (w < 1 || h < 1 || w > 4096 || h > 4096) return null;
+            BITMAPINFO bi = new BITMAPINFO();
+            bi.biSize = 40;
+            bi.biWidth = w;
+            bi.biHeight = -h;
+            bi.biPlanes = 1;
+            bi.biBitCount = 32;
+            bi.biCompression = 0;
+            byte[] px = new byte[w * h * 4];
+            IntPtr dc = CreateCompatibleDC(IntPtr.Zero);
+            if (dc == IntPtr.Zero) return null;
+            try
+            {
+                if (GetDIBits(dc, hbm, 0, (uint)h, px, ref bi, 0) == 0) return null;
+            }
+            finally { DeleteDC(dc); }
+            bool anyAlpha = false;
+            for (int i = 3; i < px.Length; i += 4) { if (px[i] != 0) { anyAlpha = true; break; } }
+            if (!anyAlpha) { for (int i = 3; i < px.Length; i += 4) px[i] = 255; }
+            return px;
+        }
+
+        // IShellItemImageFactory.GetImage(SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK) для файла / .lnk / shell:AppsFolder\<AppID>
+        public static byte[] ExtractShell(string path, int size, out int w, out int h)
+        {
+            w = 0; h = 0;
+            IShellItemImageFactory f;
+            Guid iid = new Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b");
+            int hr = SHCreateItemFromParsingName(path, IntPtr.Zero, ref iid, out f);
+            if (hr != 0 || f == null) return null;
+            IntPtr hbm = IntPtr.Zero;
+            try
+            {
+                SIZE sz; sz.cx = size; sz.cy = size;
+                hr = f.GetImage(sz, 0x5, out hbm);
+            }
+            finally { Marshal.ReleaseComObject(f); }
+            if (hr != 0 || hbm == IntPtr.Zero) return null;
+            try
+            {
+                byte[] raw = HbitmapToBgra(hbm, out w, out h);
+                if (raw == null) return null;
+                return AutoStyle.FixPremultiplied(raw);
+            }
+            finally { DeleteObject(hbm); }
+        }
+
+        static byte[] BitmapToBgra(Bitmap bmp, out int w, out int h)
+        {
+            w = bmp.Width; h = bmp.Height;
+            Rectangle r = new Rectangle(0, 0, w, h);
+            BitmapData d = bmp.LockBits(r, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+            try
+            {
+                byte[] px = new byte[w * h * 4];
+                for (int y = 0; y < h; y++) Marshal.Copy(new IntPtr(d.Scan0.ToInt64() + (long)y * d.Stride), px, y * w * 4, w * 4);
+                return px;
+            }
+            finally { bmp.UnlockBits(d); }
+        }
+
+        // запасной путь: Icon.ExtractAssociatedIcon (32x32 для exe/dll; .ico - как есть)
+        public static byte[] ExtractFile(string path, out int w, out int h)
+        {
+            w = 0; h = 0;
+            Icon ic = null;
+            try
+            {
+                if (path.EndsWith(".ico", StringComparison.OrdinalIgnoreCase))
+                {
+                    try { ic = new Icon(path, new Size(256, 256)); } catch (Exception) { ic = null; }
+                }
+                if (ic == null) ic = Icon.ExtractAssociatedIcon(path);
+                if (ic == null) return null;
+                using (Bitmap bmp = ic.ToBitmap()) { return BitmapToBgra(bmp, out w, out h); }
+            }
+            finally { if (ic != null) ic.Dispose(); }
+        }
+
+        static Color Rgb(int rgb) { return Color.FromArgb(255, (rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255); }
+
+        static ImageCodecInfo JpegCodec()
+        {
+            foreach (ImageCodecInfo c in ImageCodecInfo.GetImageEncoders()) { if (c.MimeType == "image/jpeg") return c; }
+            return null;
+        }
+
+        // Плитка Start11 size x size (JPEG): диагональный градиент фона, рамка 3 px, иконка по центру верхней части, подпись Segoe UI Semibold.
+        public static byte[] RenderTile(byte[] icon, int iw, int ih, string title, int bg0, int bg1, int border, int titleRgb, int size, int quality)
+        {
+            using (Bitmap bmp = new Bitmap(size, size, PixelFormat.Format24bppRgb))
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                g.CompositingQuality = CompositingQuality.HighQuality;
+                using (LinearGradientBrush lb = new LinearGradientBrush(new Rectangle(0, 0, size, size), Rgb(bg0), Rgb(bg1), 45f))
+                {
+                    g.FillRectangle(lb, 0, 0, size, size);
+                }
+                using (Pen pen = new Pen(Rgb(border), 3f))
+                {
+                    pen.Alignment = PenAlignment.Inset;
+                    g.DrawRectangle(pen, 0, 0, size - 1, size - 1);
+                }
+                int box = (int)(size * 0.58);
+                int ix = (size - box) / 2, iy = (int)(size * 0.07);
+                using (Bitmap ib = new Bitmap(iw, ih, PixelFormat.Format32bppArgb))
+                {
+                    BitmapData d = ib.LockBits(new Rectangle(0, 0, iw, ih), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+                    try
+                    {
+                        for (int y = 0; y < ih; y++) Marshal.Copy(icon, y * iw * 4, new IntPtr(d.Scan0.ToInt64() + (long)y * d.Stride), iw * 4);
+                    }
+                    finally { ib.UnlockBits(d); }
+                    g.DrawImage(ib, new Rectangle(ix, iy, box, box));
+                }
+                if (!string.IsNullOrEmpty(title))
+                {
+                    g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+                    float maxW = size - 80f, maxH = size * 0.25f;
+                    float px = size * 0.07f;
+                    Font font = null;
+                    try
+                    {
+                        while (true)
+                        {
+                            if (font != null) font.Dispose();
+                            font = new Font("Segoe UI Semibold", px, FontStyle.Regular, GraphicsUnit.Pixel);
+                            SizeF m = g.MeasureString(title, font, (int)maxW);
+                            if (m.Height <= maxH || px <= size * 0.04f) break;
+                            px -= 2f;
+                        }
+                        using (StringFormat sf = new StringFormat())
+                        using (SolidBrush br = new SolidBrush(Rgb(titleRgb)))
+                        {
+                            sf.Alignment = StringAlignment.Center;
+                            sf.LineAlignment = StringAlignment.Center;
+                            sf.Trimming = StringTrimming.EllipsisWord;
+                            RectangleF rc = new RectangleF(40f, size * 0.70f, maxW, maxH);
+                            g.DrawString(title, font, br, rc, sf);
+                        }
+                    }
+                    finally { if (font != null) font.Dispose(); }
+                }
+                ImageCodecInfo codec = JpegCodec();
+                MemoryStream ms = new MemoryStream();
+                if (codec == null) { bmp.Save(ms, ImageFormat.Jpeg); return ms.ToArray(); }
+                using (EncoderParameters ep = new EncoderParameters(1))
+                {
+                    ep.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, (long)quality);
+                    bmp.Save(ms, codec, ep);
+                }
+                return ms.ToArray();
+            }
+        }
+    }
+}
+'@
+
+# Компиляция один раз на процесс (фоновые runspace'ы - тот же процесс, тип уже загружен). Windows: стилизатор + оболочка одной сборкой; иначе только стилизатор.
+function Initialize-AutoNative {
+    $win = ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT)
+    if ($win) { if (('GlyphixAuto.AutoStyle' -as [type]) -and ('GlyphixAuto.AutoShell' -as [type])) { return $true } }
+    elseif ('GlyphixAuto.AutoStyle' -as [type]) { return $true }
+    # именованный мьютекс: превью и применение (разные runspace'ы) не компилируют тип дважды
+    $mtx = $null; $held = $false
+    try { $mtx = New-Object System.Threading.Mutex($false, 'Local\GlyphixAutoCompile') } catch { $mtx = $null }
+    try {
+        if ($mtx) {
+            try { $held = $mtx.WaitOne(20000) } catch [System.Threading.AbandonedMutexException] { $held = $true }
+        }
+        $loaded = { ('GlyphixAuto.AutoStyle' -as [type]) -and (-not $win -or ('GlyphixAuto.AutoShell' -as [type])) }
+        if (& $loaded) { return $true }                       # другой runspace успел раньше
+        try {
+            if ($win) { Add-Type -TypeDefinition ($script:SI_AutoStyleCode + "`n" + $script:SI_AutoShellCode) -Language CSharp -ReferencedAssemblies 'System.Drawing' }
+            else { Add-Type -TypeDefinition $script:SI_AutoStyleCode -Language CSharp }
+        } catch {
+            if (-not (& $loaded)) { throw }
+        }
+    } finally {
+        if ($mtx) { if ($held) { try { $mtx.ReleaseMutex() } catch { } }; $mtx.Dispose() }
+    }
+    return $true
+}
+
+# ---------- auto.json ----------
+function Test-AutoHex { param($V) return (([string]$V) -match '^#[0-9a-fA-F]{6}$') }
+function ConvertTo-AutoRgb { param([string]$Hex) return [int][Convert]::ToInt32($Hex.TrimStart('#'), 16) }
+
+function Get-JsonProp {
+    param($Obj, [string]$Name)
+    $p = $Obj.PSObject.Properties[$Name]
+    if ($p) { return $p.Value }
+    return $null
+}
+
+# Разбор и проверка auto.json. Возвращает нормализованные параметры или $null (причина - в $script:SI_AutoLastError, и пак тогда
+# считается «без автоиконок»). Лишние поля игнорируются; необязательные: rim (= light), glow (= mid), glow_px (0), bg, border (= rim), title (= light),
+# pixelate (0 = нет; иначе 2..128), rainbow/hud/sticker (false).
+function ConvertFrom-AutoJson {
+    param([string]$Text, [string]$Sha = '')
+    $script:SI_AutoLastError = ''
+    try {
+        if ($Text.Length -gt 0 -and $Text[0] -eq [char]0xFEFF) { $Text = $Text.Substring(1) }
+        $j = $Text | ConvertFrom-Json
+        if ($null -eq $j -or $j -isnot [pscustomobject]) { throw 'ожидался объект JSON' }
+        $schema = Get-JsonProp $j 'schema'
+        if ($null -ne $schema -and (($schema -isnot [int] -and $schema -isnot [long]) -or [int]$schema -ne 1)) { throw "неподдерживаемая schema '$schema'" }
+        $style = Get-JsonProp $j 'style'
+        if ($null -eq $style) { $style = 'custom' }
+        if (([string]$style) -notmatch '^[A-Za-z0-9_\-]{1,32}$') { throw "неверный style '$style'" }
+        $col = {
+            param([string]$Name, $Default)
+            $v = Get-JsonProp $j $Name
+            if ($null -eq $v) {
+                if ($null -eq $Default) { throw "нет цвета '$Name'" }
+                return $Default
+            }
+            if (-not (Test-AutoHex $v)) { throw "цвет '$Name' должен быть вида #rrggbb" }
+            return ([string]$v).ToLowerInvariant()
+        }
+        $dark = & $col 'dark' $null; $mid = & $col 'mid' $null; $light = & $col 'light' $null
+        $rim = & $col 'rim' $light; $glow = & $col 'glow' $mid
+        $border = & $col 'border' $rim; $title = & $col 'title' $light
+        $intv = {
+            param([string]$Name, [int]$Def, [int]$Min, [int]$Max)
+            $v = Get-JsonProp $j $Name
+            if ($null -eq $v) { return $Def }
+            if ($v -is [bool] -or ($v -isnot [int] -and $v -isnot [long] -and $v -isnot [double])) { throw "'$Name' должно быть числом" }
+            if ([double]$v -ne [math]::Floor([double]$v)) { throw "'$Name' должно быть целым" }
+            if ([double]$v -lt $Min -or [double]$v -gt $Max) { throw "'$Name' вне диапазона $Min..$Max" }
+            return [int]$v
+        }
+        $glowPx = & $intv 'glow_px' 0 0 64
+        $pix = & $intv 'pixelate' 0 0 128
+        if ($pix -eq 1) { throw "'pixelate' должно быть 0 или 2..128" }
+        $bg = @($dark, '#000000')
+        $bgv = Get-JsonProp $j 'bg'
+        if ($null -ne $bgv) {
+            $arr = @($bgv)
+            if ($arr.Count -ne 2 -or -not (Test-AutoHex $arr[0]) -or -not (Test-AutoHex $arr[1])) { throw "'bg' должно быть двумя цветами #rrggbb" }
+            $bg = @(([string]$arr[0]).ToLowerInvariant(), ([string]$arr[1]).ToLowerInvariant())
+        }
+        $flag = {
+            param([string]$Name)
+            $v = Get-JsonProp $j $Name
+            if ($null -eq $v) { return $false }
+            if ($v -isnot [bool]) { throw "'$Name' должно быть true/false" }
+            return [bool]$v
+        }
+        return [pscustomobject]@{
+            Schema = 1; Style = [string]$style; Dark = $dark; Mid = $mid; Light = $light; Rim = $rim; Glow = $glow; GlowPx = $glowPx
+            Bg0 = $bg[0]; Bg1 = $bg[1]; Border = $border; Title = $title; Pixelate = $pix
+            Rainbow = (& $flag 'rainbow'); Hud = (& $flag 'hud'); Sticker = (& $flag 'sticker'); Sha = [string]$Sha
+        }
+    } catch {
+        $script:SI_AutoLastError = $_.Exception.Message
+        return $null
+    }
+}
+
+# файл auto.json (до 64 КБ) -> параметры; $ExpectSha - sha256 из pack.json: не совпал - файл не принимаем
+function Read-AutoParams {
+    param([string]$Path, [string]$ExpectSha = '')
+    $script:SI_AutoLastError = ''
+    try {
+        if (-not $Path -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { $script:SI_AutoLastError = 'файла нет'; return $null }
+        if ((Get-Item -LiteralPath $Path).Length -gt 65536) { $script:SI_AutoLastError = 'файл больше 64 КБ'; return $null }
+        $bytes = [IO.File]::ReadAllBytes($Path)
+        $sha = Get-BytesSha256 $bytes
+        if ($ExpectSha -and $sha -ne $ExpectSha.ToLowerInvariant()) { $script:SI_AutoLastError = 'sha256 не совпал с pack.json'; return $null }
+        return (ConvertFrom-AutoJson ([System.Text.Encoding]::UTF8.GetString($bytes)) $sha)
+    } catch { $script:SI_AutoLastError = $_.Exception.Message; return $null }
+}
+
+# параметры пака (если у пака есть auto.json): из Get-Packs; объявлен, но не скачан - докачиваем один этот файл (часть 'auto')
+function Get-PackAuto {
+    param($Pack)
+    if (-not $Pack) { return $null }
+    if ($Pack.PSObject.Properties['Auto'] -and $Pack.Auto) { return $Pack.Auto }
+    if (-not ($Pack.PSObject.Properties['AutoDeclared'] -and $Pack.AutoDeclared)) { return $null }
+    try {
+        Confirm-PackFiles $Pack -Parts @('auto')
+        $a = Read-AutoParams ([string]$Pack.AutoPath) ([string]$Pack.AutoSha)
+        if (-not $a) { Write-Log ('auto.json пака ' + $Pack.Id + ' не принят: ' + $script:SI_AutoLastError) }
+        return $a
+    } catch { Write-Log ('auto.json пака ' + $Pack.Id + ' не получен: ' + $_.Exception.Message); return $null }
+}
+
+function ConvertTo-AutoNativeParams {
+    param($A)
+    $p = New-Object GlyphixAuto.AutoParams
+    $p.Dark = ConvertTo-AutoRgb $A.Dark; $p.Mid = ConvertTo-AutoRgb $A.Mid; $p.Light = ConvertTo-AutoRgb $A.Light
+    $p.Rim = ConvertTo-AutoRgb $A.Rim; $p.Glow = ConvertTo-AutoRgb $A.Glow
+    $p.GlowPx = [int]$A.GlowPx; $p.Pixelate = [int]$A.Pixelate
+    $p.Rainbow = [bool]$A.Rainbow; $p.Hud = [bool]$A.Hud; $p.Sticker = [bool]$A.Sticker
+    return $p
+}
+
+# ---------- настройки: общий выключатель и режим по приложениям (state.json: AutoIcons, AutoOverrides) ----------
+function Get-AutoEnabled {
+    try { $st = Read-State; if ($st.ContainsKey('AutoIcons')) { return [bool]$st['AutoIcons'] } } catch { }
+    return $true
+}
+
+function Set-AutoEnabled {
+    param([bool]$On)
+    $st = Read-State; $st['AutoIcons'] = $On; Save-State $st
+}
+
+function Get-AutoModeName {
+    param([string]$Mode)
+    foreach ($m in $script:SI_AutoModes) { if ($m -ieq $Mode) { return $m } }
+    return $null
+}
+
+# режимы, отличные от Auto: ключ приложения -> 'Native' | 'Off' (неизвестные значения в файле игнорируются)
+function Get-AutoOverrides {
+    param($State = $null)
+    $h = @{}
+    try {
+        if ($null -eq $State) { $State = Read-State }
+        if ($State.ContainsKey('AutoOverrides') -and $State['AutoOverrides']) {
+            $o = $State['AutoOverrides']
+            $pairs = if ($o -is [System.Collections.IDictionary]) { @($o.Keys | ForEach-Object { @{ N = [string]$_; V = $o[$_] } }) } else { @($o.PSObject.Properties | ForEach-Object { @{ N = $_.Name; V = $_.Value } }) }
+            foreach ($pr in $pairs) {
+                $m = Get-AutoModeName ([string]$pr.V)
+                if ($m -and $m -ne 'Auto' -and $pr.N) { $h[[string]$pr.N] = $m }
+            }
+        }
+    } catch { }
+    return $h
+}
+
+function Get-AutoMode {
+    param([string]$Key, $Overrides)
+    if ($Key -and $Overrides -and $Overrides.ContainsKey($Key)) { return [string]$Overrides[$Key] }
+    return 'Auto'
+}
+
+function Set-AutoOverride {
+    param([string]$Key, [string]$Mode)
+    if (-not $Key) { return }
+    $canon = Get-AutoModeName $Mode
+    if (-not $canon) { throw "неизвестный режим автоиконки '$Mode'" }
+    $st = Read-State
+    $h = Get-AutoOverrides $st
+    if ($canon -eq 'Auto') { $h.Remove($Key) } else { $h[$Key] = $canon }
+    if ($h.Count -eq 0) { [void]$st.Remove('AutoOverrides') } else { $st['AutoOverrides'] = $h }
+    Save-State $st
+}
+
+# ключ приложения для режима: по имени (один выбор действует на все его ярлыки и плитку Start11)
+function Get-AutoAppKey {
+    param([string]$Name)
+    return (Get-Key $Name)
+}
+
+# ---------- что считать приложением ----------
+# имена «справка / readme / сайт / удаление / панель управления»: не приложения
+$script:SI_AutoJunkNameRx = '(?i)readme|read me|release notes|changelog|license|licence|\beula\b|\bhelp\b|\bfaq\b|\bmanual\b|documentation|справк|помощь|руководств|документац|лицензи|что нового|веб-?сайт|\bwebsite\b|\bсайт\b|панель управления|control panel|uninstall|удалить|удаление|деинсталл'
+$script:SI_AutoJunkTargetRx = '(?i)\.(url|html?|mht|txt|pdf|chm|hlp|rtf|md|xml|json|log|ini|doc|docx|msi|msp|reg|inf|msc|cpl)$'
+$script:SI_AutoJunkArgsRx = '(?i)ms-settings:|shell:::|::\{|\.cpl\b|control\.exe|/uninstall|--uninstall|-uninstall|/x\s*\{'
+$script:SI_AutoJunkExeKeys = @('control', 'rundll32', 'msiexec', 'mmc', 'regedit')
+
+# $null - приложение; строка - почему пропускаем (для журнала и тестов)
+function Get-AutoSkipReason {
+    param($S)
+    $name = [string]$S.Name
+    if (-not (Get-AutoAppKey $name)) { return 'нет имени' }
+    if ($name -match $script:SI_AutoJunkNameRx) { return 'справка/сайт/удаление/панель управления' }
+    $path = [string]$S.Path
+    if ($path -and [IO.Path]::GetExtension($path) -ine '.lnk') { return 'не .lnk (.url и т.п.)' }
+    $target = [string]$S.Target
+    $ar = [string]$S.Args
+    $tk = if ($target) { Get-Key (Get-BaseNameSafe $target) } else { '' }
+    if (Test-UninstallLike (Get-Key $name) $tk) { return 'деинсталлятор' }
+    if ($target) {
+        if ($target -match $script:SI_AutoJunkTargetRx) { return 'документ/ссылка/панель управления' }
+        if ($target -match '^[A-Za-z][A-Za-z0-9+.\-]*://') { return 'ссылка' }
+        if ($script:SI_AutoJunkExeKeys -contains $tk) { return 'системная утилита' }
+        if ($tk -eq 'explorer' -and $ar) { return 'explorer с аргументами (папка/панель)' }
+        try { if (Test-Path -LiteralPath $target -PathType Container) { return 'папка' } } catch { }
+    }
+    if ($ar -match $script:SI_AutoJunkArgsRx) { return 'панель управления/параметры/удаление' }
+    return $null
+}
+
+function Get-AutoSkipReasonTile {
+    param($C)
+    $name = [string]$C.Name
+    $aid = ''
+    if ($C.PSObject.Properties['AppId']) { $aid = [string]$C.AppId }
+    if (-not $aid) { return 'нет AppID' }
+    if (-not (Get-AutoAppKey $name)) { return 'нет имени' }
+    if ($name -match $script:SI_AutoJunkNameRx) { return 'справка/сайт/удаление/панель управления' }
+    $info = Get-TileIdInfo ([string]$C.Id)
+    if ($info.Url -or $aid -match '^[A-Za-z][A-Za-z0-9+.\-]*://') { return 'ссылка' }
+    if (Test-UninstallLike (Get-Key $name) $info.Last) { return 'деинсталлятор' }
+    if ($aid -match '(?i)controlpanel|control\.exe|\.cpl|\.msc|\.url|ms-settings:|\\help\\|readme') { return 'панель управления/справка' }
+    return $null
+}
+
+# ---------- ключи, пути, кэш ----------
+# имя файла: латиница из имени (до 20 символов) + 10 hex от (имя | идентификатор цели); один ключ - один набор файлов
+function Get-AutoSafeKey {
+    param([string]$Name, [string]$Ident)
+    $k = Get-Key $Name
+    $ascii = [regex]::Replace($k, '[^a-z0-9]', '')
+    if ($ascii.Length -gt 20) { $ascii = $ascii.Substring(0, 20) }
+    if (-not $ascii) { $ascii = 'app' }
+    $h = (Get-BytesSha256 ([System.Text.Encoding]::UTF8.GetBytes($k + '|' + ([string]$Ident).ToLowerInvariant()))).Substring(0, 10)
+    return ($ascii + '_' + $h)
+}
+
+function Get-AutoPaths {
+    param([string]$PackId, [string]$SafeKey)
+    if ($PackId -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$' -or $SafeKey -notmatch '^[a-z0-9_]{1,40}$') { throw 'неверный ключ автоиконки' }
+    $d = Join-Path $script:SI_AutoDir $PackId
+    return [pscustomobject]@{ Dir = $d; Ico = (Join-Path $d ($SafeKey + '.ico')); Png = (Join-Path $d ($SafeKey + '.png')); Tile = (Join-Path $d ($SafeKey + '.jpg')) }
+}
+
+# ключ кэша: версия алгоритма | что строим (ico/tile) | sha256 пикселей исходной иконки | sha256 auto.json | подпись плитки
+function Get-AutoCacheKey {
+    param([string]$Kind, [string]$SrcHash, [string]$AutoSha, [string]$Title = '')
+    $s = ('v' + $script:SI_AutoStyleVersion + '|' + $Kind + '|' + $SrcHash + '|' + $AutoSha + '|' + $Title + $(if ($Kind -eq 'ico') { '|' + ($script:SI_AutoIcoSizes -join ',') } else { '' }))
+    return (Get-BytesSha256 ([System.Text.Encoding]::UTF8.GetBytes($s)))
+}
+
+function Test-AutoCache {
+    param([string]$File, [string]$Key)
+    try {
+        if (-not (Test-Path -LiteralPath $File -PathType Leaf)) { return $false }
+        $kf = $File + '.key'
+        if (-not (Test-Path -LiteralPath $kf -PathType Leaf)) { return $false }
+        return (([IO.File]::ReadAllText($kf)).Trim() -eq $Key)
+    } catch { return $false }
+}
+
+function Save-AutoCacheKey {
+    param([string]$File, [string]$Key)
+    Save-FileAtomic ($File + '.key') ([System.Text.UTF8Encoding]::new($false).GetBytes($Key))
+}
+
+# иконка ярлыка уже указывает в нашу папку auto\ (значит сам ярлык отдаст уже перекрашенную иконку, а не родную)
+function Test-AutoIconLocation {
+    param([string]$Loc)
+    try {
+        $p = (Split-IconLocation ([Environment]::ExpandEnvironmentVariables([string]$Loc))).Path
+        if (-not $p) { return $false }
+        return (Test-PathUnder ([IO.Path]::GetFullPath($p)) ([IO.Path]::GetFullPath($script:SI_AutoDir)))
+    } catch { return $false }
+}
+
+# ---------- кандидаты ----------
+function New-AutoLinkItem {
+    param($S, $PackId, $Overrides)
+    if (Get-AutoSkipReason $S) { return $null }
+    $key = Get-AutoAppKey ([string]$S.Name)
+    $mode = Get-AutoMode $key $Overrides
+    $ident = ([string]$S.Target + '|' + [string]$S.Args)
+    if ($ident -eq '|') { $ident = [string]$S.Path }
+    $safe = Get-AutoSafeKey ([string]$S.Name) $ident
+    $pp = Get-AutoPaths $PackId $safe
+    return [pscustomobject]@{
+        Name = $S.Name; Path = $S.Path; Location = $S.Location; Target = $S.Target; Args = $S.Args; Icon = $S.Icon
+        IconId = 'auto'; IconName = 'авто'; Group = 'auto'; IcoPath = $pp.Ico; PngPath = $pp.Png
+        Rule = 'auto'; Already = (($mode -eq 'Auto') -and (Test-IconIsSet ([string]$S.Icon) $pp.Ico))
+        Auto = $true; AutoKey = $key; AutoMode = $mode; SafeKey = $safe
+    }
+}
+
+function New-AutoTileItem {
+    param($C, $PackId, $Overrides, [bool]$NoName)
+    if (Get-AutoSkipReasonTile $C) { return $null }
+    $name = [string]$C.Name
+    $key = Get-AutoAppKey $name
+    $mode = Get-AutoMode $key $Overrides
+    $safe = Get-AutoSafeKey $name ([string]$C.AppId)
+    $pp = Get-AutoPaths $PackId $safe
+    $iconId = 'auto_' + $safe
+    $dest = Get-Start11TileDest $PackId $iconId $pp.Tile
+    return [pscustomobject]@{
+        TileId = [string]$C.Id; Name = $name; Source = [string]$C.Source
+        IconId = $iconId; IconName = 'авто'; Group = 'auto'; TilePath = $pp.Tile
+        Rule = 'auto'; Already = (($mode -eq 'Auto') -and (Test-Start11TileSet ([string]$C.Id) $dest $pp.Tile))
+        Auto = $true; AutoKey = $key; AutoMode = $mode; SafeKey = $safe; AppId = [string]$C.AppId; AutoNoName = $NoName
+    }
+}
+
+function Test-AutoItem {
+    param($M)
+    return [bool]($M -and $M.PSObject.Properties['Auto'] -and $M.Auto)
+}
+
+# ---------- исходная иконка ----------
+# Источники по порядку (первый, давший картинку, побеждает). Ярлык с явной иконкой (.ico, либо иконка самой цели с индексом 0) читаем по
+# файлу иконки/цели - без стрелки ярлыка; иначе - сам .lnk (или его копия из бэкапа: после нашей замены сам ярлык уже отдаёт НАШУ иконку).
+function Get-AutoLinkSources {
+    param($Item, $Backup)
+    $list = New-Object 'System.Collections.Generic.List[object]'
+    $lnk = [string]$Item.Path
+    $copy = ''
+    $orig = [string]$Item.Icon
+    if ($Backup -and $lnk -and $Backup.ContainsKey($lnk)) {
+        $e = $Backup[$lnk]
+        if ($e.Copy -and (Test-Path -LiteralPath ([string]$e.Copy) -PathType Leaf)) { $copy = [string]$e.Copy }
+        if ($null -ne $e.Icon) { $orig = [string]$e.Icon }
+    }
+    $ours = Test-AutoIconLocation $orig
+    $target = [Environment]::ExpandEnvironmentVariables([string]$Item.Target)
+    $hasTarget = $false
+    try { $hasTarget = [bool]($target -and (Test-Path -LiteralPath $target -PathType Leaf)) } catch { }
+    $loc = Split-IconLocation ([Environment]::ExpandEnvironmentVariables($orig))
+    $direct = ''
+    if (-not $ours) {
+        $ip = [string]$loc.Path
+        if ($ip -match '(?i)\.ico$' -and (Test-Path -LiteralPath $ip -PathType Leaf)) {
+            $direct = $ip
+            # файл иконки приложения уже подменяли (старые версии) - оригинал лежит в бэкапе, а не по этому пути
+            if ($Backup -and $Backup.ContainsKey($ip)) {
+                $be = $Backup[$ip]
+                if ($be -and $be.Copy -and (Test-Path -LiteralPath ([string]$be.Copy) -PathType Leaf)) { $direct = [string]$be.Copy }
+            }
+        }
+        elseif ($hasTarget -and (-not $ip -or ($loc.Index -eq 0 -and $ip -ieq $target))) { $direct = $target }
+    }
+    if ($direct) { $list.Add(@{ Kind = 'shell'; Path = $direct }) }
+    if ($copy) { $list.Add(@{ Kind = 'shell'; Path = $copy }) }
+    elseif (-not $ours -and $lnk) { $list.Add(@{ Kind = 'shell'; Path = $lnk }) }
+    if ($hasTarget -and $direct -ne $target) { $list.Add(@{ Kind = 'shell'; Path = $target }) }
+    if ($hasTarget) { $list.Add(@{ Kind = 'file'; Path = $target }) }
+    return $list.ToArray()
+}
+
+function Get-AutoTileSources {
+    param($Item)
+    $list = New-Object 'System.Collections.Generic.List[object]'
+    $aid = [string]$Item.AppId
+    if ($aid) {
+        $list.Add(@{ Kind = 'shell'; Path = ('shell:AppsFolder\' + $aid) })
+        $ex = [Environment]::ExpandEnvironmentVariables($aid)
+        try { if ($ex -match '^[A-Za-z]:\\' -and (Test-Path -LiteralPath $ex -PathType Leaf)) { $list.Add(@{ Kind = 'file'; Path = $ex }) } } catch { }
+    }
+    return $list.ToArray()
+}
+
+# 256-px иконка (BGRA) из первого рабочего источника; $null - не удалось
+function Get-AutoSourceImage {
+    param($Sources)
+    foreach ($s in @($Sources)) {
+        try {
+            $w = 0; $h = 0
+            $px = if ($s.Kind -eq 'shell') { [GlyphixAuto.AutoShell]::ExtractShell([string]$s.Path, 256, [ref]$w, [ref]$h) } else { [GlyphixAuto.AutoShell]::ExtractFile([string]$s.Path, [ref]$w, [ref]$h) }
+            if ($px -and [GlyphixAuto.AutoStyle]::HasContent($px)) {
+                return [pscustomobject]@{ Pixels = $px; W = [int]$w; H = [int]$h; Source = [string]$s.Path; Hash = ((Get-BytesSha256 $px) + ':' + $w + 'x' + $h) }
+            }
+        } catch { Write-Log ('  иконка не прочитана (' + $s.Path + '): ' + $_.Exception.Message) }
+    }
+    return $null
+}
+
+# ---------- генерация файлов ----------
+# .ico (кадры PNG 16..128) + превью .png для ярлыка. 'cached' - файлы актуальны (тот же ключ), 'generated' - пересозданы. Ошибка - исключение.
+function New-AutoLinkFiles {
+    param($Item, $Auto, [string]$PackId, $Backup)
+    [void](Initialize-AutoNative)
+    $pp = Get-AutoPaths $PackId ([string]$Item.SafeKey)
+    $img = Get-AutoSourceImage (Get-AutoLinkSources $Item $Backup)
+    if (-not $img) { throw 'не удалось получить иконку приложения' }
+    $ck = Get-AutoCacheKey 'ico' $img.Hash ([string]$Auto.Sha)
+    if ((Test-AutoCache $pp.Ico $ck) -and (Test-Path -LiteralPath $pp.Png -PathType Leaf)) { return 'cached' }
+    $st = [GlyphixAuto.AutoStyle]::Stylize($img.Pixels, $img.W, $img.H, (ConvertTo-AutoNativeParams $Auto), 256)
+    Save-FileAtomic $pp.Png ([GlyphixAuto.AutoStyle]::EncodePng($st, 256, 256))
+    Save-FileAtomic $pp.Ico ([GlyphixAuto.AutoStyle]::MakeIco($st, 256, $script:SI_AutoIcoSizes))
+    Save-AutoCacheKey $pp.Ico $ck
+    return 'generated'
+}
+
+# плитка Start11 640x640 (.jpg): фон-градиент, рамка, иконка, подпись (без подписи при $NoName)
+function New-AutoTileFile {
+    param($Item, $Auto, [string]$PackId, [bool]$NoName = $false)
+    [void](Initialize-AutoNative)
+    $pp = Get-AutoPaths $PackId ([string]$Item.SafeKey)
+    $img = Get-AutoSourceImage (Get-AutoTileSources $Item)
+    if (-not $img) { throw 'не удалось получить иконку приложения' }
+    $title = if ($NoName) { '' } else { [string]$Item.Name }
+    $ck = Get-AutoCacheKey 'tile' $img.Hash ([string]$Auto.Sha) $title
+    if (Test-AutoCache $pp.Tile $ck) { return 'cached' }
+    $cv = [int]$script:SI_AutoTileIcon
+    $st = [GlyphixAuto.AutoStyle]::Stylize($img.Pixels, $img.W, $img.H, (ConvertTo-AutoNativeParams $Auto), $cv)
+    $jpg = [GlyphixAuto.AutoShell]::RenderTile($st, $cv, $cv, $title, (ConvertTo-AutoRgb $Auto.Bg0), (ConvertTo-AutoRgb $Auto.Bg1), (ConvertTo-AutoRgb $Auto.Border), (ConvertTo-AutoRgb $Auto.Title), $script:SI_AutoTileSize, 92)
+    Save-FileAtomic $pp.Tile $jpg
+    Save-AutoCacheKey $pp.Tile $ck
+    return 'generated'
+}
+
+# файлы для одного элемента (ярлык или плитка); для превью в GUI и перед применением
+function New-AutoFiles {
+    param($Item, $Auto, [string]$PackId, $Backup, [bool]$NoName = $false)
+    if ($Item.PSObject.Properties['TileId']) { return (New-AutoTileFile $Item $Auto $PackId $NoName) }
+    return (New-AutoLinkFiles $Item $Auto $PackId $Backup)
+}
+
+# папка auto\ целиком (только внутри папки данных); вызывается после полного отката и при удалении приложения
+function Remove-AutoFiles {
+    try {
+        if (-not (Test-Path -LiteralPath $script:SI_AutoDir)) { return }
+        if (-not (Test-PathUnder ([IO.Path]::GetFullPath($script:SI_AutoDir)) ([IO.Path]::GetFullPath($script:SI_Home)))) { return }
+        if (([IO.File]::GetAttributes($script:SI_AutoDir) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return }
+        Remove-Item -LiteralPath $script:SI_AutoDir -Recurse -Force
+    } catch { Write-Log ('auto не удалена: ' + $_.Exception.Message) }
+}
+
+# перед применением плиток: режимы приложений -> готовые .jpg; возвращает @{ Items = что применять; Failed = сколько не получилось; Skipped = Native/Off }
+function Resolve-AutoTileItems {
+    param($Pack, $Items, [bool]$NoName)
+    $keep = New-Object 'System.Collections.Generic.List[object]'
+    $failed = 0; $skipped = 0
+    $auto = $null; $ov = $null; $ready = $false; $tried = $false
+    foreach ($m in @($Items)) {
+        if (-not (Test-AutoItem $m)) { $keep.Add($m); continue }
+        if ($null -eq $ov) { $ov = Get-AutoOverrides }
+        if ((Get-AutoMode ([string]$m.AutoKey) $ov) -ne 'Auto') { $skipped++; continue }
+        if (-not $tried) {
+            $tried = $true
+            $auto = Get-PackAuto $Pack
+            if ($auto) { try { $ready = Initialize-AutoNative } catch { Write-Log ('Автоиконки: ' + $_.Exception.Message) } }
+        }
+        if (-not $ready) { $skipped++; continue }
+        try { [void](New-AutoTileFile $m $auto ([string]$Pack.Id) $NoName); $keep.Add($m) }
+        catch { $failed++; Write-Log "  автоплитка $($m.Name): $($_.Exception.Message)" }
+    }
+    return [pscustomobject]@{ Items = $keep.ToArray(); Failed = $failed; Skipped = $skipped }
+}
+
 # Запись бэкапа лежит в общей папке (рабочий стол всех пользователей / общее меню Пуск)? Для таких нужны права администратора.
 function Test-CommonPath {
     param([string]$Path, [string[]]$CommonRoots)
@@ -2129,7 +3604,7 @@ function Undo-All {
         if ($CommonOnly) { $isCommon } elseif ($SkipCommon) { -not $isCommon } else { $true } })
     $pendingCommon = if ($SkipCommon) { @($backup.Keys).Count - $todo.Count } else { 0 }
     if ($todo.Count -eq 0 -and $s11 -eq 0) {
-        if ($pendingCommon -eq 0) { Write-Log 'Бэкапа нет - восстанавливать нечего.' }
+        if ($pendingCommon -eq 0) { Write-Log 'Бэкапа нет - восстанавливать нечего.'; if (-not $CommonOnly) { Clear-AppIconState } }
         return [pscustomobject]@{ Restored = 0; Failed = 0; Skipped = 0; Nothing = ($pendingCommon -eq 0); CommonPending = $pendingCommon; TilesRestored = 0; Hint = '' }
     }
     $n = 0; $failed = 0; $skipped = 0
@@ -2172,10 +3647,11 @@ function Undo-All {
     }
     $failed += $tileFailed
     $st = Read-State
-    if ($st.ContainsKey('Applied') -and $failed -eq 0 -and $pendingCommon -eq 0 -and -not $CommonOnly) { $st.Remove('Applied'); Save-State $st }
+    if ($st.ContainsKey('Applied') -and $failed -eq 0 -and $pendingCommon -eq 0 -and -not $CommonOnly) { $st.Remove('Applied'); [void]$st.Remove('AppIcon'); Save-State $st }
     $tail = if ($failed -gt 0) { ", не удалось: $failed (для общих ярлыков отметьте «Также общие ярлыки» - нужны права администратора)" } else { '' }
     Write-Log "Восстановлено: $n$tail"
     if ($failed -eq 0 -and -not $CommonOnly) { Invoke-LegacyCleanup }
+    if ($failed -eq 0 -and -not $CommonOnly -and $pendingCommon -eq 0 -and $backup.Count -eq 0) { Remove-AutoFiles }      # всё возвращено - созданные автоиконки больше не нужны
     if ($n -gt 0) { Update-IconView -RestartExplorer ([bool]$RestartExplorer) -ClearCache $true }
     return [pscustomobject]@{ Restored = $n; Failed = $failed; Skipped = $skipped; Nothing = $false; CommonPending = $pendingCommon; TilesKept = $tilesKept; TilesRestored = $tilesRestored; Hint = $hint }
 }
@@ -2712,6 +4188,7 @@ function Uninstall-App {
     }
     if ($u.PSObject.Properties['TilesKept'] -and $u.TilesKept) { Write-Log 'Start11 работает и не перезапущен: PNG плиток оставлены.' }
     else { Remove-Start11Files }       # PNG плиток - только теперь, когда значения реестра уже возвращены (иначе плитки остались бы без картинок)
+    Remove-AutoFiles                     # созданные автоиконки (откат уже вернул все ярлыки)
     # не держим папку приложения/данных текущей: иначе её не удалить
     $tmpDir = if ($env:TEMP) { $env:TEMP } else { [IO.Path]::GetTempPath() }
     try { [Environment]::CurrentDirectory = $tmpDir } catch { }
