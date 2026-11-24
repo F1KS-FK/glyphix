@@ -2,7 +2,7 @@
  "schema": 1,
  "id": "white",
  "name": "White",
- "version": "2.3.0",
+ "version": "2.4.0",
  "author": "F1KS",
  "license": "CC BY-NC-SA 4.0",
  "description": "Белые минималистичные иконки",
@@ -2290,6 +2290,44 @@
    }
   },
   {
+   "id": "r6siege",
+   "name": "Rainbow Six Siege",
+   "group": "games",
+   "ico": "icons/r6siege.ico",
+   "ico_sha256": "0cb10337f2c6db8da3c5ab0a0fee35f4c170688e62c5926326b078507567283b",
+   "png": "icons/r6siege.png",
+   "png_sha256": "2481911533d2348697570d29157a5b3171d86059dfec094db69ccdec5c2db5bf",
+   "match": {
+    "names": [
+     "rainbowsixsiege",
+     "rainbowsix",
+     "r6siege"
+    ],
+    "exes": [
+     "rainbowsix",
+     "rainbowsixvulkan"
+    ]
+   }
+  },
+  {
+   "id": "rustgame",
+   "name": "Rust",
+   "group": "games",
+   "ico": "icons/rustgame.ico",
+   "ico_sha256": "721ce77a21eb301bed0cce7a9e5233851b32f55a10aefa47ca6d16a32fa1329d",
+   "png": "icons/rustgame.png",
+   "png_sha256": "d66e7db5afa3492ca1d3632a90ab796132a2f571b9755f2ede0bc30417cfb297",
+   "match": {
+    "names": [
+     "rustgame",
+     "rustclient"
+    ],
+    "exes": [
+     "rustclient"
+    ]
+   }
+  },
+  {
    "id": "osu",
    "name": "osu!",
    "group": "games",
@@ -2306,6 +2344,58 @@
     "exes": [
      "osu"
     ]
+   }
+  },
+  {
+   "id": "worldofwarships",
+   "name": "Мир кораблей",
+   "group": "games",
+   "ico": "icons/worldofwarships.ico",
+   "ico_sha256": "d11a37f4bc0f8c17acd528bdef73ad8facb9034220100e622024650345918ce7",
+   "png": "icons/worldofwarships.png",
+   "png_sha256": "53915f3013f9009757c78001df2e20e95c7ced5cbaeb12722414df8323815049",
+   "match": {
+    "names": [
+     "worldofwarships",
+     "миркораблей"
+    ],
+    "exes": [
+     "worldofwarships",
+     "worldofwarships64"
+    ]
+   }
+  },
+  {
+   "id": "warframe",
+   "name": "Warframe",
+   "group": "games",
+   "ico": "icons/warframe.ico",
+   "ico_sha256": "a20690b0a7f38d4f0fa3ce4c5aa9e1c707f9f6a4a089a68784583d7225047952",
+   "png": "icons/warframe.png",
+   "png_sha256": "1b632ee8ebde0169ea544cb4de9e9864a817a4b0adf7dc3b10fdbaf4cffd77c8",
+   "match": {
+    "names": [
+     "warframe"
+    ],
+    "exes": [
+     "warframex64",
+     "warframe"
+    ]
+   }
+  },
+  {
+   "id": "thefinals",
+   "name": "THE FINALS",
+   "group": "games",
+   "ico": "icons/thefinals.ico",
+   "ico_sha256": "eb8b32315455f107f3439f6b171c15b2d8dcbeba5f4c876d6e34c4a2e11a83e8",
+   "png": "icons/thefinals.png",
+   "png_sha256": "350fc196bd2f4577ec7fb2fd80696e93e99b8881ebb0cd053e98f883dbadb2b2",
+   "match": {
+    "names": [
+     "thefinals"
+    ],
+    "exes": []
    }
   },
   {
@@ -2328,6 +2418,24 @@
    }
   },
   {
+   "id": "playnite",
+   "name": "Playnite",
+   "group": "games",
+   "ico": "icons/playnite.ico",
+   "ico_sha256": "a3daa1572ad6908331b6b32f6bbbac3729452b479e0cd3e8f74067e675a1f307",
+   "png": "icons/playnite.png",
+   "png_sha256": "a3da608f41d87c17da1607dce80fee8f31912d0a08a694411f5d0e22b4e022fa",
+   "match": {
+    "names": [
+     "playnite"
+    ],
+    "exes": [
+     "playnitedesktopapp",
+     "playnitefullscreenapp"
+    ]
+   }
+  },
+  {
    "id": "heroic",
    "name": "Heroic Games",
    "group": "games",
@@ -2342,6 +2450,41 @@
     ],
     "exes": [
      "heroic"
+    ]
+   }
+  },
+  {
+   "id": "parsec",
+   "name": "Parsec",
+   "group": "games",
+   "ico": "icons/parsec.ico",
+   "ico_sha256": "17a31c17b06d7cff469cb83f1ab2eecf5f962591cfdc4ed994be44960878e23f",
+   "png": "icons/parsec.png",
+   "png_sha256": "92b46c94e8bf7c7897e8563aceb431b840b2c7ee9a590fa43ee76ec95c0d45fd",
+   "match": {
+    "names": [
+     "parsec"
+    ],
+    "exes": [
+     "parsecd"
+    ]
+   }
+  },
+  {
+   "id": "moonlight",
+   "name": "Moonlight",
+   "group": "games",
+   "ico": "icons/moonlight.ico",
+   "ico_sha256": "17e9fcf617bec8fd0d109a27c51955bd8d7e42f19dc7b0def1efe1ecbd8c413c",
+   "png": "icons/moonlight.png",
+   "png_sha256": "c4d6690372d4370122585775ee0e314cd10490ced377999fb27c5f633f7cfe85",
+   "match": {
+    "names": [
+     "moonlight",
+     "moonlightgamestreaming"
+    ],
+    "exes": [
+     "moonlight"
     ]
    }
   },
@@ -2722,6 +2865,24 @@
    }
   },
   {
+   "id": "arduino",
+   "name": "Arduino IDE",
+   "group": "work",
+   "ico": "icons/arduino.ico",
+   "ico_sha256": "eb9597e388f2bc36eb6bf62e73e2783676b44d665279703975d47da33a1a0f61",
+   "png": "icons/arduino.png",
+   "png_sha256": "55121e7678b9876843c440f753e39726708a5b75a9f46052d3db85dd5f3686bf",
+   "match": {
+    "names": [
+     "arduinoide",
+     "arduino"
+    ],
+    "exes": [
+     "arduinoide"
+    ]
+   }
+  },
+  {
    "id": "filezilla",
    "name": "FileZilla",
    "group": "work",
@@ -2810,6 +2971,23 @@
    }
   },
   {
+   "id": "capcut",
+   "name": "CapCut",
+   "group": "creative",
+   "ico": "icons/capcut.ico",
+   "ico_sha256": "92e72024cfa2427f0fd064f19d6a9063e972150708b91169b21cf93976a3342d",
+   "png": "icons/capcut.png",
+   "png_sha256": "542e0586023ad11e67f711c23b5abc4ec8cf00d76f967a19d9970bc17dc41d3d",
+   "match": {
+    "names": [
+     "capcut"
+    ],
+    "exes": [
+     "capcut"
+    ]
+   }
+  },
+  {
    "id": "audacity",
    "name": "Audacity",
    "group": "creative",
@@ -2823,6 +3001,25 @@
     ],
     "exes": [
      "audacity"
+    ]
+   }
+  },
+  {
+   "id": "ableton",
+   "name": "Ableton Live",
+   "group": "creative",
+   "ico": "icons/ableton.ico",
+   "ico_sha256": "ae85308b386b0f22c9c96e764e144e58dce17b3c24f89f6466698393caca8c5c",
+   "png": "icons/ableton.png",
+   "png_sha256": "44b58f2df51b927d39389ececbd7ccd529cb8d45af6e3e7d633af9090f47e13b",
+   "match": {
+    "names": [
+     "abletonlive",
+     "ableton"
+    ],
+    "exes": [
+     "abletonlive12suite",
+     "abletonlive11suite"
     ]
    }
   },
@@ -3012,6 +3209,42 @@
    }
   },
   {
+   "id": "aimp",
+   "name": "AIMP",
+   "group": "creative",
+   "ico": "icons/aimp.ico",
+   "ico_sha256": "5a93a70edd105b9ce966eabe98b20e9ae344fb28770b7d045429074154b4d7c2",
+   "png": "icons/aimp.png",
+   "png_sha256": "b797fa1ef9ea48966d0a0a070cea32adfd8329c63bc7e6b387c8f8405c7a614c",
+   "match": {
+    "names": [
+     "aimp"
+    ],
+    "exes": [
+     "aimp"
+    ]
+   }
+  },
+  {
+   "id": "plex",
+   "name": "Plex",
+   "group": "creative",
+   "ico": "icons/plex.ico",
+   "ico_sha256": "9d82cbb9599b949adda2fb0b6441fd97af6819041e3852963c7ad475885d51b8",
+   "png": "icons/plex.png",
+   "png_sha256": "707aa754e084967f7da82e4aa6037afc1a096caec3e43aa0297dddb946da7389",
+   "match": {
+    "names": [
+     "plex",
+     "plexmediaserver"
+    ],
+    "exes": [
+     "plex",
+     "plexmediaserver"
+    ]
+   }
+  },
+  {
    "id": "jellyfin",
    "name": "Jellyfin",
    "group": "creative",
@@ -3078,6 +3311,21 @@
     "exes": [
      "deezer"
     ]
+   }
+  },
+  {
+   "id": "soundcloud",
+   "name": "SoundCloud",
+   "group": "creative",
+   "ico": "icons/soundcloud.ico",
+   "ico_sha256": "e910d49d3575b8350d7bc19b47e763a8de2b258d198d1c3c15f5076b312710bb",
+   "png": "icons/soundcloud.png",
+   "png_sha256": "e3f47013af5c4c30a40fa69f7c64f953c6bc06ba1ea0b6ddb809cc852dbc42aa",
+   "match": {
+    "names": [
+     "soundcloud"
+    ],
+    "exes": []
    }
   },
   {
@@ -3425,6 +3673,26 @@
    }
   },
   {
+   "id": "eset",
+   "name": "ESET",
+   "group": "system",
+   "ico": "icons/eset.ico",
+   "ico_sha256": "d54be65e0b6bb7f87f7a5a2dd2bc30e3e97cadd337d03be7fbd33677d561c796",
+   "png": "icons/eset.png",
+   "png_sha256": "c8914b7bdeff2355ae7e07470e4e39e224fdaafd5b9c3248fd974542bca610f1",
+   "match": {
+    "names": [
+     "eset",
+     "esetnod32",
+     "esetsecurity"
+    ],
+    "exes": [
+     "egui",
+     "eset"
+    ]
+   }
+  },
+  {
    "id": "avast",
    "name": "Avast",
    "group": "system",
@@ -3652,6 +3920,25 @@
    }
   },
   {
+   "id": "yandexdisk",
+   "name": "Яндекс Диск",
+   "group": "work",
+   "ico": "icons/yandexdisk.ico",
+   "ico_sha256": "627dc386c38a0303127b2890b4faaec6fb32e27df9a4ab81acd6dc908d379f0e",
+   "png": "icons/yandexdisk.png",
+   "png_sha256": "137d275c8379e0e276cf02e1f5c3914e4a8dec199dc37087c267ca719f2291c2",
+   "match": {
+    "names": [
+     "яндексдиск",
+     "yandexdisk"
+    ],
+    "exes": [
+     "yandexdisk",
+     "yandexdisk2"
+    ]
+   }
+  },
+  {
    "id": "tailscale",
    "name": "Tailscale",
    "group": "system",
@@ -3685,6 +3972,115 @@
     "exes": [
      "openvpngui",
      "openvpn"
+    ]
+   }
+  },
+  {
+   "id": "hiddify",
+   "name": "Hiddify",
+   "group": "system",
+   "ico": "icons/hiddify.ico",
+   "ico_sha256": "9ddb3cfaa627d04609a5f34eab871981b699e189ad207604cc41637b3ea40575",
+   "png": "icons/hiddify.png",
+   "png_sha256": "698cd0edbb31cb12081354c74adfc5a684f8f1e26c0c85dc6adadb09905b6b42",
+   "match": {
+    "names": [
+     "hiddify",
+     "hiddifynext"
+    ],
+    "exes": [
+     "hiddify"
+    ]
+   }
+  },
+  {
+   "id": "v2rayn",
+   "name": "v2rayN",
+   "group": "system",
+   "ico": "icons/v2rayn.ico",
+   "ico_sha256": "97592289015d3f905aa47821f6060721619f4e5509f098678b0b3ab61559c6d7",
+   "png": "icons/v2rayn.png",
+   "png_sha256": "0be8d49bc6858606096c23f437f19479b1b8d9cd43842d863ebe11862d2877a0",
+   "match": {
+    "names": [
+     "v2rayn"
+    ],
+    "exes": [
+     "v2rayn"
+    ]
+   }
+  },
+  {
+   "id": "outlinevpn",
+   "name": "Outline VPN",
+   "group": "system",
+   "ico": "icons/outlinevpn.ico",
+   "ico_sha256": "6cfa304c061603a9780a55e31258e380816b019bf0dc8160f27b21f35aa56417",
+   "png": "icons/outlinevpn.png",
+   "png_sha256": "8bf82e08788302204dae7152b5dedcf5150f379f9372d580e1eb0574c9ce3c80",
+   "match": {
+    "names": [
+     "outlinevpn",
+     "outlineclient"
+    ],
+    "exes": [
+     "outlineclient"
+    ]
+   }
+  },
+  {
+   "id": "amnezia",
+   "name": "AmneziaVPN",
+   "group": "system",
+   "ico": "icons/amnezia.ico",
+   "ico_sha256": "b50262a6f9f044bea79dc8bcc9eaa626be2addcbedb747e77290e368ef42eaab",
+   "png": "icons/amnezia.png",
+   "png_sha256": "a7b7ca9154fa10c62b21894fa2c6c342d1615251a2a12776e63624c12ea94eec",
+   "match": {
+    "names": [
+     "amneziavpn",
+     "amnezia"
+    ],
+    "exes": [
+     "amneziavpn"
+    ]
+   }
+  },
+  {
+   "id": "clashverge",
+   "name": "Clash Verge",
+   "group": "system",
+   "ico": "icons/clashverge.ico",
+   "ico_sha256": "a4644a002bf572b9d8307ff3bba638338714508d4a97ef91d907fdc8d3ef047f",
+   "png": "icons/clashverge.png",
+   "png_sha256": "850c0c343129cf38c82f72f2be12174eac6eafaddb3fdb56a9c2c2813149c116",
+   "match": {
+    "names": [
+     "clashverge",
+     "clashvergerev",
+     "mihomo"
+    ],
+    "exes": [
+     "clashverge",
+     "clashvergerev"
+    ]
+   }
+  },
+  {
+   "id": "happ",
+   "name": "Happ",
+   "group": "system",
+   "ico": "icons/happ.ico",
+   "ico_sha256": "1453341088c2555eca6c6fde65b30184d9de772a060f8f34e9688602146a839b",
+   "png": "icons/happ.png",
+   "png_sha256": "b669b89d15a75fdfde070eee3c89ecb8d040967f1033889c87091de047aa7ab6",
+   "match": {
+    "names": [
+     "happ",
+     "happproxy"
+    ],
+    "exes": [
+     "happ"
     ]
    }
   },
@@ -3840,6 +4236,26 @@
    }
   },
   {
+   "id": "wps",
+   "name": "WPS Office",
+   "group": "work",
+   "ico": "icons/wps.ico",
+   "ico_sha256": "33ebadd5d911a8816cf5f1c2dd8f0c1de8ac7d04cced91a2f7560930252ad7ad",
+   "png": "icons/wps.png",
+   "png_sha256": "1740129ac17eeba2fa0d41ea77de09866a421034777d8e249426db5807baffac",
+   "match": {
+    "names": [
+     "wpsoffice",
+     "wps",
+     "kingsoftoffice"
+    ],
+    "exes": [
+     "wps",
+     "wpsoffice"
+    ]
+   }
+  },
+  {
    "id": "thunderbird",
    "name": "Thunderbird",
    "group": "work",
@@ -3890,6 +4306,165 @@
     "exes": [
      "mattermost"
     ]
+   }
+  },
+  {
+   "id": "yabrowser",
+   "name": "Яндекс Браузер",
+   "group": "apps",
+   "ico": "icons/yabrowser.ico",
+   "ico_sha256": "ba6eb36a982b50e1a92b3e28447a2542a3132c9bd189f475737fce02e0a22ca4",
+   "png": "icons/yabrowser.png",
+   "png_sha256": "9201389ffdee4ecaea3586675589dfafa5e64e66a4547f0ec261ddd164551894",
+   "match": {
+    "names": [
+     "яндексбраузер",
+     "yandexbrowser"
+    ],
+    "exes": [
+     "browser"
+    ]
+   }
+  },
+  {
+   "id": "telemost",
+   "name": "Яндекс Телемост",
+   "group": "work",
+   "ico": "icons/telemost.ico",
+   "ico_sha256": "ed086cc25610b80a1fbff40d694bdb429517c9ce15c849474c4aa7526b74f01e",
+   "png": "icons/telemost.png",
+   "png_sha256": "499d6cd94c92a352e061d5832288d1ce6bb625df126241d4bb02d3f6deb1b085",
+   "match": {
+    "names": [
+     "яндекстелемост",
+     "telemost",
+     "yandextelemost"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "sber",
+   "name": "СберБанк Онлайн",
+   "group": "work",
+   "ico": "icons/sber.ico",
+   "ico_sha256": "030b13002abd2ddd4a5cf95bff01d6fa84cf0f304f2417ea203f1a96b783a666",
+   "png": "icons/sber.png",
+   "png_sha256": "9f68c56194f626ce542c7f946e1347bfbf2622a3b0733536bcb71b063c3e3ff5",
+   "match": {
+    "names": [
+     "сбербанконлайн",
+     "сбербанк",
+     "sberbankonline",
+     "sberbank",
+     "сбер"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "tbank",
+   "name": "Т-Банк",
+   "group": "work",
+   "ico": "icons/tbank.ico",
+   "ico_sha256": "8d831f7c2460e8c0a1e252e724416198e04121f4bf7c22b0f1d236f6bce95d66",
+   "png": "icons/tbank.png",
+   "png_sha256": "a3aceaa25df51fde7329d509c7a78d5d3528dfe75b3b7d46e44487b584031be7",
+   "match": {
+    "names": [
+     "тбанк",
+     "tbank",
+     "тинькофф",
+     "tinkoff"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "ozon",
+   "name": "Ozon",
+   "group": "apps",
+   "ico": "icons/ozon.ico",
+   "ico_sha256": "2921085f820483b54c5b9c473f4913f362ca332e5c1e83c8833c24b57927b969",
+   "png": "icons/ozon.png",
+   "png_sha256": "a820bbf8bbd7a17e9dae192d5bde992d4723a1558208f421678b25b7cd3d066b",
+   "match": {
+    "names": [
+     "ozon",
+     "озон"
+    ],
+    "exes": [
+     "ozon"
+    ]
+   }
+  },
+  {
+   "id": "wildberries",
+   "name": "Wildberries",
+   "group": "apps",
+   "ico": "icons/wildberries.ico",
+   "ico_sha256": "8c836061d1d5c6aeb0859c53d1e48b6d5412faab937e4ad4f900082ca1ccb913",
+   "png": "icons/wildberries.png",
+   "png_sha256": "9e63ff280b340a3a8f3fe7d915b96298d1080a0bc2cca180302ebc7b9381d048",
+   "match": {
+    "names": [
+     "wildberries",
+     "вайлдберриз",
+     "wb"
+    ],
+    "exes": [
+     "wildberries"
+    ]
+   }
+  },
+  {
+   "id": "avito",
+   "name": "Avito",
+   "group": "apps",
+   "ico": "icons/avito.ico",
+   "ico_sha256": "8be8f789eba52d57dc391b87b8682b11be6d53d7b0617691356ac9eb2f7e7b28",
+   "png": "icons/avito.png",
+   "png_sha256": "2e6f353e7b4546869f20ce2c645ed1f5fd87b68ef5d726118cab19328012cc9c",
+   "match": {
+    "names": [
+     "avito",
+     "авито"
+    ],
+    "exes": [
+     "avito"
+    ]
+   }
+  },
+  {
+   "id": "vkmusic",
+   "name": "VK Музыка",
+   "group": "apps",
+   "ico": "icons/vkmusic.ico",
+   "ico_sha256": "e6d7ba60b43213c76f2b1016a09fde96600990e78981f2dfb82031bc9f35fcc0",
+   "png": "icons/vkmusic.png",
+   "png_sha256": "b7811d6e19365796c92163d441f102d7630b272b7f5a2c077ad1e7bb3e8bad7e",
+   "match": {
+    "names": [
+     "vkмузыка",
+     "vkmusic",
+     "boom"
+    ],
+    "exes": []
+   }
+  },
+  {
+   "id": "rutube",
+   "name": "Rutube",
+   "group": "apps",
+   "ico": "icons/rutube.ico",
+   "ico_sha256": "6b5e9a285e66291b9c943e538f78b382ad3a04f2c7d6974396e5f4aded711314",
+   "png": "icons/rutube.png",
+   "png_sha256": "e3cc9e0e76033158b8332af344c336e3c6f1301915cad1042729edd8af6588c0",
+   "match": {
+    "names": [
+     "rutube"
+    ],
+    "exes": []
    }
   },
   {
@@ -4818,11 +5393,46 @@
    "sha256_noname": "a045ba9378a439a3c8205015fc36ad171273dc7745d473fe1afe0cbbc843de81"
   },
   {
+   "id": "r6siege",
+   "file": "tiles/r6siege.jpg",
+   "sha256": "d335c91270e61c49d6b9ad439e88c54175ad24f295359693cc13d172d1a69b6d",
+   "file_noname": "tiles_noname/r6siege.jpg",
+   "sha256_noname": "c04b5b6f51e35df1decda27e1d718ec4e8794cba304d53728e78c4a50c371db6"
+  },
+  {
+   "id": "rustgame",
+   "file": "tiles/rustgame.jpg",
+   "sha256": "5a367fb74f1470f9739a0446a9de9f775c2837cb6f1fd38ae314346db4e741f2",
+   "file_noname": "tiles_noname/rustgame.jpg",
+   "sha256_noname": "e8a8ee9a150e67e765524d7ce433c23bcd7716aa9fe2cbc39ca6ce9d8dad3ebd"
+  },
+  {
    "id": "osu",
    "file": "tiles/osu.jpg",
    "sha256": "f5589ad284d24c2e196540fddd7a8d13cd55dab656e06ba03badfe469ed92902",
    "file_noname": "tiles_noname/osu.jpg",
    "sha256_noname": "e2c079feda2cc878fde8d580de10ce303043742f5feedce88c78104ce6911788"
+  },
+  {
+   "id": "worldofwarships",
+   "file": "tiles/worldofwarships.jpg",
+   "sha256": "bbb633fa07ff712fd4d9fd2f936ba3f4967094788538962ae296bab5aec68050",
+   "file_noname": "tiles_noname/worldofwarships.jpg",
+   "sha256_noname": "99bc258e841585e5cdc1e24453a4d6e675d4f7154f236b9fb79364bccba47172"
+  },
+  {
+   "id": "warframe",
+   "file": "tiles/warframe.jpg",
+   "sha256": "4f2a3f26766bb922e6301ca85bf295c92c5aca8a3f6c31ceb3c7a56eeb44de4a",
+   "file_noname": "tiles_noname/warframe.jpg",
+   "sha256_noname": "a3a759679047bf0558d9306f5d5f49e69111ddd0165f5ecc252ebebb911653b2"
+  },
+  {
+   "id": "thefinals",
+   "file": "tiles/thefinals.jpg",
+   "sha256": "03d4a7424b4fcbc994548d266c6faca28113b3c0dc169b39b431a508a43e4b58",
+   "file_noname": "tiles_noname/thefinals.jpg",
+   "sha256_noname": "56e9681501da77f5f17bb30eb507861114500d28a553071c80a29a85ce52ff1b"
   },
   {
    "id": "itch",
@@ -4832,11 +5442,32 @@
    "sha256_noname": "e499ede543969336c0826d4ced59319eecbcf9c52ddcaf911a7edaec419c5b3d"
   },
   {
+   "id": "playnite",
+   "file": "tiles/playnite.jpg",
+   "sha256": "38b7cde6029a39176a2d2a9b7b0d1876d23aa9db3fbb5664f3c55d672a12fdb3",
+   "file_noname": "tiles_noname/playnite.jpg",
+   "sha256_noname": "8dcdb49dfe56eee857de92f556423320d4e3768c50e1199ebe3f5995b45ed8ef"
+  },
+  {
    "id": "heroic",
    "file": "tiles/heroic.jpg",
    "sha256": "193cca6cc568dcd37a95027408394565582f981bf0e399cdd59c732c75547cd8",
    "file_noname": "tiles_noname/heroic.jpg",
    "sha256_noname": "3ff11a4ff18f9520cd4a57264d4693b2c58179796429a6c41ea7dbf267cd21d7"
+  },
+  {
+   "id": "parsec",
+   "file": "tiles/parsec.jpg",
+   "sha256": "03f2a16bda492813fc33573cfc773e0dc6ce78017173334c941f2e323fdb0e90",
+   "file_noname": "tiles_noname/parsec.jpg",
+   "sha256_noname": "ff00131f911d17fc01773070130136063faf8b7bc09d42cdc5f3bdfd3514a920"
+  },
+  {
+   "id": "moonlight",
+   "file": "tiles/moonlight.jpg",
+   "sha256": "28c503e9b6599bdb4a3d02c5a5fdc58a5ee8439d23ceec321cea3c38c0cd32cf",
+   "file_noname": "tiles_noname/moonlight.jpg",
+   "sha256_noname": "715bd3445f0e02c3651b3299162660782a902c4ff5a12326c3feac7f0d0d0800"
   },
   {
    "id": "visualstudio",
@@ -4979,6 +5610,13 @@
    "sha256_noname": "635579371c00159531f40a317629adf7125de63c049b74ac1db86fda3261fa04"
   },
   {
+   "id": "arduino",
+   "file": "tiles/arduino.jpg",
+   "sha256": "adf5fd5e07c955e2f61370e067a49e6a8d958e95b98359dc76484d99f94898fa",
+   "file_noname": "tiles_noname/arduino.jpg",
+   "sha256_noname": "02aadfa6b9c399309bb6c9f75f6343686663efc7c3f20fcc8d836fd8411ca3c3"
+  },
+  {
    "id": "filezilla",
    "file": "tiles/filezilla.jpg",
    "sha256": "aa5218abaaeb54fe37c18e8f0c3e741e7d09ccbea4ad059c8e4a66f0acabd47e",
@@ -5014,11 +5652,25 @@
    "sha256_noname": "3e177163b7b7de9e41efd5bdd635f83b2aeaa5811827627b7722172d69b82bfa"
   },
   {
+   "id": "capcut",
+   "file": "tiles/capcut.jpg",
+   "sha256": "7bd10e59ccdf27d3ad99c62f2de7050dc91f242ef5bffe525f3e19876bc760c1",
+   "file_noname": "tiles_noname/capcut.jpg",
+   "sha256_noname": "3bc35c7537ff1594053c47a79bd253a307af427dca671f7fe9f0cf4422bc2244"
+  },
+  {
    "id": "audacity",
    "file": "tiles/audacity.jpg",
    "sha256": "948ef5eb8eeacbe9a815b8697c325658133170742f5e39fb4094fe336c2ba364",
    "file_noname": "tiles_noname/audacity.jpg",
    "sha256_noname": "031a958445920611a58e8fdd545dbcb69d60b1210899dc8a221ad5dd561be079"
+  },
+  {
+   "id": "ableton",
+   "file": "tiles/ableton.jpg",
+   "sha256": "082bad6aa1f6a324c271bb768d06255f83f035811aba2d8e0de7472238125b7c",
+   "file_noname": "tiles_noname/ableton.jpg",
+   "sha256_noname": "7b7df7c672bacbbd15ced8d88ca2ff830096120c61cf536f5b7d08857961265a"
   },
   {
    "id": "krita",
@@ -5091,6 +5743,20 @@
    "sha256_noname": "3a57d1a3a09c9ef3475d3298dfe1bdcda047e170723891231e05937a5e4f5de2"
   },
   {
+   "id": "aimp",
+   "file": "tiles/aimp.jpg",
+   "sha256": "af0c0be1fe0072a44b31ad7fa4864dc00d88bca3b781f0a75578cf4507219958",
+   "file_noname": "tiles_noname/aimp.jpg",
+   "sha256_noname": "90c52634b0bc394f1770164442a5d8bf8540bd8ddd7668cba23bb261b5572517"
+  },
+  {
+   "id": "plex",
+   "file": "tiles/plex.jpg",
+   "sha256": "35f780d4e2240193464332998568c349ceb9e2d3d075520f7711519e0c10db2a",
+   "file_noname": "tiles_noname/plex.jpg",
+   "sha256_noname": "f291627a56a1c877d03bf3ec5649650fcbbf90a4b11fdf92050cf18fe8eb9fea"
+  },
+  {
    "id": "jellyfin",
    "file": "tiles/jellyfin.jpg",
    "sha256": "9b735ee828b7fe357727854f0040404b427246bef4f9ee116c00b0bf06317bc5",
@@ -5117,6 +5783,13 @@
    "sha256": "b785f3d1f27e7b578f57e255b159c0ce312f177470c23132e3d24b3475147d51",
    "file_noname": "tiles_noname/deezer.jpg",
    "sha256_noname": "32cc3609fd77825e1c16065d203bf750b6633947b485d65994428c92df1e0068"
+  },
+  {
+   "id": "soundcloud",
+   "file": "tiles/soundcloud.jpg",
+   "sha256": "1283dc3e46f0937126deab82bb7dfa42df166ae458d2a2bcdbfc05c7b159da12",
+   "file_noname": "tiles_noname/soundcloud.jpg",
+   "sha256_noname": "7b24475b51902fda2917fcedcb9af0ba033c4b166d0fd30132c646f8e8a10339"
   },
   {
    "id": "tidal",
@@ -5252,6 +5925,13 @@
    "sha256_noname": "48cc6afaa86578234f814d580e4146f63e9c7727c0383a48aed714769528a560"
   },
   {
+   "id": "eset",
+   "file": "tiles/eset.jpg",
+   "sha256": "2623f14989161fb6d7050326669ecfa339a6c449147ed9e5b5728790d349d75e",
+   "file_noname": "tiles_noname/eset.jpg",
+   "sha256_noname": "67379a4d4846da75676ee96934fb0f4f80739f806eb9388317b15c8ba12cb31e"
+  },
+  {
    "id": "avast",
    "file": "tiles/avast.jpg",
    "sha256": "fc77a3952dbcdc7ed960c88e9c93661a7a80111304305f802532fefc4d4044e3",
@@ -5336,6 +6016,13 @@
    "sha256_noname": "07cefbd2dd3c543d666075cf61360b91bcd20e260908275d7766dc89be33842a"
   },
   {
+   "id": "yandexdisk",
+   "file": "tiles/yandexdisk.jpg",
+   "sha256": "5a5e37baf13a36472c2b2122abd70df76e5a19e358cc251058700b2439fb0670",
+   "file_noname": "tiles_noname/yandexdisk.jpg",
+   "sha256_noname": "2e3cbb6af5033a1147af28d1f63acf2aed71a2e10e7d804671745c5f62391d55"
+  },
+  {
    "id": "tailscale",
    "file": "tiles/tailscale.jpg",
    "sha256": "f36d424579f896ff6a8928046dcaf6733115e31146a66e3d2f0d06e4c00eb8ab",
@@ -5348,6 +6035,48 @@
    "sha256": "a1698be8d21a7706dda440c0723ec4b0bc4e88256686b585c78c931cd68b07f9",
    "file_noname": "tiles_noname/openvpn.jpg",
    "sha256_noname": "5f0bedce4e866bbd620e2320721fff6bad6205aa1f438e41fd859d8269fc6904"
+  },
+  {
+   "id": "hiddify",
+   "file": "tiles/hiddify.jpg",
+   "sha256": "762b649d8a2a94157b818548cd2ff77df950e820bee7b63ad1e4944be9e8751f",
+   "file_noname": "tiles_noname/hiddify.jpg",
+   "sha256_noname": "c46197afac8df69e9fbe5676804b441e1f917dc3ff9f85302f0a1b5ff18142a7"
+  },
+  {
+   "id": "v2rayn",
+   "file": "tiles/v2rayn.jpg",
+   "sha256": "6b0b6725a487e46b8ef45f6e5dbbc2bb6c3633f943259946d249e2aac46502e1",
+   "file_noname": "tiles_noname/v2rayn.jpg",
+   "sha256_noname": "6e67d0322e56de398d73b86dccee1e5d2a6c56da9884338cb6d213e4cc749b97"
+  },
+  {
+   "id": "outlinevpn",
+   "file": "tiles/outlinevpn.jpg",
+   "sha256": "c4b402daef41161611aea8969a439e7ea5089ef2364a7f15abb0bb3905f745e3",
+   "file_noname": "tiles_noname/outlinevpn.jpg",
+   "sha256_noname": "4ba5c422a55a42cbbb5253d878238e3d728ab531ac6baaec318dbeb34fc4d8a6"
+  },
+  {
+   "id": "amnezia",
+   "file": "tiles/amnezia.jpg",
+   "sha256": "f1065d8c52dd7f0a9d37652168c3a0691ae66dd06886039d7e704362c8f59c58",
+   "file_noname": "tiles_noname/amnezia.jpg",
+   "sha256_noname": "8183f2ac5b9ccd91af3919d3279e041efe4a527958e06b8bac69efac8c37a42c"
+  },
+  {
+   "id": "clashverge",
+   "file": "tiles/clashverge.jpg",
+   "sha256": "2c011a702220ef7819997e733356d33405f056b1ce47dec60aa4f47d8abc5553",
+   "file_noname": "tiles_noname/clashverge.jpg",
+   "sha256_noname": "42e997916488cc00d90f75eb4e3e36b1c14732d07852bede383bee8e66ae5355"
+  },
+  {
+   "id": "happ",
+   "file": "tiles/happ.jpg",
+   "sha256": "12b421dba7b3ac7488d16467d81e6f73c1884db31c441e1302bdd421e4ac187a",
+   "file_noname": "tiles_noname/happ.jpg",
+   "sha256_noname": "4c3836ef1f103ad750193750ef7581732e864a70301647facaac4b6f5250645d"
   },
   {
    "id": "word",
@@ -5406,6 +6135,13 @@
    "sha256_noname": "797a219868ea8a9cb05794ee53716a846aa660be66a2fbfca0865958bbbbee33"
   },
   {
+   "id": "wps",
+   "file": "tiles/wps.jpg",
+   "sha256": "6963efb2435dec5d20ff529e262b3a0a6aad55a0fba85864ffc607d0487e4f9b",
+   "file_noname": "tiles_noname/wps.jpg",
+   "sha256_noname": "22c647147f580d6b450d87817067de1ae9901a409db7ef0aae2a11dc5da30269"
+  },
+  {
    "id": "thunderbird",
    "file": "tiles/thunderbird.jpg",
    "sha256": "e315a8948aa0de6a8ec02a8d4f26d4cf8604d2d7f51d2053d327753280f16fcf",
@@ -5425,6 +6161,69 @@
    "sha256": "7c9c1e516b8245c3146c740c8a24b7d4be546b4c56387faf1bad8e5ae892d01d",
    "file_noname": "tiles_noname/mattermost.jpg",
    "sha256_noname": "9569b3ce9fc5e577332bd315c1c1cf3855905d47ee1dbd247ee373ea3918237c"
+  },
+  {
+   "id": "yabrowser",
+   "file": "tiles/yabrowser.jpg",
+   "sha256": "1e7af322c875097a9a4f57cc4fbee58577fab9bb62ea98578c67212922a9642f",
+   "file_noname": "tiles_noname/yabrowser.jpg",
+   "sha256_noname": "f503faaaeb22145767276a2dbb72a7073c4321ee8d1b0d679791c1bf1ae69077"
+  },
+  {
+   "id": "telemost",
+   "file": "tiles/telemost.jpg",
+   "sha256": "40a50451540ec158f0858eddff3d55e288532399ec1382ef7f9d55c44bfb4d6f",
+   "file_noname": "tiles_noname/telemost.jpg",
+   "sha256_noname": "74061d0f1622ce8c08325d6ccb4ae86292cffd0ad5bd370d9326a12194d55134"
+  },
+  {
+   "id": "sber",
+   "file": "tiles/sber.jpg",
+   "sha256": "624ae65d8d63de22145ca5d29880f851f90e074d616c091924d6ff9f17e1f32f",
+   "file_noname": "tiles_noname/sber.jpg",
+   "sha256_noname": "8c6cd56bb7fc8a28a7d37eec0bd768b1c6f1ec55db1fcac1ee28f9c66fc1f090"
+  },
+  {
+   "id": "tbank",
+   "file": "tiles/tbank.jpg",
+   "sha256": "1c7420969bb13b8bc6c1403b97574a401a0a88dce6ac518655f559358131b8ac",
+   "file_noname": "tiles_noname/tbank.jpg",
+   "sha256_noname": "fa48c790cab16fe74b9e45a9c7665feaae1e376f9cbe22e10dd0217d4f325ffc"
+  },
+  {
+   "id": "ozon",
+   "file": "tiles/ozon.jpg",
+   "sha256": "725d04cec6a8aabd33657daa98c6fa440349ef15dc16f98b0e98eb023cdfee82",
+   "file_noname": "tiles_noname/ozon.jpg",
+   "sha256_noname": "27369e5bc8a0bff780b21a4fd1c01e4b48bf3a32e972cd753f31be7c389d08bf"
+  },
+  {
+   "id": "wildberries",
+   "file": "tiles/wildberries.jpg",
+   "sha256": "7787ae44d644ea0efb17b522d5be842b5a245fb4e7a5d30f4161690f64cb60ee",
+   "file_noname": "tiles_noname/wildberries.jpg",
+   "sha256_noname": "ecaebe478a5fa1d06ce1b1732196f9093811b260976ec62fd80b8c5fb2c14689"
+  },
+  {
+   "id": "avito",
+   "file": "tiles/avito.jpg",
+   "sha256": "ac52ac9fde7b5e160a6be7acb1284e2001ecebc2ffbd75c10b955995c79972de",
+   "file_noname": "tiles_noname/avito.jpg",
+   "sha256_noname": "67dd8ad2cb733fd465f2b759c71fc5bfe602a467c394e544f8aabab02e4f7209"
+  },
+  {
+   "id": "vkmusic",
+   "file": "tiles/vkmusic.jpg",
+   "sha256": "441cff7297ecca0d0bc7fe7d8dab33c8ba8c01f3ec7529d9999732fb52139c1b",
+   "file_noname": "tiles_noname/vkmusic.jpg",
+   "sha256_noname": "e07b27615d6dd35036a0038e69bfa6aa67277843e22f887055c834c1401b2740"
+  },
+  {
+   "id": "rutube",
+   "file": "tiles/rutube.jpg",
+   "sha256": "a82ba3b9a5ac38e241f4c052bccb92f1f5707b6b00d866ebf8d9836ad106dcce",
+   "file_noname": "tiles_noname/rutube.jpg",
+   "sha256_noname": "59957219a3ae2cb80eeb7d2c508099861387a4cd566e6d9c8ce373101f34be75"
   },
   {
    "id": "max",
