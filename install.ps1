@@ -264,12 +264,12 @@
         # re-run the generator and commit install.ps1 together with any change to app/.
         $siFiles = [ordered]@{
         # BEGIN-HASHES
-        'app/Engine.ps1' = 'dd031cfcdf6b3a4a3f67025033bd210d25b7500dfbc5a8e76e74fbdcd7fdc5e4'
-        'app/Glyphix.ps1' = 'bf1e5fec8e1b563a96e5abfa9306bda0e3934a0b69cf2e9605241fd111033465'
+        'app/Engine.ps1' = '521186a5101b410d4654bec69264b7efe00927446107268f77160f08fa38df92'
+        'app/Glyphix.ps1' = '80966deb212573c969afbb55416c6c95971acaae2e2531867968bde533a2f22f'
         'app/ShadowIcons.ps1' = '70de09bdba26fb2d51e710f8a3753a476fbdbf38faa873ce8d92957351d335a3'
-        'app/MainWindow.xaml' = 'c0f9bf9a06f2680cac2c178ee3a0d44810cf3ddf52a0e2f4196c6311ed1a377e'
+        'app/MainWindow.xaml' = '25bbf6fe142f8846f54dbc0b6a193faae3f7564df1e8a590e29769c62ebaf258'
         'app/launch.vbs' = 'f07159a4489eb71c47d2b9bfa2c4e9939f83c0aaadf364eecbadc9da7685e337'
-        'app/version.txt' = 'f0ea2fc99f3b79d332baa91b88d4e4e469cb6b9f2c96669b3b4ec8f0d6f5b863'
+        'app/version.txt' = 'e33ccf6527ddb87b2dc894b17dd846206c5d18334710d253f7f366f2c4403fe0'
         'app/assets/app.ico' = '55780e2d17c72795d8f2390d6445e76df320587e83eb6dcc72517bcd954553c2'
         'app/assets/app.png' = 'a9dd1a82e50876dd88bab7343dbe40ea9597b05993672266a6a49acecfecb5a3'
         'app/assets/logo_tile.png' = '0cc3928dba30432041a4dd4e6d7224fddf7e05b0a612499664f72a33e79201e6'

@@ -73,7 +73,8 @@ function Invoke-Cli {
     $tilesOn = ((-not $NoTiles) -and (Test-Start11))
     $autoOn = ((-not $NoAuto) -and (Get-AutoEnabled))
     $packs = @(Get-Packs)
-    if ($Update -or $packs.Count -eq 0) {
+    # паки качаем, только если они нужны: явный -Update или -List/-Apply при пустом кэше. Один -Undo работает по бэкапу и сеть не трогает (откат должен сработать и без интернета)
+    if ($Update -or ($packs.Count -eq 0 -and ($List -or $Apply))) {
         $r = Update-Packs
         if (-not $r.Ok) { $code = 1 }
         $packs = @(Get-Packs)
@@ -120,6 +121,11 @@ function Invoke-Cli {
                 $tr = Apply-Start11Tiles -Pack $pk -NoName:$NoName -NoReload:$NoRestart -NoAuto:(-not $autoOn)
                 if ($tr.Failed -gt 0) { $code = 1 }
                 if ($tr.Hint) { Write-Host $tr.Hint }
+            }
+            # применено без ошибок - копии иконок/плиток других паков и старых версий, на которые уже никто не ссылается, удаляем (повышенный дочерний процесс
+            # с -AllUsers -NoTiles этого не делает: плитки ещё не записаны, очистку сделает родительское окно после плиток)
+            if ($r.Failed -eq 0 -and ($r.Changed + $r.Same) -gt 0 -and -not ($AllUsers -and $NoTiles)) {
+                try { $cl = Clear-UnusedCopies; if ($cl.Bytes -gt 0) { Write-Host ('Освобождено: ' + (Format-DownloadSize $cl.Bytes)) } } catch { Write-Log ('Очистка копий: ' + $_.Exception.Message) }
             }
         }
     }
@@ -193,6 +199,7 @@ public static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(Unma
     }
     [void][GlyphixNative.Gui]::SetCurrentProcessExplicitAppUserModelID($script:SI_AppId)
 } catch { }
+try { [void](Repair-AppShortcutAppId) } catch { }          # ярлык «Glyphix» без AppUserModelID (старые версии) - пересоздаём один раз: так Start11 увидит плитку
 
 # Все строки интерфейса - здесь (для будущей локализации)
 $T = @{
@@ -239,6 +246,28 @@ $T = @{
     Download     = 'Скачать'
     Downloading  = 'Скачиваю пак...'
     DownloadDone = 'Пак скачан (файлов: {0})'
+    SelCount     = 'Выбрано: {0}'
+    SelDownload  = 'Скачать выбранные'
+    SelAll       = 'Выбрать все'
+    SelNone      = 'Снять'
+    SelTip       = 'Отметьте паки галочками на карточках (или Ctrl + щелчок по карточке) и скачайте их разом; уже скачанные свежие паки пропускаются'
+    SelNothing   = 'Ничего не выбрано'
+    SelDownloading = 'Скачиваю выбранные паки...'
+    SelDone      = 'Скачано паков: {0} (файлов: {1})'
+    SelSkipped   = ', уже скачаны: {0}'
+    SelFailed    = ', ошибок: {0}'
+    SelAllFresh  = 'Все выбранные паки уже скачаны'
+    CheckTip     = 'Выбрать пак (Ctrl + щелчок по карточке - то же самое)'
+    Delete       = '🗑'
+    DeleteTip    = 'Удалить скачанные файлы пака ({0}); сам пак останется в списке, «Скачать» вернёт файлы'
+    Deleting     = 'Удаляю скачанные файлы пака...'
+    DeleteDone   = 'Пак удалён с диска: {0}'
+    DeleteFail   = 'Не удалено: {0}'
+    ClearCache   = 'Очистить кэш'
+    ConfirmCache = 'Удалить все скачанные паки, кроме применённого, и ненужные файлы (копии иконок других паков и старых версий)?' + "`n`n" + 'Ярлыки и плитки это не затронет; пак можно скачать снова.'
+    ClearingCache = 'Очищаю кэш...'
+    CacheDone    = 'Кэш очищен: освобождено {0}'
+    Freed        = 'освобождено {0}'
     StateReady   = 'Скачан'
     StateNone    = 'Не скачан'
     StateStale   = 'Есть обновление'
@@ -313,7 +342,7 @@ try {
 }
 $script:ui = @{}
 $names = @('ImgLogo', 'TxtVersion', 'TxtAdmin', 'TxtPacksTitle', 'PackList', 'TxtEmpty', 'TxtMatchTitle', 'TxtSelectedPack', 'MatchList',
-    'TxtMatchSummary', 'BtnUpdate', 'BtnUndo', 'BtnOpen', 'BtnMenu', 'ChkRestart', 'ChkAllUsers', 'ChkTiles', 'ChkNoName', 'ChkAuto', 'LnkGitHub', 'LnkAuthor', 'LnkAuthorMenu', 'PopMenu', 'BtnUninstall',
+    'TxtMatchSummary', 'BtnUpdate', 'BtnUndo', 'BtnOpen', 'BtnMenu', 'ChkRestart', 'ChkAllUsers', 'ChkTiles', 'ChkNoName', 'ChkAuto', 'LnkGitHub', 'LnkAuthor', 'PopMenu', 'BtnUninstall', 'BtnClearCache', 'TxtSelCount', 'BtnSelDownload', 'BtnSelAll', 'BtnSelNone',
     'PrgBusy', 'TxtStatus', 'BtnLog', 'LogPanel', 'TxtLog', 'BtnAppUpdate')
 foreach ($n in $names) {
     $script:ui[$n] = $script:Window.FindName($n)
@@ -324,6 +353,8 @@ foreach ($n in $names) {
 $script:Packs = @()
 $script:Cards = @{}
 $script:CardButtons = @()
+$script:CardChecks = @{}          # id пака -> CheckBox на карточке
+$script:Checked = @{}             # id отмеченных паков (переживает перестройку карточек)
 $script:SelectedId = $null
 $script:PendingSelect = $null
 $script:Job = $null
@@ -361,6 +392,20 @@ function New-Img {
     } catch { return $null }
 }
 
+# Картинка в Image: только в настоящий System.Windows.Controls.Image, через SetValue(Image.SourceProperty, ImageSource), а не через `$im.Source = ...`
+# (динамический биндер PowerShell 5.1 для присвоения свойства на элементе из List[object] / обёрнутом PSObject падал с «Argument types do not match»,
+# 273 раза за сеанс: у каждой строки списка автоиконок). Ошибка одной картинки не мешает остальным; возвращает `$true`, если картинка поставлена.
+function Set-ImageSource {
+    param($Target, $Source)
+    try {
+        $t = $Target; if ($t -is [System.Management.Automation.PSObject]) { $t = $t.psobject.BaseObject }
+        $s = $Source; if ($s -is [System.Management.Automation.PSObject]) { $s = $s.psobject.BaseObject }
+        if ($t -isnot [System.Windows.Controls.Image] -or $s -isnot [System.Windows.Media.ImageSource]) { return $false }
+        $t.SetValue([System.Windows.Controls.Image]::SourceProperty, [System.Windows.Media.ImageSource]$s)
+        return $true
+    } catch { Show-Error $_ 'картинка' ; return $false }
+}
+
 function Add-LogLine {
     param([string]$Line)
     try {
@@ -388,9 +433,15 @@ function Show-Error {
             if (-not $Stack -and $Err.PSObject.Properties['Stack']) { $Stack = [string]$Err.Stack }
         } else { $m = [string]$Err }
         $head = if ($Action) { 'ОШИБКА GUI [' + $Action + ']: ' } else { 'ОШИБКА GUI: ' }
+        if ($m -eq $script:SI_NoNetMsg -or (Test-NetworkErrorText $m)) { Set-Status $script:SI_NoNetMsg }      # сеть: понятная фраза вместо текста исключения (сам текст - в журнале)
+        else { Set-Status ($script:T.Error -f $m) }
+        # одну и ту же ошибку (действие + текст) пишем в журнал один раз за сеанс: повтор на каждом тике таймера раздувал log.txt (273 строки)
+        $sig = $head + $m
+        if (-not $script:GuiErrSeen) { $script:GuiErrSeen = @{} }
+        if ($script:GuiErrSeen.ContainsKey($sig)) { $script:GuiErrSeen[$sig] = [int]$script:GuiErrSeen[$sig] + 1; return }
+        $script:GuiErrSeen[$sig] = 1
         Write-Log ($head + $m)
         if ($Stack) { Write-Log ('  стек: ' + (($Stack.Trim() -replace "`r?`n", ' <- '))) }
-        Set-Status ($script:T.Error -f $m)
     } catch { }
 }
 
@@ -406,6 +457,8 @@ function Set-Busy {
     $script:ui.PrgBusy.Visibility = if ($Busy) { 'Visible' } else { 'Hidden' }
     foreach ($b in @($script:ui.BtnUpdate, $script:ui.BtnUndo, $script:ui.BtnMenu, $script:ui.BtnAppUpdate)) { $b.IsEnabled = (-not $Busy) }
     foreach ($b in $script:CardButtons) { $b.IsEnabled = (-not $Busy) }
+    $script:BusyNow = $Busy
+    Update-SelBar
 }
 
 # ---- фоновые операции (отдельный runspace, UI не замирает; код - Start-EngineJob / Receive-EngineJob в Engine.ps1) ----
@@ -591,11 +644,31 @@ function New-StatePill {
     return $pill
 }
 
+# панель выбора: «Выбрано: N», «Скачать выбранные» (доступна, когда что-то выбрано и нет операции), «Выбрать все», «Снять»
+function Update-SelBar {
+    try {
+        $n = @($script:Checked.Keys).Count
+        $script:ui.TxtSelCount.Text = ($script:T.SelCount -f $n)
+        $script:ui.BtnSelDownload.IsEnabled = ($n -gt 0 -and -not $script:BusyNow)
+        $script:ui.BtnSelNone.IsEnabled = ($n -gt 0)
+        $script:ui.BtnSelAll.IsEnabled = ($script:Packs.Count -gt 0)
+    } catch { }
+}
+
+function Set-PackChecked {
+    param([string]$Id, [bool]$On)
+    if ($On) { $script:Checked[$Id] = $true } else { $script:Checked.Remove($Id) }
+    if ($script:CardChecks.ContainsKey($Id)) { $script:CardChecks[$Id].IsChecked = $On }
+    Update-SelBar
+}
+
 function Rebuild-Packs {
     $script:ui.PackList.Children.Clear()
     $script:Cards = @{}
     $script:CardButtons = @()
+    $script:CardChecks = @{}
     $script:Packs = @(Get-Packs)
+    foreach ($ck in @($script:Checked.Keys)) { if (-not (@($script:Packs | Where-Object { $_.Id -eq $ck }).Count)) { $script:Checked.Remove($ck) } }      # пака уже нет - выбор снимаем
     $script:ui.TxtEmpty.Text = $script:T.NoPacks
     $script:ui.TxtEmpty.Visibility = if ($script:Packs.Count -eq 0) { 'Visible' } else { 'Collapsed' }
     $applied = $null
@@ -630,6 +703,24 @@ function Rebuild-Packs {
         } else { $pv.Background = (Get-Res 'RowBrush') }
         [System.Windows.Controls.Grid]::SetRow($pv, 0)
         [void]$sp.Children.Add($pv)
+        # галочка выбора (поверх превью, слева сверху): несколько паков можно скачать разом
+        $ckBox = New-Object System.Windows.Controls.Border
+        $ckBox.CornerRadius = New-Object System.Windows.CornerRadius(8)
+        $ckBox.Background = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromArgb(190, 7, 10, 24))
+        $ckBox.Padding = New-Object System.Windows.Thickness(5, 0, 5, 0)
+        $ckBox.Margin = New-Object System.Windows.Thickness(6)
+        $ckBox.HorizontalAlignment = 'Left'
+        $ckBox.VerticalAlignment = 'Top'
+        $chk = New-Object System.Windows.Controls.CheckBox
+        $chk.Style = (Get-Res 'DarkCheck')
+        $chk.Tag = $pk.Id
+        $chk.ToolTip = $script:T.CheckTip
+        $chk.IsChecked = [bool]$script:Checked.ContainsKey([string]$pk.Id)
+        $chk.Add_Click({ param($s, $e) try { Set-PackChecked ([string]$s.Tag) ([bool]$s.IsChecked) } catch { Show-Error $_ 'выбор паков' } })
+        $ckBox.Child = $chk
+        [System.Windows.Controls.Grid]::SetRow($ckBox, 0)
+        [void]$sp.Children.Add($ckBox)
+        $script:CardChecks[[string]$pk.Id] = $chk
 
         # название + состояние (применён / скачан / не скачан)
         $head = New-Object System.Windows.Controls.Grid
@@ -644,6 +735,8 @@ function Rebuild-Packs {
         [void]$head.Children.Add($nm)
         $isApplied = ($applied -and $applied -eq $pk.Id)
         $stateText = if ($isApplied) { $script:T.Applied } elseif ($pk.State -eq 'ready') { $script:T.StateReady } elseif ($pk.State -eq 'stale') { $script:T.StateStale } else { $script:T.StateNone }
+        $diskText = ''
+        if ($pk.State -ne 'none') { $diskText = (Format-DownloadSize (Get-PackDiskBytes ([string]$pk.Dir))); $stateText += ' · ' + $diskText }      # размер скачанного на диске
         $pill = New-StatePill $stateText ([bool]$isApplied)
         [System.Windows.Controls.Grid]::SetColumn($pill, 1)
         [void]$head.Children.Add($pill)
@@ -692,15 +785,38 @@ function Rebuild-Packs {
             [void]$row.Children.Add($dl)
             $script:CardButtons += $dl
         }
+        if ($pk.State -ne 'none' -and -not $isApplied) {       # скачанный, но не применённый пак можно убрать с диска (карточка остаётся, «Скачать» вернёт файлы)
+            $del = New-Object System.Windows.Controls.Button
+            $del.Style = (Get-Res 'GhostButton')
+            $del.Content = $script:T.Delete
+            $del.Tag = $pk.Id
+            $del.MinWidth = 40
+            $del.Width = 40
+            $del.Padding = New-Object System.Windows.Thickness(0)
+            $del.HorizontalAlignment = 'Right'
+            $del.ToolTip = ($script:T.DeleteTip -f $diskText)
+            $del.Add_Click({ param($s, $e) try { Invoke-DeletePack ([string]$s.Tag) } catch { Show-Error $_ 'Удалить пак' } })
+            [System.Windows.Controls.Grid]::SetColumn($del, 2)
+            [void]$row.Children.Add($del)
+            $script:CardButtons += $del
+        }
         [System.Windows.Controls.Grid]::SetRow($row, 4)
         [void]$sp.Children.Add($row)
         $card.Child = $sp
-        $card.Add_MouseLeftButtonUp({ param($s, $e) try { Select-Pack ([string]$s.Tag) } catch { Show-Error $_ 'выбор пака' } })
+        $card.Add_MouseLeftButtonUp({
+            param($s, $e)
+            try {
+                $id = [string]$s.Tag
+                if (([System.Windows.Input.Keyboard]::Modifiers -band [System.Windows.Input.ModifierKeys]::Control) -ne 0) { Set-PackChecked $id (-not $script:Checked.ContainsKey($id)); return }      # Ctrl + щелчок: выбрать / снять
+                Select-Pack $id
+            } catch { Show-Error $_ 'выбор пака' }
+        })
         [void]$script:ui.PackList.Children.Add($card)
         $script:Cards[$pk.Id] = $card
       } catch { Show-Error $_ ('карточка пака ' + $pk.Id) }      # одна неудачная карточка не должна оставлять без списка остальные
     }
     Update-CardHighlight
+    Update-SelBar
 }
 
 # ---- панель «Что поменяется» ----
@@ -819,11 +935,10 @@ function New-AutoRow {
     $im.Width = 34; $im.Height = 34
     $im.VerticalAlignment = 'Center'
     $prev = $(if ($IsTile) { [string]$M.TilePath } else { [string]$M.PngPath })
-    $src = New-Img $prev 68
-    if ($src) { $im.Source = $src }
+    [void](Set-ImageSource $im (New-Img $prev 68))
     [void]$top.Children.Add($im)
     $thumbKey = [string]$M.SafeKey + $(if ($IsTile) { '|t' } else { '|l' })
-    if (-not $script:AutoThumbs.ContainsKey($thumbKey)) { $script:AutoThumbs[$thumbKey] = New-Object 'System.Collections.Generic.List[object]' }
+    if (-not $script:AutoThumbs.ContainsKey($thumbKey)) { $script:AutoThumbs[$thumbKey] = New-Object 'System.Collections.Generic.List[System.Windows.Controls.Image]' }
     $script:AutoThumbs[$thumbKey].Add($im)
     $tx = New-Object System.Windows.Controls.StackPanel
     $tx.Margin = New-Object System.Windows.Thickness(12, 0, 8, 0)
@@ -886,7 +1001,7 @@ function Set-AutoThumb {
     $path = $Line.Substring($p[0].Length + $p[1].Length + 2)
     $src = New-Img $path 68
     if (-not $src) { return }
-    foreach ($im in @($script:AutoThumbs[$k])) { $im.Source = $src }
+    foreach ($it in @($script:AutoThumbs[$k])) { [void](Set-ImageSource $it $src) }
 }
 
 # превью автоиконок создаёт отдельное фоновое задание (свой runspace): список остаётся отзывчивым, картинки появляются по мере готовности
@@ -1081,12 +1196,16 @@ if ($p.Elevate) {
     if (-not $au) { $a += '-NoAuto' }
     $er = Invoke-ElevatedCli -CliArgs $a
     $tr = & $doTiles $pk
-    return [pscustomobject]@{ Elevated = $true; Elev = $er; Tiles = $tr; Matches = @(Get-Matches -Pack $pk -AllUsers:$true -Auto:$au); TileMatches = @(& $getTiles $pk); PackName = $pk.Name; PackVersion = [string]$pk.Version; FromCache = [bool]$pk.FromCache }
+    $cl = $null
+    if ($er.Started -and -not $er.Cancelled -and [int]$er.ExitCode -eq 0) { try { $cl = Clear-UnusedCopies } catch { Write-Log ('Очистка копий: ' + $_.Exception.Message) } }       # применено - неиспользуемые копии других паков и старых версий удаляем (после плиток)
+    return [pscustomobject]@{ Elevated = $true; Elev = $er; Tiles = $tr; Cleanup = $cl; Matches = @(Get-Matches -Pack $pk -AllUsers:$true -Auto:$au); TileMatches = @(& $getTiles $pk); PackName = $pk.Name; PackVersion = [string]$pk.Version; FromCache = [bool]$pk.FromCache }
 }
 $items = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All) -Auto:$au)
 $r = Apply-Pack -Pack $pk -Items $items -RestartExplorer:([bool]$p.Restart) -NoAuto:(-not $au)
 $tr = & $doTiles $pk
-[pscustomobject]@{ Elevated = $false; Result = $r; Tiles = $tr; Matches = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All) -Auto:$au); TileMatches = @(& $getTiles $pk); PackName = $pk.Name; PackVersion = [string]$pk.Version; FromCache = [bool]$pk.FromCache }
+$cl = $null
+if ($r.Failed -eq 0 -and ($r.Changed + $r.Same) -gt 0) { try { $cl = Clear-UnusedCopies } catch { Write-Log ('Очистка копий: ' + $_.Exception.Message) } }       # применено без ошибок - неиспользуемые копии других паков и старых версий удаляем (после плиток)
+[pscustomobject]@{ Elevated = $false; Result = $r; Tiles = $tr; Cleanup = $cl; Matches = @(Get-Matches -Pack $pk -AllUsers:([bool]$p.All) -Auto:$au); TileMatches = @(& $getTiles $pk); PackName = $pk.Name; PackVersion = [string]$pk.Version; FromCache = [bool]$pk.FromCache }
 '@ -OnDone {
         param($res)
         if ($res -and $res.Error) { Show-Error $res 'применение'; return }
@@ -1114,6 +1233,7 @@ $tr = & $doTiles $pk
             if ($res.Tiles.Hint) { $ts += '. ' + $res.Tiles.Hint }
             Set-Status ($script:ui.TxtStatus.Text + ' | ' + $ts)
         }
+        if ($res.Cleanup -and [long]$res.Cleanup.Bytes -gt 0) { Set-Status ($script:ui.TxtStatus.Text + ' | ' + ($script:T.Freed -f (Format-DownloadSize ([long]$res.Cleanup.Bytes)))) }
         Set-WindowIcon                 # иконка приложения из применённого пака (если в паке есть 'glyphix') - сразу, без перезапуска
         Rebuild-Packs
         $pk = $script:Packs | Where-Object { $_.Id -eq $script:SelectedId } | Select-Object -First 1
@@ -1160,6 +1280,62 @@ Install-Pack -Id ([string]$p.Id) -Parts (Get-PackParts -Tiles ([bool]$p.Tiles) -
     }
 }
 
+# выбранные паки (галочки на карточках) - одним заданием; уже скачанные свежие пропускаются
+function Invoke-DownloadSelected {
+    $ids = @($script:Checked.Keys | Where-Object { $_ })
+    if ($ids.Count -eq 0) { Set-Status $script:T.SelNothing; return }
+    Start-Bg -WaitSilent -Title $script:T.SelDownloading -Params @{ Ids = [string[]]$ids; Tiles = (Get-TilesWanted); NoName = [bool]$script:ui.ChkNoName.IsChecked } -Body @'
+param($p)
+Install-Packs -Ids ([string[]]$p.Ids) -Parts (Get-PackParts -Tiles ([bool]$p.Tiles) -NoName ([bool]$p.NoName))
+'@ -OnDone {
+        param($res)
+        if ($res -and $res.Error) { Show-Error $res 'скачивание выбранных паков' }
+        elseif ($res) {
+            $s = $script:T.SelDone -f $res.Downloaded, $res.Files
+            if (@($res.Skipped).Count -gt 0) { $s += ($script:T.SelSkipped -f @($res.Skipped).Count) }
+            if (@($res.Failed).Count -gt 0) { $s += ($script:T.SelFailed -f @($res.Failed).Count) }
+            if ($res.Downloaded -eq 0 -and @($res.Failed).Count -eq 0 -and @($res.Skipped).Count -gt 0) { $s = $script:T.SelAllFresh }
+            Set-Status $s
+            $bad = @{}; foreach ($f in @($res.Failed)) { $bad[[string]$f.Id] = $true }
+            foreach ($k in @($script:Checked.Keys)) { if (-not $bad.ContainsKey([string]$k)) { $script:Checked.Remove($k) } }      # скачанное и пропущенное снимаем, неудавшиеся остаются отмеченными
+        }
+        Rebuild-Packs
+        if ($script:SelectedId) { Select-Pack $script:SelectedId }
+    }
+}
+
+# убрать с диска скачанные файлы одного (не применённого) пака
+function Invoke-DeletePack {
+    param([string]$Id)
+    Start-Bg -WaitSilent -Title $script:T.Deleting -Params @{ Id = $Id } -Body @'
+param($p)
+Remove-PackDownload -Id ([string]$p.Id)
+'@ -OnDone {
+        param($res)
+        if ($res -and $res.Error) { Show-Error $res 'удаление пака' }
+        elseif ($res -and $res.Ok) { Set-Status ($script:T.DeleteDone -f $res.Message) }
+        elseif ($res) { Set-Status ($script:T.DeleteFail -f $res.Message) }
+        Rebuild-Packs
+        if ($script:SelectedId) { Select-Pack $script:SelectedId }
+    }
+}
+
+# «Очистить кэш»: скачанные паки, кроме применённого, остатки прежних версий и ненужные копии иконок/плиток
+function Invoke-ClearCache {
+    $ans = [System.Windows.MessageBox]::Show($script:Window, $script:T.ConfirmCache, $script:T.Title, [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question)
+    if ($ans -ne [System.Windows.MessageBoxResult]::Yes) { return }
+    Start-Bg -WaitSilent -Title $script:T.ClearingCache -Params @{} -Body @'
+param($p)
+Clear-PackCache
+'@ -OnDone {
+        param($res)
+        if ($res -and $res.Error) { Show-Error $res 'очистка кэша'; return }
+        if ($res) { Set-Status ($script:T.CacheDone -f (Format-DownloadSize ([long]$res.Bytes))) }
+        Rebuild-Packs
+        if ($script:SelectedId) { Select-Pack $script:SelectedId }
+    }
+}
+
 function Invoke-Undo {
     $ans = [System.Windows.MessageBox]::Show($script:Window, $script:T.ConfirmUndo, $script:T.Title, [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question)
     if ($ans -ne [System.Windows.MessageBoxResult]::Yes) { return }
@@ -1200,7 +1376,7 @@ Uninstall-App -RestartExplorer:([bool]$p.Restart)
         # приложение удалено: этот процесс (отдельная копия движка) больше не пишет журнал, иначе он воссоздал бы папку данных
         $script:SI_NoLogFile = $true
         try { foreach ($lf in @($script:SI_LogFile, ($script:SI_LogFile + '.old'))) { if (Test-Path -LiteralPath $lf) { Remove-Item -LiteralPath $lf -Force } } } catch { }
-        try { if ((Test-Path -LiteralPath $script:SI_Home) -and -not (Get-ChildItem -LiteralPath $script:SI_Home -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $script:SI_Home -Force } } catch { }
+        try { if ((Test-Path -LiteralPath $script:SI_Home) -and -not (Get-ChildItem -LiteralPath $script:SI_Home -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $script:SI_Home -Recurse -Force -Confirm:$false } } catch { }
         Set-Status $script:T.Removed
         $script:Window.Close()
     }
@@ -1216,6 +1392,12 @@ $script:ui.BtnUpdate.Content = $script:T.Update
 $script:ui.BtnUndo.Content = $script:T.Undo
 $script:ui.BtnOpen.Content = $script:T.Open
 $script:ui.BtnUninstall.Content = $script:T.Uninstall
+$script:ui.BtnClearCache.Content = $script:T.ClearCache
+$script:ui.BtnSelDownload.Content = $script:T.SelDownload
+$script:ui.BtnSelDownload.ToolTip = $script:T.SelTip
+$script:ui.BtnSelAll.Content = $script:T.SelAll
+$script:ui.BtnSelNone.Content = $script:T.SelNone
+Update-SelBar
 $script:ui.ChkRestart.Content = $script:T.Restart
 $script:ui.ChkAllUsers.Content = $script:T.AllUsers
 $script:ui.ChkAllUsers.ToolTip = $script:T.AllUsersTip
@@ -1298,6 +1480,10 @@ $script:ui.ChkAuto.Add_Click({
     } catch { Show-Error $_ 'автоиконки' }
 })
 $script:ui.BtnMenu.Add_Click({ try { $script:ui.PopMenu.IsOpen = (-not $script:ui.PopMenu.IsOpen) } catch { Show-Error $_ 'меню' } })
+$script:ui.BtnClearCache.Add_Click({ try { $script:ui.PopMenu.IsOpen = $false; Invoke-ClearCache } catch { Show-Error $_ 'Очистить кэш' } })
+$script:ui.BtnSelDownload.Add_Click({ try { Invoke-DownloadSelected } catch { Show-Error $_ 'Скачать выбранные' } })
+$script:ui.BtnSelAll.Add_Click({ try { foreach ($pk in @($script:Packs)) { $script:Checked[[string]$pk.Id] = $true; if ($script:CardChecks.ContainsKey([string]$pk.Id)) { $script:CardChecks[[string]$pk.Id].IsChecked = $true } }; Update-SelBar } catch { Show-Error $_ 'Выбрать все' } })
+$script:ui.BtnSelNone.Add_Click({ try { $script:Checked.Clear(); foreach ($ck in @($script:CardChecks.Values)) { $ck.IsChecked = $false }; Update-SelBar } catch { Show-Error $_ 'Снять выбор' } })
 $script:ui.BtnUninstall.Add_Click({ try { $script:ui.PopMenu.IsOpen = $false; Invoke-Uninstall } catch { Show-Error $_ 'Удалить приложение' } })
 $script:ui.BtnLog.Add_Click({
     try {
@@ -1320,7 +1506,6 @@ $script:OnLinkNavigate = {
 }
 $script:ui.LnkGitHub.Add_RequestNavigate($script:OnLinkNavigate)
 $script:ui.LnkAuthor.Add_RequestNavigate($script:OnLinkNavigate)
-$script:ui.LnkAuthorMenu.Add_RequestNavigate($script:OnLinkNavigate)
 $script:Window.Add_Closing({
     param($s, $e)
     try {

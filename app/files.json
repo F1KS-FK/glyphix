@@ -1,0 +1,14 @@
+{
+  "version": "2.6.0",
+  "files": [
+    {"path": "app/Engine.ps1", "sha256": "521186a5101b410d4654bec69264b7efe00927446107268f77160f08fa38df92", "size": 333276},
+    {"path": "app/Glyphix.ps1", "sha256": "80966deb212573c969afbb55416c6c95971acaae2e2531867968bde533a2f22f", "size": 96656},
+    {"path": "app/MainWindow.xaml", "sha256": "25bbf6fe142f8846f54dbc0b6a193faae3f7564df1e8a590e29769c62ebaf258", "size": 22298},
+    {"path": "app/ShadowIcons.ps1", "sha256": "70de09bdba26fb2d51e710f8a3753a476fbdbf38faa873ce8d92957351d335a3", "size": 629},
+    {"path": "app/assets/app.ico", "sha256": "55780e2d17c72795d8f2390d6445e76df320587e83eb6dcc72517bcd954553c2", "size": 81574},
+    {"path": "app/assets/app.png", "sha256": "a9dd1a82e50876dd88bab7343dbe40ea9597b05993672266a6a49acecfecb5a3", "size": 63987},
+    {"path": "app/assets/logo_tile.png", "sha256": "0cc3928dba30432041a4dd4e6d7224fddf7e05b0a612499664f72a33e79201e6", "size": 130672},
+    {"path": "app/launch.vbs", "sha256": "f07159a4489eb71c47d2b9bfa2c4e9939f83c0aaadf364eecbadc9da7685e337", "size": 954},
+    {"path": "app/version.txt", "sha256": "e33ccf6527ddb87b2dc894b17dd846206c5d18334710d253f7f366f2c4403fe0", "size": 5}
+  ]
+}

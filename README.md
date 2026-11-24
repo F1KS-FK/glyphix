@@ -23,14 +23,19 @@
 
 ## Установка
 
-Открой **PowerShell** (Win+X → «Терминал» / «Windows PowerShell») и вставь:
+**[Скачать GlyphixSetup.exe](https://github.com/F1KS-FK/glyphix/raw/main/GlyphixSetup.exe)** → запусти → «Установить». Права администратора не нужны: всё ставится в папку пользователя
+(`%LOCALAPPDATA%\Glyphix`), ярлык **Glyphix** появится на рабочем столе и в «Пуске». Тот же файл обновляет и переустанавливает Glyphix.
+
+> **Windows SmartScreen** может показать окно «Windows защитил ваш компьютер»: файл пока не подписан цифровой подписью (она платная).
+> Нажми **«Подробнее» → «Выполнить в любом случае»**. Установщик не запускает PowerShell, скачивает только файлы из этого репозитория и проверяет каждый по SHA-256 (список — [`app/files.json`](app/files.json)).
+
+**Альтернатива — через PowerShell.** Открой **PowerShell** (Win+X → «Терминал» / «Windows PowerShell») и вставь:
 
 ```powershell
 irm https://raw.githubusercontent.com/F1KS-FK/glyphix/main/install.ps1 | iex
 ```
 
-Появится ярлык **Glyphix** на рабочем столе и в «Пуске». Удаление: в приложении «⋯» → «Удалить приложение»
-(перед этим иконки и плитки вернутся к исходным).
+**Удаление:** «Параметры → Приложения → Glyphix → Удалить» (или в приложении «⋯» → «Удалить приложение»). Перед удалением иконки и плитки возвращаются к исходным.
 
 ## Паки
 
@@ -73,6 +78,7 @@ by **F1KS** · Telegram [@Im_Flawless](https://t.me/Im_Flawless)
 ### English
 
 **Glyphix** applies icon packs (11 styles: Shadow, Azure, White, Black, Neon, Pixel, Gold, Holo, Glass, System, Sticker — 249 icons each) to Windows 10/11 taskbar pins, shortcuts and
-Start11 tiles in one click, with undo and in-app updates. No background processes. Install:
+Start11 tiles in one click, with undo and in-app updates. No background processes. Install: [download GlyphixSetup.exe](https://github.com/F1KS-FK/glyphix/raw/main/GlyphixSetup.exe) and run it
+(no admin rights; Windows SmartScreen may warn because the file is not code-signed: click "More info" -> "Run anyway"), or use PowerShell:
 `irm https://raw.githubusercontent.com/F1KS-FK/glyphix/main/install.ps1 | iex`.
 Code: GPL-3.0, icons: CC BY-NC-SA 4.0, © 2026 F1KS.

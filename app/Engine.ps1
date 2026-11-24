@@ -339,7 +339,7 @@ namespace GlyphixNative
         public ushort r2;
         public ushort r3;
         public IntPtr p;
-        public int p2;
+        public IntPtr p2;                          // вторая половина 16-байтовой части PROPVARIANT: sizeof = 24 (x64) / 16 (x86)
     }
 
     [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -354,9 +354,6 @@ namespace GlyphixNative
 
     public static class ShortcutAppId
     {
-        [DllImport("propsys.dll", CharSet = CharSet.Unicode)]
-        private static extern int InitPropVariantFromString(string psz, out PropVariant ppropvar);
-
         [DllImport("ole32.dll")]
         private static extern int PropVariantClear(ref PropVariant pvar);
 
@@ -377,9 +374,10 @@ namespace GlyphixNative
                 pf.Load(lnkPath, 2);                       // STGM_READWRITE
                 IPropertyStore store = (IPropertyStore)link;
                 PropertyKey key = AppIdKey();
-                PropVariant pv;
-                int hr = InitPropVariantFromString(appId, out pv);
-                if (hr != 0) { Marshal.ThrowExceptionForHR(hr); }
+                // InitPropVariantFromString - inline-функция propvarutil.h, из propsys.dll её не импортировать: VT_LPWSTR собираем вручную
+                PropVariant pv = new PropVariant();
+                pv.vt = 31;                                // VT_LPWSTR; строку освобождает PropVariantClear (CoTaskMemFree)
+                pv.p = Marshal.StringToCoTaskMemUni(appId);
                 try
                 {
                     store.SetValue(ref key, ref pv);
@@ -501,9 +499,81 @@ function Test-SafeRel {
     return $true
 }
 
-function Get-WebBytes {
-    param([string]$Url, [int]$MaxBytes = 8388608, [int]$TimeoutMs = 20000)
-    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
+# ---------- Сеть: TLS, повторы, зеркало (2.6.0) ----------
+# raw.githubusercontent.com из России нестабилен («The underlying connection was closed: An unexpected error occurred on a send»): временные ошибки
+# повторяем с паузой 0.5 / 1.5 / 3 с (всего 4 попытки), потом берём то же самое с зеркала jsDelivr (файлы пака сверяются по sha256 из pack.json;
+# index.json / pack.json с зеркала могут быть чуть старше - принимаем, в журнале пишем, откуда взято). В тестах базовые адреса и паузы переопределяются.
+$script:SI_MirrorBaseUrl = 'https://cdn.jsdelivr.net/gh/F1KS-FK/glyphix@main/'
+$script:SI_WebRetryDelaysMs = @(500, 1500, 3000)
+$script:SI_PrimaryBadUntil = [DateTime]::MinValue         # до этого момента первичный хост считаем неработающим: сначала зеркало
+$script:SI_PrimaryBadMinutes = 3
+$script:SI_LastNetFail = $false                           # последняя сетевая операция закончилась сетевой ошибкой (а не ответом сервера «нет такого файла»)
+$script:SI_NoNetMsg = 'Нет связи с GitHub — проверь интернет/VPN и нажми ещё раз'
+$script:SI_TlsSet = $false
+
+# Какие протоколы включить (числа SecurityProtocolType: Tls12 = 3072, Tls13 = 12288). Всегда TLS 1.2; TLS 1.3 - только на Windows 11 (сборка 22000+)
+# и если он есть в перечислении: в Windows 10 у schannel нет клиентского TLS 1.3, и включение Tls13 в .NET 4.8 само даёт
+# «The underlying connection was closed: An unexpected error occurred on a send». На Windows 10 бит Tls13 снимаем, даже если он уже стоял. Исключений не бросает.
+function Get-NetSecurityValue {
+    param([int]$Current = 0, [int]$Build = 0, [bool]$HasTls13 = $false)
+    $p = $Current -bor 3072
+    if ($HasTls13) { if ($Build -ge 22000) { $p = $p -bor 12288 } else { $p = $p -band (-bnot 12288) } }
+    return [int]$p
+}
+
+# TLS 1.2 (+ 1.3 на Windows 11) один раз за сеанс; SSL3/TLS1.0 не включаем
+function Initialize-NetSecurity {
+    if ($script:SI_TlsSet) { return }
+    $script:SI_TlsSet = $true
+    try {
+        $has13 = $false; try { $has13 = ([Enum]::GetNames([Net.SecurityProtocolType]) -contains 'Tls13') } catch { }
+        $build = 0; try { $build = [int][Environment]::OSVersion.Version.Build } catch { }
+        $cur = 0; try { $cur = [int][Net.ServicePointManager]::SecurityProtocol } catch { }
+        $v = Get-NetSecurityValue -Current $cur -Build $build -HasTls13 $has13
+        try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]$v }
+        catch { try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]3072 } catch { } }
+    } catch { }
+}
+
+# адрес того же файла на зеркале ('' - зеркала нет или адрес не из нашего репозитория)
+function Get-MirrorUrl {
+    param([string]$Url)
+    $m = [string]$script:SI_MirrorBaseUrl; $b = [string]$script:SI_BaseUrl
+    if (-not $m -or -not $b -or -not $Url -or -not $Url.StartsWith($b, [StringComparison]::OrdinalIgnoreCase)) { return '' }
+    return ($m + $Url.Substring($b.Length))
+}
+
+function Test-PrimaryBad { return ([DateTime]::UtcNow -lt $script:SI_PrimaryBadUntil) }
+function Set-PrimaryBad {
+    param([bool]$Bad)
+    if ($Bad) {
+        if (-not (Test-PrimaryBad)) { Write-Log ('  GitHub (raw.githubusercontent.com) не отвечает - ближайшие ' + $script:SI_PrimaryBadMinutes + ' мин сначала пробую зеркало jsDelivr') }
+        $script:SI_PrimaryBadUntil = [DateTime]::UtcNow.AddMinutes($script:SI_PrimaryBadMinutes)
+    } else { $script:SI_PrimaryBadUntil = [DateTime]::MinValue }
+}
+
+# временная ошибка (стоит повторить): сбой отправки/получения/соединения, таймаут, обрыв, DNS, ответы 5xx / 408 / 429. 404 / 403 / «слишком большой» - нет
+function Test-TransientWebError {
+    param($Err)
+    $ex = if ($Err -is [System.Management.Automation.ErrorRecord]) { $Err.Exception } else { $Err }
+    $depth = 0
+    while ($ex -and $depth -lt 8) {
+        if ($ex -is [Net.WebException]) {
+            if ($ex.Status -eq [Net.WebExceptionStatus]::ProtocolError -and $ex.Response) {
+                $c = 0; try { $c = [int]$ex.Response.StatusCode } catch { }
+                return ($c -ge 500 -or $c -eq 429 -or $c -eq 408)
+            }
+            return $true
+        }
+        if ($ex -is [IO.IOException] -or $ex -is [Net.Sockets.SocketException] -or $ex -is [TimeoutException] -or $ex -is [ObjectDisposedException]) { return $true }
+        $ex = $ex.InnerException; $depth++
+    }
+    return $false
+}
+
+# одна попытка; $FreshConn - не переиспользовать соединение (после сбоя «старое» соединение часто мёртво)
+function Get-WebBytesOnce {
+    param([string]$Url, [int]$MaxBytes = 8388608, [int]$TimeoutMs = 20000, [bool]$FreshConn = $false)
     $sep = if ($Url.Contains('?')) { '&' } else { '?' }
     $u = $Url + $sep + 'cb=' + [DateTime]::UtcNow.Ticks          # против кэша
     $req = [Net.HttpWebRequest]::Create($u)
@@ -512,6 +582,7 @@ function Get-WebBytes {
     $req.Timeout = $TimeoutMs
     $req.ReadWriteTimeout = $TimeoutMs
     $req.AllowAutoRedirect = $true
+    if ($FreshConn) { try { $req.KeepAlive = $false } catch { } }
     $req.Headers.Add('Cache-Control', 'no-cache')
     try { $req.CachePolicy = New-Object System.Net.Cache.RequestCachePolicy([System.Net.Cache.RequestCacheLevel]::BypassCache) } catch { }
     try {
@@ -532,6 +603,55 @@ function Get-WebBytes {
             return , $ms.ToArray()
         } finally { $ms.Dispose(); $st.Dispose() }
     } finally { $resp.Close() }
+}
+
+# GET с повторами (4 попытки: паузы 0.5 / 1.5 / 3 с, только на временных ошибках) и запасным путём через зеркало. Без сети - исключение (SI_LastNetFail = $true).
+function Get-WebBytes {
+    param([string]$Url, [int]$MaxBytes = 8388608, [int]$TimeoutMs = 20000)
+    Initialize-NetSecurity
+    $delays = @($script:SI_WebRetryDelaysMs)
+    $mirror = Get-MirrorUrl $Url
+    $plan = New-Object 'System.Collections.Generic.List[object]'
+    $nP = $delays.Count + 1
+    if ($mirror -and (Test-PrimaryBad)) {            # первичный хост недавно не отвечал: зеркало первым, потом он же
+        $plan.Add(@($mirror, $true)); for ($i = 0; $i -lt [Math]::Min(2, $nP); $i++) { $plan.Add(@($Url, $false)) }; $plan.Add(@($mirror, $true))
+    } else {
+        for ($i = 0; $i -lt $nP; $i++) { $plan.Add(@($Url, $false)) }
+        if ($mirror) { $plan.Add(@($mirror, $true)); $plan.Add(@($mirror, $true)) }
+    }
+    $script:SI_LastNetFail = $false
+    $first = $null; $netErr = $null
+    $mirrorGone = $false        # зеркало ответило «нет такого файла» (jsDelivr @main отстаёт от GitHub до 12 ч): больше его не спрашиваем, но GitHub из плана пробуем
+    for ($i = 0; $i -lt $plan.Count; $i++) {
+        $u = [string]$plan[$i][0]; $isM = [bool]$plan[$i][1]
+        if ($isM -and $mirrorGone) { continue }
+        try {
+            $b = Get-WebBytesOnce $u $MaxBytes $TimeoutMs ($i -gt 0)
+            if ($isM) { Write-Log ('  источник: зеркало jsDelivr (' + ($u -replace '^https?://[^/]+/', '') + ')') } else { Set-PrimaryBad $false }
+            $script:SI_LastNetFail = $false          # повтор удался: сетевого сбоя больше нет, флаг не должен «прилипнуть» к чужим ошибкам
+            return , $b
+        } catch {
+            if (-not $first) { $first = $_ }
+            if (-not (Test-TransientWebError $_)) {
+                if (-not $isM) { $script:SI_LastNetFail = $false; throw }      # GitHub: 404 / 403 / слишком большой ответ - повторять и менять источник нечего
+                $mirrorGone = $true
+                Write-Log ('  зеркало: ' + ($u -replace '\?.*$', '') + ' - ' + $_.Exception.Message)
+                continue
+            }
+            if (-not $netErr) { $netErr = $_ }
+            $script:SI_LastNetFail = $true
+            if (-not $isM -and $mirror -and $i -ge 1) { Set-PrimaryBad $true }
+            $nx = $i + 1
+            while ($nx -lt $plan.Count -and $mirrorGone -and [bool]$plan[$nx][1]) { $nx++ }
+            if ($nx -lt $plan.Count) {
+                $nextM = [bool]$plan[$nx][1]
+                Write-Log ('  сеть: ' + ($u -replace '\?.*$', '') + ' - ' + $_.Exception.Message + $(if ($nextM) { ' - пробую зеркало' } else { ' - повтор ' + ($nx + 1) + '/' + $plan.Count }))
+                if (-not $nextM -or $isM) { $d = $delays[[Math]::Min($i, [Math]::Max(0, $delays.Count - 1))]; if ($d -gt 0) { Start-Sleep -Milliseconds ([int]$d) } }
+            }
+        }
+    }
+    if ($netErr) { $script:SI_LastNetFail = $true; throw $netErr }       # GitHub не ответил (а зеркало не помогло) - это сбой сети, а не «нет файла»
+    throw $first
 }
 
 function ConvertFrom-JsonBytes {
@@ -592,13 +712,22 @@ function Save-FileAtomic {
 function Remove-StaleTempFiles {
     param([string]$Root = $script:SI_Home, [int]$MinAgeMinutes = 10)
     $n = 0
+    $script:SI_TempBytes = [long]0         # сколько байт освободил последний вызов (для «Очистить кэш»)
     if (-not $Root -or -not (Test-Path -LiteralPath $Root -PathType Container)) { return 0 }
     $limit = (Get-Date).AddMinutes(-$MinAgeMinutes)
     try {
-        foreach ($f in @(Get-ChildItem -LiteralPath $Root -Recurse -File -Force -Filter '*.tmp' -ErrorAction SilentlyContinue)) {
-            try {
-                if ($f.LastWriteTime -lt $limit -and $f.Name.EndsWith('.tmp', [StringComparison]::OrdinalIgnoreCase)) { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop; $n++ }
-            } catch { }
+        # обход вручную: Get-ChildItem -Recurse в Windows PowerShell 5.1 заходит в junction/symlink; ссылки (папки и файлы) не открываем и не удаляем
+        $stack = New-Object 'System.Collections.Generic.Stack[string]'
+        $stack.Push($Root)
+        while ($stack.Count -gt 0) {
+            $dir = $stack.Pop()
+            foreach ($f in @(Get-ChildItem -LiteralPath $dir -Force -ErrorAction SilentlyContinue)) {
+                if (Test-IsReparse $f) { continue }
+                if ($f.PSIsContainer) { $stack.Push($f.FullName); continue }
+                try {
+                    if ($f.LastWriteTime -lt $limit -and $f.Name.EndsWith('.tmp', [StringComparison]::OrdinalIgnoreCase)) { $len = [long]$f.Length; Remove-Item -LiteralPath $f.FullName -Force -Confirm:$false -ErrorAction Stop; $n++; $script:SI_TempBytes += $len }
+                } catch { }
+            }
         }
     } catch { }
     if ($n -gt 0) { Write-Log "Удалено остатков *.tmp: $n" }
@@ -618,8 +747,8 @@ function Join-Rel {
 # без async/await: окно из Task, ожидание Task.WaitAny. Проверка sha256 и запись (Save-FileAtomic) - только в вызывающем потоке.
 $script:SI_HttpClient = $null
 $script:SI_DownloadConcurrency = 12                  # одновременных запросов
-$script:SI_DownloadTries = 3                         # попыток на файл (первая + 2 повтора)
-$script:SI_RetryDelaysMs = @(500, 1500)              # пауза перед 2-й и 3-й попыткой
+$script:SI_DownloadTries = 4                         # попыток на файл (первая + 3 повтора; 3-я идёт через зеркало jsDelivr, если оно задано)
+$script:SI_RetryDelaysMs = @(500, 1500, 3000)        # пауза перед 2-й, 3-й и 4-й попыткой
 $script:SI_HttpTimeoutSec = 45                       # таймаут одного запроса (с телом ответа)
 $script:SI_ConnectionLimit = 16                      # ServicePoint.ConnectionLimit для хоста
 # лимит соединений задаём сразу при загрузке движка: ServicePoint (в т.ч. для системного прокси/VPN) создаётся с лимитом, действующим в момент первого запроса
@@ -629,7 +758,7 @@ $script:SI_FileMaxBytes = 16777216                   # один файл пак�
 function Get-HttpClient {
     if ($script:SI_HttpClient) { return $script:SI_HttpClient }
     try { Add-Type -AssemblyName System.Net.Http -ErrorAction Stop } catch { }
-    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
+    Initialize-NetSecurity
     try {
         if ([Net.ServicePointManager]::DefaultConnectionLimit -lt $script:SI_ConnectionLimit) { [Net.ServicePointManager]::DefaultConnectionLimit = $script:SI_ConnectionLimit }
         [Net.ServicePointManager]::Expect100Continue = $false
@@ -693,14 +822,16 @@ function Invoke-ParallelDownload {
     $total = @($Items).Count
     $failed = New-Object 'System.Collections.Generic.List[object]'
     $res = [pscustomobject]@{ Done = 0; Total = $total; Bytes = [long]0; Failed = $failed }
+    $script:SI_LastNetFail = $false                  # флаг сетевой ошибки - на одну операцию: ставится только за файл, не скачанный по сетевой причине
     if ($total -eq 0) { return $res }
     $pending = New-Object 'System.Collections.Generic.Queue[object]'
     $waiting = New-Object 'System.Collections.Generic.List[object]'
     $active = New-Object 'System.Collections.Generic.List[object]'
-    foreach ($it in @($Items)) { $pending.Enqueue([pscustomobject]@{ Item = $it; Attempt = 0; Task = $null; StartErr = $null; Ready = [long]0 }) }
+    foreach ($it in @($Items)) { $pending.Enqueue([pscustomobject]@{ Item = $it; Attempt = 0; Task = $null; StartErr = $null; Ready = [long]0; Mirror = $false }) }
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $lastLog = [long]-1000
     $cts = New-Object System.Threading.CancellationTokenSource
+    $mirrorFiles = 0
     try {
         while ($pending.Count -gt 0 -or $waiting.Count -gt 0 -or $active.Count -gt 0) {
             $now = $sw.ElapsedMilliseconds
@@ -709,6 +840,13 @@ function Invoke-ParallelDownload {
                 $j = $pending.Dequeue()
                 $j.Attempt++; $j.Task = $null; $j.StartErr = $null
                 $url = [string]$j.Item.Url
+                # источник попытки: обычно первичный (GitHub), 3-я попытка - зеркало; если GitHub недавно не отвечал - зеркало первым, потом GitHub
+                $j.Mirror = $false
+                $mu = Get-MirrorUrl $url
+                if ($mu) {
+                    $badNow = Test-PrimaryBad
+                    if (($badNow -and ($j.Attempt % 2) -eq 1) -or (-not $badNow -and $j.Attempt -eq 3)) { $url = $mu; $j.Mirror = $true }
+                }
                 if ($j.Attempt -gt 1) { $url += $(if ($url.Contains('?')) { '&' } else { '?' }) + 'cb=' + [DateTime]::UtcNow.Ticks }
                 try { $j.Task = Start-HttpFetch $url $cts.Token } catch { $j.StartErr = $_.Exception.Message }
                 $active.Add($j)
@@ -735,22 +873,27 @@ function Invoke-ParallelDownload {
                         else { Save-FileAtomic ([string]$j.Item.Dest) $b }
                     } catch { $err = $_.Exception.Message }
                 }
+                $netErr = [bool]($err -and $err -notmatch '^sha256' -and $err -notmatch '^HTTP 4(?!08|29)' -and $err -notmatch '^ответ больше')       # сбой сети, а не «нет такого файла» / «не тот файл»
                 if (-not $err) {
+                    if ($j.Mirror) { $mirrorFiles++ } else { Set-PrimaryBad $false }
                     $res.Done++; $res.Bytes += $b.Length
                     $ms = $sw.ElapsedMilliseconds
                     if ($Label -and ($res.Done -eq $total -or ($ms - $lastLog) -ge 300)) { $lastLog = $ms; Write-Log ("Скачиваю ${Label}: $($res.Done)/$total ($(Format-DownloadSize $res.Bytes))") }
                     if ($OnProgress) { try { & $OnProgress $res.Done $total $res.Bytes } catch { } }
                 } elseif ($j.Attempt -lt $MaxTries) {
+                    if ($netErr -and -not $j.Mirror -and $j.Attempt -ge 2 -and (Get-MirrorUrl ([string]$j.Item.Url))) { Set-PrimaryBad $true }
                     $di = [Math]::Min($j.Attempt - 1, @($script:SI_RetryDelaysMs).Count - 1)
                     $j.Ready = $sw.ElapsedMilliseconds + $(if ($di -ge 0) { [long]@($script:SI_RetryDelaysMs)[$di] } else { 0 })
                     $waiting.Add($j)
-                    Write-Log ("  повтор $($j.Attempt)/${MaxTries}: $(([string]$j.Item.Url) -replace '^.*/packs/', '') - $err")
+                    Write-Log ("  повтор $($j.Attempt)/${MaxTries}: $(([string]$j.Item.Url) -replace '^.*/packs/', '') - $err$(if ($j.Mirror) { ' (зеркало)' })")
                 } else {
                     $failed.Add([pscustomobject]@{ Item = $j.Item; Error = $err })
+                    if ($netErr) { $script:SI_LastNetFail = $true }
                     Write-Log ("  не скачан: $([string]$j.Item.Url) - $err")
                 }
             }
         }
+        if ($mirrorFiles -gt 0) { Write-Log ('  источник: зеркало jsDelivr - файлов: ' + $mirrorFiles + ' (остальные с GitHub)') }
     } finally {
         try { $cts.Cancel() } catch { }
         $left = @($active | Where-Object { $_.Task })
@@ -870,6 +1013,26 @@ function Test-RefreshCancelled {
     try { return [bool]($Cancel -and $Cancel['Cancel']) } catch { return $false }
 }
 
+# версия локального pack.json пака $Id ('' - файла нет, не читается, другой id или версия не разбирается)
+function Get-LocalPackVersion {
+    param([string]$ManPath, [string]$Id)
+    try {
+        if (-not (Test-Path -LiteralPath $ManPath -PathType Leaf)) { return '' }
+        $j = Read-JsonFile $ManPath
+        if ([string]$j.id -ne $Id) { return '' }
+        $v = [string]$j.version
+        if ($null -eq (ConvertTo-VersionParts $v)) { return '' }
+        return $v
+    } catch { return '' }
+}
+
+# $A строго новее $B (числовое сравнение по частям); версия $B не указана / не разбирается - $false (нечем доказать, что локальная новее)
+function Test-VersionNewer {
+    param([string]$A, [string]$B)
+    $c = Compare-AppVersion $A $B
+    return ($null -ne $c -and $c -gt 0)
+}
+
 function Update-OnePack {
     param([string]$BaseUrl, $Entry, [bool]$Force, $Cancel = $null)
     $id = [string]$Entry.id
@@ -889,12 +1052,20 @@ function Update-OnePack {
     $needManifest = $Force -or -not (Test-Path -LiteralPath $manLocal)
     if (-not $needManifest) { try { $needManifest = ((Get-FileSha256 $manLocal) -ne $manSha) } catch { $needManifest = $true } }
 
+    # никогда не откатываем пак назад: зеркало jsDelivr (@main) отстаёт от GitHub до 12 ч, и его index.json / pack.json могут быть старше локального
+    if ($needManifest) {
+        $lv = Get-LocalPackVersion $manLocal $id
+        if ($lv -and (Test-VersionNewer $lv ([string]$Entry.version))) { Write-Log ("  $id : в index.json версия $($Entry.version), локальная $lv новее - оставляю локальный pack.json"); return 0 }
+    }
+
     if (Test-RefreshCancelled $Cancel) { return 0 }
     $manBytes = $null
     if ($needManifest) {
         $manBytes = Get-WebBytes ($BaseUrl + $manRel) 4194304
         if ((Get-BytesSha256 $manBytes) -ne $manSha) { throw 'sha256 pack.json не совпал с index.json' }
         $man = ConvertFrom-JsonBytes $manBytes
+        $lv2 = Get-LocalPackVersion $manLocal $id
+        if ($lv2 -and (Test-VersionNewer $lv2 ([string]$man.version))) { Write-Log ("  $id : полученный pack.json (версия $($man.version)) старше локального ($lv2) - оставляю локальный"); return 0 }
     } else {
         $man = Read-JsonFile $manLocal
     }
@@ -941,11 +1112,12 @@ function Get-PackState {
 # параллельно; каждый - с проверкой sha256. Ошибка сети/sha - исключение (уже скачанные файлы остаются, метка «готово» не ставится).
 function Install-Pack {
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Id, [string]$BaseUrl = $script:SI_BaseUrl, [switch]$Force, [string[]]$Parts = $script:SI_AllParts)
+    param([Parameter(Mandatory)][string]$Id, [string]$BaseUrl = $script:SI_BaseUrl, [switch]$Force, [string[]]$Parts = $script:SI_AllParts, [string]$LabelPrefix = '')
     if ($Id -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$') { throw "недопустимый id пака '$Id'" }
     $Parts = @($Parts | Where-Object { $script:SI_AllParts -contains $_ })
     if ($Parts.Count -eq 0) { $Parts = @('icons') }
-    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
+    Initialize-NetSecurity
+    $script:SI_LastNetFail = $false
     if (-not $BaseUrl.EndsWith('/')) { $BaseUrl += '/' }
     $idx = ConvertFrom-JsonBytes (Get-WebBytes ($BaseUrl + 'index.json') 1048576)
     $entry = @($idx.packs) | Where-Object { [string]$_.id -eq $Id } | Select-Object -First 1
@@ -959,7 +1131,7 @@ function Install-Pack {
     $man = ConvertFrom-JsonBytes $manBytes
     $files = @(Get-PackFileList $packDir ($BaseUrl + ([string]$entry.path).Trim('/') + '/') $man -Parts $Parts)
     $label = if ($man.name) { [string]$man.name } else { $Id }
-    $n = Sync-PackFiles $files $label -Force:$Force
+    $n = Sync-PackFiles $files ($LabelPrefix + $label) -Force:$Force
     if (-not (Test-Path -LiteralPath $manPath -PathType Leaf)) {
         Write-Log "  pack.json пака $label пропал с диска во время загрузки - записываю заново"
         Save-FileAtomic $manPath $manBytes
@@ -969,7 +1141,58 @@ function Install-Pack {
     }
     foreach ($part in $Parts) { Save-FileAtomic (Join-Path $packDir (Get-PackMarkerName $part)) ([System.Text.UTF8Encoding]::new($false).GetBytes($manSha)) }
     Write-Log $(if ($n -gt 0) { "Пак ${label}: скачано файлов $n" } else { "Пак ${label}: все файлы на месте" })
+    # остатки прежних версий (старые .png-плитки после перехода на .jpg и т.п.): файлы, которых нет в свежем pack.json (по ВСЕМ частям), если на них ничто не ссылается
+    try {
+        $expected = @(Get-PackFileList $packDir ($BaseUrl + ([string]$entry.path).Trim('/') + '/') $man | ForEach-Object { [string]$_.Dest })
+        if ($man.preview -and (Test-SafeRel ([string]$man.preview) @('.png'))) { $expected += (Join-Rel $packDir ([string]$man.preview)) }
+        [void](Clear-PackLeftovers $packDir $expected)
+    } catch { Write-Log ('  остатки прежней версии пака не удалены: ' + $_.Exception.Message) }
     return [pscustomobject]@{ Id = $Id; Downloaded = ($n + $d0); Files = $files.Count; Parts = $Parts }
+}
+
+# Несколько паков за раз (выбор на карточках, 2.6.0): по очереди Install-Pack (файлы каждого пака качаются параллельно, Invoke-ParallelDownload).
+# Уже скачанный свежий пак (все нужные части 'ready' по текущему pack.json) пропускаем. Общий прогресс - в строках журнала: «Скачиваю [2/5] Gold: 230/508 (7.4 МБ)».
+# Ошибка одного пака не останавливает остальные. Возвращает { Total; Downloaded (паков); Files; Skipped (id); Failed (@{ Id; Error }); Message }.
+function Install-Packs {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string[]]$Ids, [string]$BaseUrl = $script:SI_BaseUrl, [string[]]$Parts = @('icons'))
+    $ids = @($Ids | Where-Object { $_ } | Select-Object -Unique)
+    $total = $ids.Count
+    $done = New-Object 'System.Collections.Generic.List[string]'
+    $skipped = New-Object 'System.Collections.Generic.List[string]'
+    $failed = New-Object 'System.Collections.Generic.List[object]'
+    $files = 0; $i = 0
+    foreach ($id in $ids) {
+        $i++
+        $script:SI_LastNetFail = $false          # у каждого пака своя сетевая оценка: сбой одного не делает «Нет связи» чужую ошибку другого
+        try {
+            if ($id -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$') { throw "недопустимый id пака '$id'" }
+            $pk = @(Get-Packs -OnlyId $id) | Select-Object -First 1
+            $fresh = $false
+            if ($pk) {
+                $fresh = $true
+                foreach ($part in @($Parts)) {
+                    $pf = if ($pk.PartFiles.ContainsKey([string]$part)) { @($pk.PartFiles[[string]$part]) } else { @($pk.Files) }
+                    if ((Get-PackState ([string]$pk.Dir) $pf ([string]$part)) -ne 'ready') { $fresh = $false; break }
+                }
+            }
+            if ($fresh) { $skipped.Add($id); Write-Log "Пакет $i из ${total}: $id уже скачан"; continue }
+            Write-Log "Скачиваю выбранные: пак $i из ${total} ($id)"
+            $r = Install-Pack -Id $id -BaseUrl $BaseUrl -Parts $Parts -LabelPrefix "[$i/$total] "
+            $files += [int]$r.Downloaded
+            $done.Add($id)
+        } catch {
+            $em = $_.Exception.Message
+            Write-Log "  пак ${id}: ошибка - $em"
+            if ($script:SI_LastNetFail -or (Test-NetworkErrorText $em)) { $em = $script:SI_NoNetMsg }
+            $failed.Add([pscustomobject]@{ Id = $id; Error = $em })
+        }
+    }
+    $msg = "Скачано паков: $($done.Count) (файлов: $files)"
+    if ($skipped.Count -gt 0) { $msg += ", уже скачаны: $($skipped.Count)" }
+    if ($failed.Count -gt 0) { $msg += ", ошибок: $($failed.Count)" }
+    Write-Log $msg
+    return [pscustomobject]@{ Total = $total; Downloaded = $done.Count; Files = $files; Skipped = $skipped.ToArray(); Failed = $failed.ToArray(); Done = $done.ToArray(); Message = $msg }
 }
 
 # Перед применением: нужные части пака не скачаны / не проверены - докачиваем (только этот пак, только эти части; по умолчанию - иконки).
@@ -1000,13 +1223,31 @@ function New-RefreshCancelledResult {
     return [pscustomobject]@{ Ok = $false; Cancelled = $true; Downloaded = $Downloaded; Updated = @($Updated); Errors = @(); Message = 'Обновление остановлено' }
 }
 
+# index.json с сервера старше сохранённого: его поле updated раньше, или у какого-то пака версия ниже (откат не принимаем)
+function Test-IndexOlderThanLocal {
+    param([string]$LocalPath, $Remote)
+    try {
+        if (-not (Test-Path -LiteralPath $LocalPath -PathType Leaf)) { return $false }
+        $loc = Read-JsonFile $LocalPath
+        $a = [DateTime]::MinValue; $b = [DateTime]::MinValue
+        $st = [Globalization.DateTimeStyles]::AdjustToUniversal -bor [Globalization.DateTimeStyles]::AssumeUniversal
+        if ($loc.updated -and $Remote.updated -and [DateTime]::TryParse([string]$loc.updated, [Globalization.CultureInfo]::InvariantCulture, $st, [ref]$a) -and [DateTime]::TryParse([string]$Remote.updated, [Globalization.CultureInfo]::InvariantCulture, $st, [ref]$b)) {
+            if ($a -gt $b) { return $true }
+        }
+        $lv = @{}; foreach ($e in @($loc.packs)) { $lv[[string]$e.id] = [string]$e.version }
+        foreach ($e in @($Remote.packs)) { if ($lv.ContainsKey([string]$e.id) -and (Test-VersionNewer $lv[[string]$e.id] ([string]$e.version))) { return $true } }
+    } catch { }
+    return $false
+}
+
 function Update-Packs {
     [CmdletBinding()]
     param([string]$BaseUrl = $script:SI_BaseUrl, [switch]$Force, $Cancel = $null)
     $errors = New-Object 'System.Collections.Generic.List[string]'
     $updated = New-Object 'System.Collections.Generic.List[string]'
     $total = 0
-    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
+    Initialize-NetSecurity
+    $script:SI_LastNetFail = $false
     if (-not $BaseUrl.EndsWith('/')) { $BaseUrl += '/' }
     Write-Log 'Проверяю обновления паков...'
     $idxBytes = $null
@@ -1028,7 +1269,11 @@ function Update-Packs {
         }
     } catch { }
     if (Test-RefreshCancelled $Cancel) { return (New-RefreshCancelledResult) }
-    try { Save-FileAtomic (Join-Path $script:SI_PacksDir 'index.json') $idxBytes } catch { Write-Log ('index.json не сохранён: ' + $_.Exception.Message) }   # порядок паков в галерее
+    try {
+        $ixLocal = Join-Path $script:SI_PacksDir 'index.json'
+        if (Test-IndexOlderThanLocal $ixLocal $idx) { Write-Log 'index.json на сервере (зеркало?) старше локального - локальный оставляю' }
+        else { Save-FileAtomic $ixLocal $idxBytes }     # порядок паков в галерее
+    } catch { Write-Log ('index.json не сохранён: ' + $_.Exception.Message) }
     # на каждом запуске - только index.json, pack.json и превью всех паков; иконки и плитки - по требованию (Install-Pack)
     $entries = @($idx.packs)
     $i = 0
@@ -1133,6 +1378,12 @@ function Get-Packs {
 }
 
 # ---------- Свежий пак перед применением (2.5.0) ----------
+# текст ошибки похож на сетевую (.NET: «The underlying connection was closed», таймаут, DNS, отказ в соединении и т.п.)
+function Test-NetworkErrorText {
+    param([string]$Text)
+    return [bool]($Text -match '(?i)underlying connection|unexpected error occurred on a send|unable to connect|could not be resolved|name or service not known|actively refused|connection (was )?(closed|reset|refused)|timed out|timeout|time.?out|the request was aborted|удал[её]нный сервер|базовое соединение|не удаётся соединиться|таймаут|HTTP 5\d\d|HTTP 429|WebException|GetResponse')
+}
+
 # Применять можно только пак, прочитанный с диска ПОСЛЕ обновления index.json / pack.json и докачки файлов: объект Get-Packs, снятый раньше,
 # мог описывать старую версию (другие файлы, другие расширения плиток) - так в 2.4.2 применялся кэш 2.1.0, а новые файлы качались уже после.
 # Sync-PackForApply = Install-Pack (index + pack.json + нужные части) и повторное чтение пака с диска. Нет сети - работаем из кэша, если нужные файлы
@@ -1141,13 +1392,15 @@ function Sync-PackForApply {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Id, [string[]]$Parts = @('icons'), [string]$BaseUrl = $script:SI_BaseUrl)
     $err = ''
+    $script:SI_LastNetFail = $false
     try { [void](Install-Pack -Id $Id -Parts $Parts -BaseUrl $BaseUrl) } catch { $err = $_.Exception.Message }
+    $netFail = [bool]($err -and ($script:SI_LastNetFail -or (Test-NetworkErrorText $err)))
     $pk = @(Get-Packs -OnlyId $Id) | Select-Object -First 1
-    if (-not $pk) { if ($err) { throw $err }; throw "пак '$Id' не найден" }
+    if (-not $pk) { if ($err) { Write-Log ('  причина: ' + $err); if ($netFail) { throw $script:SI_NoNetMsg }; throw $err }; throw "пак '$Id' не найден" }
     if ($err) {
         foreach ($part in @($Parts)) {
             $files = if ($pk.PartFiles.ContainsKey([string]$part)) { @($pk.PartFiles[[string]$part]) } else { @($pk.Files) }
-            if ((Get-PackState ([string]$pk.Dir) $files ([string]$part)) -eq 'none') { throw $err }
+            if ((Get-PackState ([string]$pk.Dir) $files ([string]$part)) -eq 'none') { Write-Log ('  причина: ' + $err); if ($netFail) { throw $script:SI_NoNetMsg }; throw $err }
         }
         Write-Log ('Не удалось обновить пак с GitHub — применена сохранённая версия ' + [string]$pk.Version)
         Write-Log ('  причина: ' + $err)
@@ -1243,7 +1496,7 @@ function Clear-StaleAppliedIcons {
         if ($cand.Count -eq 0) { return 0 }
         $refs = @{}
         $script:SI_LnkReadFails = 0
-        foreach ($lnk in @(Get-ShortcutList -AllUsers)) {
+        foreach ($lnk in @(Get-ReferenceLinks)) {
             $pth = (Split-IconLocation ([Environment]::ExpandEnvironmentVariables([string]$lnk.Icon))).Path.Trim('"')
             if ($pth) { try { $refs[[IO.Path]::GetFullPath($pth).ToLowerInvariant()] = $true } catch { } }
         }
@@ -1273,7 +1526,10 @@ function Remove-AppliedFiles {
         if (([IO.File]::GetAttributes($script:SI_AppliedDir) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return }
         if ($KeepReferenced) {
             $refs = @{}
-            foreach ($lnk in @(Get-ShortcutList -AllUsers)) {
+            $script:SI_LnkReadFails = 0
+            $links = @(Get-ReferenceLinks)
+            if ($script:SI_LnkReadFails -gt 0) { Write-Log ('  applied\ не тронута: не прочитано ярлыков - ' + $script:SI_LnkReadFails); return }      # не знаем, на что смотрит нечитаемый ярлык - не удаляем ничего
+            foreach ($lnk in $links) {
                 $pth = (Split-IconLocation ([Environment]::ExpandEnvironmentVariables([string]$lnk.Icon))).Path.Trim('"')
                 if (-not $pth) { continue }
                 try { $full = [IO.Path]::GetFullPath($pth); if (Test-PathUnder $full $root) { $refs[$full.ToLowerInvariant()] = $true } } catch { }
@@ -1292,8 +1548,290 @@ function Remove-AppliedFiles {
                 return
             }
         }
-        Remove-Item -LiteralPath $script:SI_AppliedDir -Recurse -Force
+        [void](Remove-TreeSafe $script:SI_AppliedDir $script:SI_Home)       # без захода в ссылки (в PowerShell 5.1 Remove-Item -Recurse в них заходит)
     } catch { Write-Log ('applied не удалена: ' + $_.Exception.Message) }
+}
+
+# ---------- Очистка диска (2.6.0) ----------
+# Место занимают: packs\<id>\ (скачанные иконки и плитки), applied\ (копии иконок для ярлыков), start11\ (копии плиток, на которые смотрит реестр Start11)
+# и auto\ (автоиконки). Правила безопасности те же, что у Clear-StaleAppliedIcons (2.5.0): удаляем только внутри нашей папки данных, ссылки
+# (junction/symlink) не открываем и не удаляем, файл, на который ещё что-то ссылается (ярлык, значение CustomTiles, бэкап), остаётся,
+# а если хоть один ярлык не прочитался - не удаляем ничего (неизвестно, на что он смотрит).
+
+function Test-IsReparse {
+    param($Item)
+    try { return ((([int]$Item.Attributes) -band ([int][IO.FileAttributes]::ReparsePoint)) -ne 0) } catch { return $true }
+}
+
+# размер папки без захода в ссылки
+function Get-TreeBytes {
+    param([string]$Dir)
+    $sum = [long]0
+    try {
+        foreach ($c in @(Get-ChildItem -LiteralPath $Dir -Force -ErrorAction SilentlyContinue)) {
+            if (Test-IsReparse $c) { continue }
+            if ($c.PSIsContainer) { $sum += (Get-TreeBytes $c.FullName) } else { $sum += [long]$c.Length }
+        }
+    } catch { }
+    return $sum
+}
+
+function Remove-TreeInner {
+    param([string]$Dir, $Res)
+    foreach ($c in @(Get-ChildItem -LiteralPath $Dir -Force -ErrorAction SilentlyContinue)) {
+        if (Test-IsReparse $c) { $Res.Left++; continue }                          # ссылку не открываем и не трогаем (пусть остаётся)
+        if ($c.PSIsContainer) { Remove-TreeInner $c.FullName $Res; continue }
+        try { $len = [long]$c.Length; Remove-Item -LiteralPath $c.FullName -Force -ErrorAction Stop; $Res.Files++; $Res.Bytes += $len } catch { $Res.Left++ }
+    }
+    try { if (-not (Get-ChildItem -LiteralPath $Dir -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $Dir -Recurse -Force -Confirm:$false -ErrorAction Stop } else { $Res.Left++ } } catch { $Res.Left++ }
+}
+
+# Рекурсивное удаление папки $Path строго внутри $Root (сам $Root не удаляется), не переходя по junction/symlink: в PowerShell 5.1
+# Remove-Item -Recurse заходит в ссылки. Возвращает { Files; Bytes; Left }: сколько файлов удалено, сколько байт освобождено, сколько элементов осталось.
+function Remove-TreeSafe {
+    param([string]$Path, [string]$Root)
+    $res = [pscustomobject]@{ Files = 0; Bytes = [long]0; Left = 0 }
+    try {
+        $full = Get-NormalPath $Path; $rt = Get-NormalPath $Root
+        if (-not $full -or -not $rt -or -not (Test-PathUnder $full $rt)) { return $res }
+        if (-not (Test-Path -LiteralPath $full -PathType Container)) { return $res }
+        if (Test-IsReparse (Get-Item -LiteralPath $full -Force)) { $res.Left = 1; return $res }
+        if ((Test-Path -LiteralPath $rt -PathType Container) -and (Test-IsReparse (Get-Item -LiteralPath $rt -Force))) { $res.Left = 1; return $res }
+        Remove-TreeInner $full $res
+    } catch { $res.Left++; Write-Log ('  папка не удалена: ' + $_.Exception.Message) }
+    return $res
+}
+
+# Всё, на что сейчас что-то ссылается: иконки ярлыков (пользователя, общих и закреплённых на панели задач / в Пуске), значения CustomTiles Start11,
+# исходные значения в бэкапах (backup\index.json: Icon, backup\start11.json: Data), иконка самого приложения (state.json: AppIcon) и $ExtraRefs.
+# Ok = $false (Reason - почему), если хоть что-то прочитать не удалось: тогда решать, что не нужно, нельзя. Paths - хэш-таблица полных путей в нижнем регистре.
+function Get-ReferencedFiles {
+    param([string[]]$ExtraRefs = @())
+    $set = @{}
+    $res = [pscustomobject]@{ Ok = $true; Reason = ''; Paths = $set }
+    $add = {
+        param($Loc)
+        $p = (Split-IconLocation ([Environment]::ExpandEnvironmentVariables([string]$Loc))).Path.Trim('"')
+        if ($p) { try { $set[[IO.Path]::GetFullPath($p).ToLowerInvariant()] = $true } catch { } }
+    }
+    try {
+        $script:SI_LnkReadFails = 0
+        # все папки ярлыков рекурсивно, в т.ч. закреплённые на панели задач / в Пуске (User Pinned\TaskBar, StartMenu, ImplicitAppShortcuts) - см. Get-ReferenceLinks
+        foreach ($lnk in @(Get-ReferenceLinks)) { & $add ([string]$lnk.Icon) }
+        if ($script:SI_LnkReadFails -gt 0) { $res.Ok = $false; $res.Reason = 'не прочитано ярлыков: ' + $script:SI_LnkReadFails; return $res }
+        foreach ($n in @(Get-S11ValueNames $script:SI_S11Tiles)) {
+            try { $v = Get-S11Value $script:SI_S11Tiles $n; if ($v) { & $add $v } } catch { }          # не REG_SZ - не наше значение
+        }
+        foreach ($e in @((Load-S11Backup).Values)) { if (-not $e.Absent -and $e.Data) { & $add ([string]$e.Data) } }
+        foreach ($e in @((Load-Backup).Values)) { if ($e.Icon) { & $add ([string]$e.Icon) } }
+        $st = Read-State
+        if ($st.ContainsKey('AppIcon') -and $st['AppIcon']) { & $add ([string]$st['AppIcon']) }
+        foreach ($x in @($ExtraRefs)) { if ($x) { & $add $x } }
+    } catch { $res.Ok = $false; $res.Reason = $_.Exception.Message }
+    return $res
+}
+
+# id применённого пака (state.json), '' - ничего не применено
+function Get-AppliedPackId {
+    try { $st = Read-State; if ($st.ContainsKey('Applied') -and $st['Applied']) { return [string]$st['Applied'].PackId } } catch { }
+    return ''
+}
+
+# размер скачанного пака на диске (вся его папка), для карточки
+function Get-PackDiskBytes {
+    param([string]$PackDir)
+    if (-not $PackDir -or -not (Test-Path -LiteralPath $PackDir -PathType Container)) { return [long]0 }
+    return (Get-TreeBytes $PackDir)
+}
+
+# Файлы внутри папки пака (рекурсивно, без ссылок), кроме $Keep (полные пути) и тех, на что есть ссылки. -Markers: метки .synced* оставить.
+# -Ext: трогать только файлы с этими расширениями. Возвращает { Files; Bytes; Kept }.
+function Remove-PackDirFiles {
+    param([string]$Dir, [string[]]$Keep = @(), $Refs = $null, [switch]$Markers, [string[]]$Ext = $null)
+    $res = [pscustomobject]@{ Files = 0; Bytes = [long]0; Kept = 0 }
+    $keepSet = @{}                                     # не $keep: имя переменной без учёта регистра совпало бы с параметром $Keep
+    foreach ($k in @($Keep)) { if ($k) { $kp = Get-NormalPath $k; if ($kp) { $keepSet[$kp.ToLowerInvariant()] = $true } } }
+    $walk = $null
+    $walk = {
+        param($d)
+        foreach ($c in @(Get-ChildItem -LiteralPath $d -Force -ErrorAction SilentlyContinue)) {
+            if (Test-IsReparse $c) { $res.Kept++; continue }
+            if ($c.PSIsContainer) { & $walk $c.FullName; continue }
+            $lk = $c.FullName.ToLowerInvariant()
+            if ($keepSet.ContainsKey($lk)) { continue }
+            if ($Markers -and $c.Name.StartsWith('.synced', [StringComparison]::OrdinalIgnoreCase)) { continue }
+            if ($Ext -and ($Ext -notcontains $c.Extension.ToLowerInvariant())) { continue }
+            if ($Refs -and $Refs.ContainsKey($lk)) { $res.Kept++; continue }
+            try { $len = [long]$c.Length; Remove-Item -LiteralPath $c.FullName -Force -ErrorAction Stop; $res.Files++; $res.Bytes += $len } catch { $res.Kept++ }
+        }
+    }
+    try {
+        if (Test-Path -LiteralPath $Dir -PathType Container) {
+            if (-not (Test-IsReparse (Get-Item -LiteralPath $Dir -Force))) { & $walk $Dir; Remove-EmptyDirs $Dir }
+        }
+    } catch { Write-Log ('  файлы пака не удалены: ' + $_.Exception.Message) }
+    return $res
+}
+
+# Остатки прежних версий в папке пака: файлы, которых нет в свежем pack.json (были .png-плитки, стали .jpg). $Expected - полные пути файлов пака
+# (иконки, плитки, auto.json), pack.json и превью, метки .synced* и неизвестные расширения не трогаем; на что есть ссылка - тоже. Возвращает { Files; Bytes }.
+function Clear-PackLeftovers {
+    param([string]$PackDir, [string[]]$Expected)
+    $none = [pscustomobject]@{ Files = 0; Bytes = [long]0 }
+    try {
+        if (-not $PackDir -or -not (Test-Path -LiteralPath $PackDir -PathType Container)) { return $none }
+        $root = Get-NormalPath $script:SI_PacksDir
+        if (-not (Test-PathUnder (Get-NormalPath $PackDir) $root)) { return $none }
+        $exp = @{}
+        foreach ($x in @($Expected)) { if ($x) { $xp = Get-NormalPath $x; if ($xp) { $exp[$xp.ToLowerInvariant()] = $true } } }
+        $exp[(Get-NormalPath (Join-Path $PackDir 'pack.json')).ToLowerInvariant()] = $true
+        $exts = @('.ico', '.png', '.jpg', '.jpeg', '.json')
+        # сначала смотрим, есть ли вообще остатки: ярлыки читаем (это не быстро) только если есть что удалять
+        $cand = New-Object 'System.Collections.Generic.List[string]'
+        $stack = New-Object 'System.Collections.Generic.Stack[string]'
+        $stack.Push($PackDir)
+        while ($stack.Count -gt 0) {
+            $d = $stack.Pop()
+            foreach ($c in @(Get-ChildItem -LiteralPath $d -Force -ErrorAction SilentlyContinue)) {
+                if (Test-IsReparse $c) { continue }
+                if ($c.PSIsContainer) { $stack.Push($c.FullName); continue }
+                if ($exts -notcontains $c.Extension.ToLowerInvariant()) { continue }
+                if ($exp.ContainsKey($c.FullName.ToLowerInvariant())) { continue }
+                $cand.Add($c.FullName)
+            }
+        }
+        if ($cand.Count -eq 0) { return $none }
+        $refs = Get-ReferencedFiles
+        if (-not $refs.Ok) { Write-Log ('  остатки прежней версии пака не удалены (' + $refs.Reason + ')'); return $none }
+        $r = Remove-PackDirFiles $PackDir -Keep @($Expected + @(Join-Path $PackDir 'pack.json')) -Refs $refs.Paths -Markers -Ext $exts
+        if ($r.Files -gt 0) { Write-Log ('  удалены файлы прежней версии пака ' + [IO.Path]::GetFileName($PackDir.TrimEnd($script:SI_Seps)) + ': ' + $r.Files + ' (' + (Format-DownloadSize $r.Bytes) + ')') }
+        return [pscustomobject]@{ Files = $r.Files; Bytes = $r.Bytes }
+    } catch { Write-Log ('  остатки прежней версии пака не удалены: ' + $_.Exception.Message); return $none }
+}
+
+# Удалить скачанные файлы ОДНОГО пака (иконки, плитки, auto.json, метки); pack.json и превью остаются - карточка пака остаётся в списке, «Скачать» вернёт файлы.
+# Применённый пак не удаляется. Что-то ещё ссылается на файл (ярлык от старой версии, бэкап) - файл остаётся; ярлыки не прочитались - не удаляем ничего.
+# $Refs - уже посчитанные ссылки (Clear-PackCache считает один раз). Возвращает { Ok; Skipped; Message; Files; Bytes }.
+function Remove-PackDownload {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Id, $Refs = $null)
+    $r = [pscustomobject]@{ Ok = $false; Skipped = $true; Message = ''; Files = 0; Bytes = [long]0 }
+    if ($Id -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$') { $r.Message = "недопустимый id пака '$Id'"; return $r }
+    if ($Id -eq (Get-AppliedPackId)) { $r.Message = 'пак применён - удалить нельзя'; return $r }
+    $dir = Join-Path $script:SI_PacksDir $Id
+    if (-not (Test-Path -LiteralPath $dir -PathType Container)) { $r.Message = 'пака нет на диске'; return $r }
+    if (-not (Test-PathUnder (Get-NormalPath $dir) (Get-NormalPath $script:SI_PacksDir))) { $r.Message = 'путь вне папки паков'; return $r }
+    if ($null -eq $Refs) { $rf = Get-ReferencedFiles; if (-not $rf.Ok) { $r.Message = 'ярлыки не прочитаны (' + $rf.Reason + ') - ничего не удалено'; Write-Log ('Пак ' + $Id + ': ' + $r.Message); return $r }; $Refs = $rf.Paths }
+    $keep = @((Join-Path $dir 'pack.json'))
+    try {
+        $mf = Join-Path $dir 'pack.json'
+        if (Test-Path -LiteralPath $mf -PathType Leaf) {
+            $j = Read-JsonFile $mf
+            if ($j.preview -and (Test-SafeRel ([string]$j.preview) @('.png'))) { $keep += (Join-Rel $dir ([string]$j.preview)) }
+        }
+    } catch { }
+    $d = Remove-PackDirFiles $dir -Keep $keep -Refs $Refs
+    $r.Ok = $true; $r.Skipped = $false; $r.Files = $d.Files; $r.Bytes = $d.Bytes
+    $r.Message = 'удалено файлов: ' + $d.Files + ', освобождено ' + (Format-DownloadSize $d.Bytes)
+    Write-Log ('Пак ' + $Id + ': ' + $r.Message)
+    return $r
+}
+
+# Копии, которые больше никому не нужны: applied\<пак>\<id>.<sha8>.ico, start11\<пак>\<id>[.<sha8>].(png|jpg|jpeg), auto\<пак>\<ключ>.(ico|png|jpg)[.key].
+# Остаются: всё, на что есть ссылка (ярлык, CustomTiles, бэкап), $KeepRefs (копии, нужные в этом применении) и auto\<применённый пак>\ целиком (кэш,
+# плитка Start11 смотрит на копию в start11\, а не на auto\). Не прочитался хоть один ярлык - ничего не удаляется. Чужие файлы в этих папках не трогаем.
+# Возвращает { Ok; Reason; Files; Bytes }.
+function Clear-UnusedCopies {
+    [CmdletBinding()]
+    param([string[]]$KeepRefs = @())
+    $out = [pscustomobject]@{ Ok = $true; Reason = ''; Files = 0; Bytes = [long]0 }
+    try {
+        $home2 = Get-NormalPath $script:SI_Home
+        $specs = @(
+            @{ Dir = $script:SI_AppliedDir; Rx = '^[A-Za-z0-9_\-]+\.[0-9a-f]{8}\.ico$'; Label = 'applied' },
+            @{ Dir = $script:SI_S11Dir; Rx = '^[A-Za-z0-9_\-]+(\.[0-9a-f]{8})?\.(png|jpe?g)$'; Label = 'start11' },
+            @{ Dir = $script:SI_AutoDir; Rx = '^[a-z0-9_]{1,40}\.(ico|png|jpg)(\.key)?$'; Label = 'auto' })
+        $roots = @($specs | Where-Object { $_.Dir -and (Test-Path -LiteralPath $_.Dir -PathType Container) })
+        if ($roots.Count -eq 0) { return $out }
+        $refs = Get-ReferencedFiles -ExtraRefs $KeepRefs
+        if (-not $refs.Ok) { $out.Ok = $false; $out.Reason = $refs.Reason; Write-Log ('  неиспользуемые копии иконок не удалены: ' + $refs.Reason); return $out }
+        $applied = Get-AppliedPackId
+        foreach ($s in $roots) {
+            $root = Get-NormalPath $s.Dir
+            if (-not (Test-PathUnder $root $home2)) { continue }
+            if (Test-IsReparse (Get-Item -LiteralPath $s.Dir -Force)) { continue }
+            $n = 0; $bytes = [long]0
+            foreach ($pd in @(Get-ChildItem -LiteralPath $root -Directory -Force -ErrorAction SilentlyContinue)) {
+                if (Test-IsReparse $pd) { continue }
+                if ($pd.Name -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$') { continue }
+                if ($s.Label -eq 'auto' -and $pd.Name -eq $applied) { continue }
+                $stems = @{}
+                if ($s.Label -eq 'auto') {      # у автоиконки .ico/.png/.jpg/.key одного ключа живут вместе: ссылка на любой из них сохраняет все
+                    foreach ($k in @($refs.Paths.Keys)) { if ((Test-PathUnder $k $pd.FullName.ToLowerInvariant())) { $stems[([IO.Path]::GetFileName($k)).Split('.')[0]] = $true } }
+                }
+                foreach ($f in @(Get-ChildItem -LiteralPath $pd.FullName -File -Force -ErrorAction SilentlyContinue)) {
+                    if (Test-IsReparse $f) { continue }
+                    if ($f.Name -notmatch $s.Rx) { continue }
+                    if ($refs.Paths.ContainsKey($f.FullName.ToLowerInvariant())) { continue }
+                    if ($s.Label -eq 'auto' -and $stems.ContainsKey($f.Name.Split('.')[0])) { continue }
+                    try { $len = [long]$f.Length; Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop; $n++; $bytes += $len } catch { }
+                }
+                try { if (-not (Get-ChildItem -LiteralPath $pd.FullName -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $pd.FullName -Recurse -Force -Confirm:$false } } catch { }
+            }
+            if ($n -gt 0) { Write-Log ('  ' + $s.Label + '\: удалено ненужных копий: ' + $n + ' (' + (Format-DownloadSize $bytes) + ')') }
+            $out.Files += $n; $out.Bytes += $bytes
+        }
+    } catch { $out.Ok = $false; $out.Reason = $_.Exception.Message; Write-Log ('  неиспользуемые копии иконок не удалены: ' + $_.Exception.Message) }
+    return $out
+}
+
+# «Очистить кэш»: скачанные паки, кроме применённого (pack.json и превью остаются), остатки прежних версий в применённом, папки без pack.json, *.tmp
+# и неиспользуемые копии applied\ start11\ auto\. Возвращает { Ok; Bytes; Files; Packs (id удалённых); Message }.
+function Clear-PackCache {
+    [CmdletBinding()]
+    param()
+    $res = [pscustomobject]@{ Ok = $true; Bytes = [long]0; Files = 0; Packs = @(); Message = '' }
+    $removed = New-Object 'System.Collections.Generic.List[string]'
+    try {
+        $applied = Get-AppliedPackId
+        $rf = Get-ReferencedFiles
+        if (-not $rf.Ok) { Write-Log ('Очистка кэша: паки не тронуты (' + $rf.Reason + ')') }
+        if (Test-Path -LiteralPath $script:SI_PacksDir -PathType Container) {
+            $root = Get-NormalPath $script:SI_PacksDir
+            foreach ($d in @(Get-ChildItem -LiteralPath $script:SI_PacksDir -Directory -Force -ErrorAction SilentlyContinue)) {
+                if (Test-IsReparse $d) { continue }
+                if (-not (Test-Path -LiteralPath (Join-Path $d.FullName 'pack.json') -PathType Leaf)) {         # папка без pack.json: обрывок загрузки
+                    if (-not $rf.Ok) { continue }                                                              # ссылки неизвестны - не трогаем
+                    $dl = $d.FullName.TrimEnd($script:SI_Seps).ToLowerInvariant()
+                    if (@($rf.Paths.Keys | Where-Object { Test-PathUnder $_ $dl }).Count -gt 0) { Write-Log ('  папка без pack.json оставлена: на файл внутри ссылается ярлык / плитка / бэкап (' + $d.Name + ')'); continue }
+                    $t = Remove-TreeSafe $d.FullName $root
+                    $res.Bytes += $t.Bytes; $res.Files += $t.Files
+                    if ($t.Files -gt 0) { Write-Log ('  удалена папка без pack.json: ' + $d.Name + ' (' + (Format-DownloadSize $t.Bytes) + ')') }
+                    continue
+                }
+                if ($d.Name -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$') { continue }
+                if (-not $rf.Ok) { continue }
+                if ($d.Name -eq $applied) {
+                    $pk = @(Get-Packs -OnlyId $d.Name) | Select-Object -First 1
+                    if ($pk) {
+                        $exp = @($pk.Files); if ($pk.Preview) { $exp += [string]$pk.Preview }
+                        $lo = Clear-PackLeftovers $pk.Dir $exp
+                        $res.Bytes += $lo.Bytes; $res.Files += $lo.Files
+                    }
+                    continue
+                }
+                $r = Remove-PackDownload -Id $d.Name -Refs $rf.Paths
+                if ($r.Ok -and $r.Files -gt 0) { $res.Bytes += $r.Bytes; $res.Files += $r.Files; $removed.Add($d.Name) }
+            }
+        }
+        try { [void](Remove-StaleTempFiles -Root $script:SI_PacksDir -MinAgeMinutes 0); $res.Bytes += [long]$script:SI_TempBytes } catch { }
+        $cp = Clear-UnusedCopies
+        $res.Bytes += $cp.Bytes; $res.Files += $cp.Files
+    } catch { $res.Ok = $false; $res.Message = $_.Exception.Message; Write-Log ('Очистка кэша: ' + $_.Exception.Message) }
+    $res.Packs = $removed.ToArray()
+    if (-not $res.Message) { $res.Message = 'освобождено ' + (Format-DownloadSize $res.Bytes) + ', файлов: ' + $res.Files + ', паков удалено: ' + $removed.Count }
+    Write-Log ('Очистка кэша: ' + $res.Message)
+    return $res
 }
 
 # ---------- Группы иконок (pack.json: icons[].group = apps | games | system | work | creative; необязательно) ----------
@@ -1439,6 +1977,71 @@ function Get-ShortcutList {
                     Target = [string]$sc.TargetPath; Args = [string]$sc.Arguments; Icon = [string]$sc.IconLocation
                 }
             } catch { $script:SI_LnkReadFails++; Write-Log "  не прочитан ярлык $($f.Name): $($_.Exception.Message)" }
+        }
+    }
+}
+
+# ---------- Широкий обзор ярлыков для решений «на это ещё ссылаются» (2.6.0) ----------
+# Get-ShortcutList смотрит только туда, где ярлыки меняем (рабочий стол без подпапок и т.д.). Но ярлык, который мы когда-то правили, пользователь мог
+# перенести в подпапку рабочего стола / меню «Пуск» / закрепить. Поэтому перед удалением любой копии иконки смотрим ШИРЕ: все папки ярлыков
+# (рабочий стол и общий рабочий стол, меню «Пуск» обоих видов целиком, Quick Launch\User Pinned: TaskBar, StartMenu, ImplicitAppShortcuts) - рекурсивно,
+# до $script:SI_RefScanMaxDepth уровней, не заходя в junction/symlink-папки. Не смогли прочитать ярлык / папку, упёрлись в предел глубины или числа
+# записей - увеличиваем SI_LnkReadFails (вызывающий тогда ничего не удаляет: не знаем, на что смотрит непрочитанное).
+$script:SI_RefScanMaxDepth = 8
+$script:SI_RefScanMaxEntries = 100000
+
+function Get-ReferenceScanRoots {
+    $list = New-Object 'System.Collections.Generic.List[string]'
+    $seen = @{}
+    $add = {
+        param($Path)
+        if (-not $Path) { return }
+        $n = Get-NormalPath ([string]$Path)
+        if ($n -and -not $seen.ContainsKey($n.ToLowerInvariant())) { $seen[$n.ToLowerInvariant()] = $true; $list.Add($n) }
+    }
+    foreach ($r in @(Get-ShortcutRoots -Common)) { & $add $r.Path }
+    foreach ($sf in @('Desktop', 'DesktopDirectory', 'CommonDesktopDirectory', 'StartMenu', 'CommonStartMenu', 'Programs', 'CommonPrograms')) {
+        $fp = ''; try { $fp = [Environment]::GetFolderPath($sf) } catch { }
+        & $add $fp
+    }
+    if ($env:APPDATA) { & $add (Join-Path $env:APPDATA 'Microsoft\Internet Explorer\Quick Launch') }                  # User Pinned\TaskBar, \StartMenu, \ImplicitAppShortcuts
+    if ($env:USERPROFILE) { & $add (Join-Path $env:USERPROFILE 'Desktop') }
+    if ($env:OneDrive) { & $add (Join-Path $env:OneDrive 'Desktop') }
+    if ($env:PUBLIC) { & $add (Join-Path $env:PUBLIC 'Desktop') }
+    return $list.ToArray()
+}
+
+# Все .lnk в папках Get-ReferenceScanRoots: { Path; Icon }. Не прочитанное - $script:SI_LnkReadFails++ (сбрасывает вызывающий).
+function Get-ReferenceLinks {
+    $wsh = Get-WshShell
+    $seen = @{}
+    $count = 0
+    foreach ($root in @(Get-ReferenceScanRoots)) {
+        if (-not (Test-Path -LiteralPath $root -PathType Container)) { continue }
+        $stack = New-Object 'System.Collections.Generic.Stack[object]'
+        $stack.Push(@($root, 0))
+        while ($stack.Count -gt 0) {
+            $e = $stack.Pop(); $dir = [string]$e[0]; $depth = [int]$e[1]
+            $items = @()
+            $errs = $null
+            try { $items = @(Get-ChildItem -LiteralPath $dir -Force -ErrorAction SilentlyContinue -ErrorVariable errs) } catch { $errs = @($_) }
+            if ($errs -and @($errs).Count -gt 0) { $script:SI_LnkReadFails++; Write-Log ('  папка ярлыков не прочитана: ' + $dir) }
+            foreach ($c in $items) {
+                $count++
+                if ($count -gt $script:SI_RefScanMaxEntries) { $script:SI_LnkReadFails++; Write-Log '  обзор ярлыков остановлен: слишком много записей'; return }
+                if ($c.PSIsContainer) {
+                    if (Test-IsReparse $c) { continue }                                          # junction/symlink-папку не открываем
+                    if ($depth -ge $script:SI_RefScanMaxDepth) { $script:SI_LnkReadFails++; Write-Log ('  обзор ярлыков: предел глубины, не просмотрена ' + $c.FullName); continue }
+                    $stack.Push(@($c.FullName, ($depth + 1)))
+                    continue
+                }
+                if (-not $c.Name.EndsWith('.lnk', [StringComparison]::OrdinalIgnoreCase)) { continue }
+                $lk = $c.FullName.ToLowerInvariant()
+                if ($seen.ContainsKey($lk)) { continue }
+                $seen[$lk] = $true
+                try { [pscustomobject]@{ Path = $c.FullName; Icon = [string]$wsh.CreateShortcut($c.FullName).IconLocation } }
+                catch { $script:SI_LnkReadFails++; Write-Log "  не прочитан ярлык $($c.Name): $($_.Exception.Message)" }
+            }
         }
     }
 }
@@ -2096,7 +2699,36 @@ function Get-Start11Candidates {
         $o = [pscustomobject]@{ Id = [string]$n; Name = ''; Source = 'reg'; AppId = '' }
         $map[$n] = $o; $list.Add($o)
     }
+    # сам Glyphix (2.6.0): ярлык «Glyphix» в меню Пуск идёт через wscript.exe с AppUserModelID F1KS.Glyphix; Get-StartApps может его не вернуть -
+    # тогда плитку не на что вешать. Ярлык есть, а кандидата нет - добавляем кандидата F1KS.Glyphix сами (ровно один ключ, без запасных путей: wscript.exe общий).
+    try {
+        $self = [string]$script:SI_AppId
+        $have = $null
+        foreach ($c in $list) { if (([string]$c.Id -ceq $self) -or ([string]$c.AppId -ceq $self)) { $have = $c; break } }
+        if ($have) {
+            if (-not [string]$have.Name) { $have.Name = 'Glyphix' }
+            if (-not [string]$have.AppId) { $have.AppId = $self }
+        } elseif (-not (@($list | Where-Object { (Get-Key ([string]$_.Name)) -eq 'glyphix' }).Count -gt 0) -and (Test-AppStartShortcut)) {
+            $o = [pscustomobject]@{ Id = $self; Name = 'Glyphix'; Source = 'app'; AppId = $self }
+            $list.Add($o)
+            Write-Log ("  плитка Glyphix: Get-StartApps не вернул ярлык - добавлен кандидат '" + $self + "'")
+        }
+    } catch { Write-Log ('  кандидат Glyphix: ' + $_.Exception.Message) }
     return $list.ToArray()
+}
+
+# ярлык Glyphix в меню Пуск пользователя существует (его создаёт установщик; в тестах подменяется)
+function Test-AppStartShortcut {
+    try { $p = @(Get-AppShortcutPaths)[0]; return [bool]($p -and (Test-Path -LiteralPath $p -PathType Leaf)) } catch { return $false }
+}
+
+# кандидат - сам Glyphix (AppID F1KS.Glyphix)?
+function Test-SelfTileCandidate {
+    param($C)
+    $self = [string]$script:SI_AppId
+    if (-not $C) { return $false }
+    if ([string]$C.Id -ceq $self) { return $true }
+    return [bool]($C.PSObject.Properties['AppId'] -and ([string]$C.AppId -ceq $self))
 }
 
 # ключ без издательских префиксов: windowscalculator -> calculator (остаток >= 4 символов)
@@ -2262,7 +2894,12 @@ function Get-Start11Matches {
     foreach ($c in @($Candidates)) {
         try {
             if ((Test-UrlTileId ([string]$c.Id)) -or ($c.PSObject.Properties['AppId'] -and (Test-UrlTileId ([string]$c.AppId)))) { continue }     # плитка-ссылка
-            $m = Find-TileMatch $index $c.Name $c.Id
+            $m = $null
+            if (Test-SelfTileCandidate $c) {              # Glyphix: всегда иконка 'glyphix' пака - не автоплитка и не «wscript/деинсталлятор» по имени
+                $selfIc = @($Pack.Icons | Where-Object { [string]$_.Id -ieq 'glyphix' }) | Select-Object -First 1
+                if ($selfIc) { $m = [pscustomobject]@{ Icon = $selfIc; Rule = 'self' } }
+            }
+            if (-not $m) { $m = Find-TileMatch $index $c.Name $c.Id }
             if (-not $m) {
                 if ($autoP) { $ai = New-AutoTileItem $c ([string]$Pack.Id) $Overrides ([bool]$NoName); if ($ai) { $out.Add($ai) } }
                 continue
@@ -2518,6 +3155,16 @@ function Apply-Start11Tiles {
     } finally {
         if ($stop) { $restarted = (Start-Start11Paths $stop.Launch) }
     }
+    # одна строка для диагностики по log.txt: под каким id записана плитка самого Glyphix
+    try {
+        $selfM = @($Items | Where-Object { [string]$_.IconId -ieq 'glyphix' }) | Select-Object -First 1
+        if ($selfM) {
+            $selfNow = $null; try { $selfNow = Get-S11Value $script:SI_S11Tiles ([string]$selfM.TileId) } catch { }
+            Write-Log ("  плитка Glyphix: id '" + [string]$selfM.TileId + "' <- иконка glyphix, " + $(if ($selfNow) { 'в реестре: ' + $selfNow } else { 'в реестре значения нет' }))
+        } elseif (@($Pack.Icons | Where-Object { [string]$_.Id -ieq 'glyphix' }).Count -gt 0) {
+            Write-Log ("  плитка Glyphix: не применена - среди кандидатов Start11 нет '" + [string]$script:SI_AppId + "' (нет ярлыка в меню Пуск и Get-StartApps его не вернул)")
+        }
+    } catch { }
     $st = Read-State
     if ($changed -gt 0 -or $same -gt 0) {
         $st['Tiles'] = @{ PackId = $Pack.Id; Version = $Pack.Version; At = (Get-Date).ToString('s'); Count = ($changed + $same) }
@@ -2587,7 +3234,7 @@ function Undo-Start11Tiles {
 }
 
 function Remove-Start11Files {
-    try { if (Test-Path -LiteralPath $script:SI_S11Dir) { Remove-Item -LiteralPath $script:SI_S11Dir -Recurse -Force } } catch { Write-Log "start11 не удалена: $($_.Exception.Message)" }
+    try { if (Test-Path -LiteralPath $script:SI_S11Dir) { [void](Remove-TreeSafe $script:SI_S11Dir $script:SI_Home) } } catch { Write-Log "start11 не удалена: $($_.Exception.Message)" }
 }
 
 function Remove-CopyQuiet {
@@ -3912,7 +4559,7 @@ function Remove-AutoFiles {
         if (-not (Test-Path -LiteralPath $script:SI_AutoDir)) { return }
         if (-not (Test-PathUnder ([IO.Path]::GetFullPath($script:SI_AutoDir)) ([IO.Path]::GetFullPath($script:SI_Home)))) { return }
         if (([IO.File]::GetAttributes($script:SI_AutoDir) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return }
-        Remove-Item -LiteralPath $script:SI_AutoDir -Recurse -Force
+        [void](Remove-TreeSafe $script:SI_AutoDir $script:SI_Home)       # без захода в ссылки
     } catch { Write-Log ('auto не удалена: ' + $_.Exception.Message) }
 }
 
@@ -4123,11 +4770,44 @@ function Get-LegacyShortcutPaths {
     return $out
 }
 
+# Прочитать AppUserModelID ярлыка: { Ok = прочитали ли; Id = значение ('' - не задан) }; исключений не бросает
+function Get-ShortcutAppId {
+    param([string]$Path)
+    try {
+        if (-not ('GlyphixNative.ShortcutAppId' -as [type])) { Add-Type -TypeDefinition $script:SI_AumidCode -Language CSharp }
+        return [pscustomobject]@{ Ok = $true; Id = [string][GlyphixNative.ShortcutAppId]::Get($Path) }
+    } catch { return [pscustomobject]@{ Ok = $false; Id = '' } }
+}
+
+# Прежние версии не всегда ставили AppUserModelID на ярлык «Glyphix» (из-за этого Start11 не показывал плитку Glyphix). При запуске окна: если свой ярлык
+# (меню «Пуск» / рабочий стол) есть, а ID на нём нет или другой - один раз тихо пересоздаём ярлыки (Install-AppShortcuts -OnlyExisting) и пишем одну строку в журнал.
+# Проверка (она компилирует C#) - один раз на версию приложения: результат в state.json (AumidChecked). Возвращает $true, если ярлыки пересоздавали.
+function Repair-AppShortcutAppId {
+    try {
+        $ver = Get-AppVersion
+        $st = Read-State
+        if ($st.ContainsKey('AumidChecked') -and [string]$st['AumidChecked'] -eq $ver) { return $false }
+        $bad = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($p in @(Get-AppShortcutPaths)) {
+            if (-not $p -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { continue }
+            $r = Get-ShortcutAppId $p
+            if ($r.Ok -and $r.Id -ne [string]$script:SI_AppId) { $bad.Add($p) }
+        }
+        $st['AumidChecked'] = $ver; Save-State $st
+        if ($bad.Count -eq 0) { return $false }
+        Write-Log ('Ярлык Glyphix без AppUserModelID ' + $script:SI_AppId + ' (' + ($bad -join '; ') + ') - пересоздаю ярлыки')
+        Install-AppShortcuts -OnlyExisting
+        return $true
+    } catch { Write-Log ('Проверка AppUserModelID ярлыка не выполнена: ' + $_.Exception.Message); return $false }
+}
+
 function Install-AppShortcuts {
+    param([switch]$OnlyExisting)       # только уже существующие ярлыки (не воскрешать ярлык, который пользователь убрал)
     $wsh = Get-WshShell
     $vbs = Join-Path $script:SI_AppDir 'launch.vbs'
     $ico = Join-Path (Join-Path $script:SI_AppDir 'assets') 'app.ico'
     foreach ($p in (Get-AppShortcutPaths)) {
+        if ($OnlyExisting -and -not (Test-Path -LiteralPath $p -PathType Leaf)) { continue }
         try {
             $d = [IO.Path]::GetDirectoryName($p)
             if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
@@ -4408,7 +5088,7 @@ function Invoke-LegacyMigrationLocked {
         if ($hasPng) {
             $canDelete = ($s11ok -and ($rew.Count -eq 0 -or ($stop -and $stop.Ok)))
             if ($canDelete -and -not (Test-SafeOldHomeDelete $oldS11)) { $canDelete = $false; Write-Log '  PNG плиток в прежней папке оставлены (путь не прошёл проверку безопасного удаления)' }
-            if ($canDelete) { Remove-Item -LiteralPath $oldS11 -Recurse -Force }
+            if ($canDelete) { Remove-OldTree $oldS11 }
             else { Write-Log '  PNG плиток в прежней папке оставлены (Start11 не перезапущен или значения не переписаны)' }
         }
     } catch { $res.Failed++; Write-Log ('  плитки Start11 не перенесены: ' + $_.Exception.Message) }     # старые PNG остаются на месте: значения реестра, которые не переписали, продолжают работать
@@ -4421,7 +5101,7 @@ function Invoke-LegacyMigrationLocked {
         if (-not $merged) { break }
         try {
             if (-not (Test-SafeOldHomeDelete $s.Dir)) { throw 'путь вне прежней папки или внутри новой - не удаляю' }
-            Remove-Item -LiteralPath $s.Dir -Recurse -Force
+            Remove-OldTree $s.Dir
         }
         catch { Write-Log ('  старый бэкап не удалён (он уже перенесён, остаток можно удалить вручную): ' + $s.Dir + ' - ' + $_.Exception.Message) }
     }
@@ -4455,7 +5135,7 @@ function Invoke-LegacyMigrationLocked {
                 $cd = Get-NormalPath $cd
                 if ($cd -and (($cd -ieq (Get-NormalPath $oa)) -or (Test-PathUnder $cd (Get-NormalPath $oa)))) { Write-Log '  прежняя папка app используется сейчас - не удаляю' }
                 elseif (-not (Test-SafeOldHomeDelete $oa)) { Write-Log '  прежняя папка app не удалена: путь не прошёл проверку безопасного удаления' }
-                else { Remove-Item -LiteralPath $oa -Recurse -Force; Write-Log '  удалена прежняя папка app' }
+                else { Remove-OldTree $oa; Write-Log '  удалена прежняя папка app' }
             }
         } catch { Write-Log ('  прежняя папка app не удалена: ' + $_.Exception.Message) }
         foreach ($lp in (Get-LegacyShortcutPaths)) {
@@ -4473,11 +5153,13 @@ function Test-LegacyHomeReferenced {
     $old = [string]$script:SI_OldHome
     if (-not $old) { return $false }
     try {
-        foreach ($s in @(Get-ShortcutList -AllUsers)) {
+        $script:SI_LnkReadFails = 0
+        foreach ($s in @(Get-ReferenceLinks)) {
             $loc = Split-IconLocation ([string]$s.Icon)
             $p = [Environment]::ExpandEnvironmentVariables($loc.Path.Trim('"'))
             if ($p -and (Test-PathUnder $p $old)) { return $true }
         }
+        if ($script:SI_LnkReadFails -gt 0) { return $true }
     } catch { return $true }          # не смогли проверить - считаем, что ссылки есть
     return $false
 }
@@ -4489,12 +5171,20 @@ function Remove-EmptyDirs {
     foreach ($d in @(Get-ChildItem -LiteralPath $Root -Directory -Force -ErrorAction SilentlyContinue)) {
         if ($d.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
         Remove-EmptyDirs $d.FullName
-        try { if (-not (Get-ChildItem -LiteralPath $d.FullName -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $d.FullName -Force } } catch { }
+        try { if (-not (Get-ChildItem -LiteralPath $d.FullName -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $d.FullName -Recurse -Force -Confirm:$false } } catch { }
     }
 }
 
 # Удалить из прежней папки данных packs\ и icons\ (и остатки v2: Set-TaskbarIcons.ps1, log.txt, run-hidden.vbs, пустые папки), когда на неё больше не ссылается ни один ярлык;
 # саму папку - если она опустела. Пока бэкап не перенесён (нет метки, а backup\ на месте) - ничего не трогаем.
+# Папка прежней версии (внутри $script:SI_OldHome) целиком, без захода в junction/symlink (Remove-TreeSafe); не вышло полностью - исключение (вызывающий пишет в журнал)
+function Remove-OldTree {
+    param([string]$Path)
+    $root = [string]$script:SI_OldHome
+    $r = Remove-TreeSafe $Path $root
+    if (Test-Path -LiteralPath $Path) { throw ('осталось элементов: ' + [Math]::Max(1, [int]$r.Left) + ' (ссылки / занятые файлы)') }
+}
+
 function Remove-LegacyHomeIfUnused {
     $old = [string]$script:SI_OldHome
     if (-not $old -or -not (Test-Path -LiteralPath $old -PathType Container)) { return $false }
@@ -4505,14 +5195,14 @@ function Remove-LegacyHomeIfUnused {
     if (Test-Path -LiteralPath (Join-Path ([string]$script:SI_Home) 'migrated.json')) { $subs += 'backup.migrating' }       # остаток уже перенесённого бэкапа
     foreach ($sub in $subs) {
         $d = Join-Path $old $sub
-        try { if ((Test-Path -LiteralPath $d) -and (Test-SafeOldHomeDelete $d)) { Remove-Item -LiteralPath $d -Recurse -Force; Write-Log "Удалена прежняя папка: $d" } } catch { Write-Log "Не удалена $d : $($_.Exception.Message)" }
+        try { if ((Test-Path -LiteralPath $d) -and (Test-SafeOldHomeDelete $d)) { Remove-OldTree $d; Write-Log "Удалена прежняя папка: $d" } } catch { Write-Log "Не удалена $d : $($_.Exception.Message)" }
     }
     foreach ($fn in @('Set-TaskbarIcons.ps1', 'log.txt', 'log.txt.old', 'run-hidden.vbs')) {
         $f = Join-Path $old $fn
         try { if (Test-Path -LiteralPath $f -PathType Leaf) { Remove-Item -LiteralPath $f -Force; Write-Log "Удалён остаток прежней версии: $f" } } catch { Write-Log "Не удалён $f : $($_.Exception.Message)" }
     }
     try { Remove-EmptyDirs $old } catch { }
-    try { if (-not (Get-ChildItem -LiteralPath $old -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $old -Force } } catch { }
+    try { if (-not (Get-ChildItem -LiteralPath $old -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $old -Recurse -Force -Confirm:$false } } catch { }
     return $true
 }
 
@@ -4523,7 +5213,7 @@ function Invoke-LegacyCleanup {
 # Текст помощника удаления: ждёт завершения процесса $WaitPid (GUI/CLI, из чьих файлов он запущен), затем удаляет папку приложения
 # (повторы - файлы могут ещё секунду быть заняты) и саму папку данных, если она опустела. Ничего другого не трогает.
 function New-UninstallHelperScript {
-    param([int]$WaitPid, [string]$AppDir, [string]$HomeDir)
+    param([int]$WaitPid, [string]$AppDir, [string]$HomeDir, [string[]]$ExtraFiles = @())
     $qa = $AppDir.Replace("'", "''")
     $qh = $HomeDir.Replace("'", "''")
     $lines = @(
@@ -4533,23 +5223,34 @@ function New-UninstallHelperScript {
         ('$home1 = ''' + $qh + ''''),
         '$dl = (Get-Date).AddSeconds(120)',
         'while ((Get-Date) -lt $dl -and (Get-Process -Id $wp -ErrorAction SilentlyContinue)) { Start-Sleep -Milliseconds 300 }',
+        '# удаление дерева без захода в junction/symlink (в Windows PowerShell 5.1 Remove-Item -Recurse в них заходит); ссылки остаются на месте',
+        'function Remove-TreeNoLinks([string]$p) {',
+        '    foreach ($c in @(Get-ChildItem -LiteralPath $p -Force -ErrorAction SilentlyContinue)) {',
+        '        if ($c.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }',
+        '        if ($c.PSIsContainer) { Remove-TreeNoLinks $c.FullName } else { Remove-Item -LiteralPath $c.FullName -Force -Confirm:$false -ErrorAction SilentlyContinue }',
+        '    }',
+        '    if (-not (Get-ChildItem -LiteralPath $p -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $p -Recurse -Force -Confirm:$false -ErrorAction SilentlyContinue }',
+        '}',
         'for ($i = 0; $i -lt 40; $i++) {',
         '    if (-not (Test-Path -LiteralPath $app)) { break }',
-        '    Remove-Item -LiteralPath $app -Recurse -Force -ErrorAction SilentlyContinue',
+        '    if (-not ((Get-Item -LiteralPath $app -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { Remove-TreeNoLinks $app }',
         '    if (-not (Test-Path -LiteralPath $app)) { break }',
         '    Start-Sleep -Milliseconds 500',
         '}',
+        '# файлы, которые были заняты при удалении (например, GlyphixSetup.exe)',
+        '$extra = @(' + ((@($ExtraFiles | Where-Object { $_ } | ForEach-Object { "'" + ([string]$_).Replace("'", "''") + "'" })) -join ', ') + ')',
+        'foreach ($x in $extra) { for ($i = 0; $i -lt 40; $i++) { if (-not (Test-Path -LiteralPath $x)) { break }; Remove-Item -LiteralPath $x -Force -ErrorAction SilentlyContinue; if (-not (Test-Path -LiteralPath $x)) { break }; Start-Sleep -Milliseconds 500 } }',
         '# пустые подпапки (backup\ и т.п.), затем сама папка данных, если опустела',
         'if (Test-Path -LiteralPath $home1) {',
         '    function Remove-EmptySub([string]$r) {',
         '        foreach ($d in @(Get-ChildItem -LiteralPath $r -Directory -Force -ErrorAction SilentlyContinue)) {',
         '            if ($d.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }',
         '            Remove-EmptySub $d.FullName',
-        '            if (-not (Get-ChildItem -LiteralPath $d.FullName -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $d.FullName -Force -ErrorAction SilentlyContinue }',
+        '            if (-not (Get-ChildItem -LiteralPath $d.FullName -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $d.FullName -Recurse -Force -Confirm:$false -ErrorAction SilentlyContinue }',
         '        }',
         '    }',
         '    Remove-EmptySub $home1',
-        '    if (-not (Get-ChildItem -LiteralPath $home1 -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $home1 -Force -ErrorAction SilentlyContinue }',
+        '    if (-not (Get-ChildItem -LiteralPath $home1 -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $home1 -Recurse -Force -Confirm:$false -ErrorAction SilentlyContinue }',
         '}'
     )
     return ($lines -join "`r`n")
@@ -4557,13 +5258,35 @@ function New-UninstallHelperScript {
 
 # запустить помощника отдельным скрытым powershell.exe; бросает исключение, если не запустился
 function Start-UninstallHelper {
-    param([string]$AppDir, [string]$HomeDir, [int]$WaitPid = $PID, [string]$WorkDir = '')
+    param([string]$AppDir, [string]$HomeDir, [int]$WaitPid = $PID, [string]$WorkDir = '', [string[]]$ExtraFiles = @())
     if (-not $WorkDir) { $WorkDir = if ($env:TEMP) { $env:TEMP } else { [IO.Path]::GetTempPath() } }
     if (-not (Test-PathUnder (Get-NormalPath $AppDir) (Get-NormalPath $HomeDir))) { throw 'папка приложения не внутри папки данных - помощник не запускаю' }
-    $code = New-UninstallHelperScript -WaitPid $WaitPid -AppDir $AppDir -HomeDir $HomeDir
+    $code = New-UninstallHelperScript -WaitPid $WaitPid -AppDir $AppDir -HomeDir $HomeDir -ExtraFiles $ExtraFiles
     $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($code))
     $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     Start-Process -FilePath $ps -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', $enc) -WindowStyle Hidden -WorkingDirectory $WorkDir
+}
+
+# След установщика GlyphixSetup.exe: запись «Приложения и возможности» (HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Glyphix) и его копия
+# %LOCALAPPDATA%\Glyphix\GlyphixSetup.exe (имена - как в GlyphixSetup.cs: UninstallKey, InstalledSetupPath). Ключ удаляем только свой, файл - только внутри папки данных.
+$script:SI_UninstallKeyPath = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\Glyphix'
+function Remove-AppUninstallEntry {
+    [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree($script:SI_UninstallKeyPath, $false)
+}
+# Возвращает { Key (удалён/нет); File (удалён/нет/не было); Locked (путь файла, если занят) }
+function Remove-InstallerTraces {
+    $r = [pscustomobject]@{ Key = $false; File = $false; Locked = '' }
+    try { Remove-AppUninstallEntry; $r.Key = $true; Write-Log 'Удалена запись «Приложения и возможности» (Uninstall\Glyphix)' } catch { Write-Log ('Запись Uninstall\Glyphix не удалена: ' + $_.Exception.Message) }
+    try {
+        $f = Join-Path $script:SI_Home 'GlyphixSetup.exe'
+        if (Test-Path -LiteralPath $f -PathType Leaf) {
+            if (-not (Test-PathUnder (Get-NormalPath $f) (Get-NormalPath $script:SI_Home))) { return $r }
+            if (Test-IsReparse (Get-Item -LiteralPath $f -Force)) { return $r }
+            try { Remove-Item -LiteralPath $f -Force -ErrorAction Stop; $r.File = $true; Write-Log 'Удалён GlyphixSetup.exe' }
+            catch { $r.Locked = $f; Write-Log ('GlyphixSetup.exe занят - удалю после выхода: ' + $_.Exception.Message) }
+        } else { $r.File = $true }
+    } catch { Write-Log ('GlyphixSetup.exe не удалён: ' + $_.Exception.Message) }
+    return $r
 }
 
 function Uninstall-App {
@@ -4591,25 +5314,32 @@ function Uninstall-App {
     foreach ($p in @(Get-AppShortcutPaths) + @(Get-LegacyShortcutPaths)) {
         try { if ($p -and (Test-Path -LiteralPath $p)) { Remove-Item -LiteralPath $p -Force; Write-Log "Удалён ярлык: $p" } } catch { Write-Log "Ярлык не удалён: $p" }
     }
+    $inst = Remove-InstallerTraces       # запись в «Приложениях и возможностях» и GlyphixSetup.exe (если приложение ставил установщик)
     Invoke-LegacyCleanup                 # откат выполнен: прежняя папка данных (packs\, icons\) больше не нужна
     try { if (Test-Path -LiteralPath $script:SI_StateFile) { Remove-Item -LiteralPath $script:SI_StateFile -Force } } catch { }
     try { $mg = Join-Path $script:SI_Home 'migrated.json'; if (Test-Path -LiteralPath $mg) { Remove-Item -LiteralPath $mg -Force } } catch { }
-    try { if (Test-Path -LiteralPath $script:SI_PacksDir) { Remove-Item -LiteralPath $script:SI_PacksDir -Recurse -Force } } catch { Write-Log "packs не удалён: $($_.Exception.Message)" }
+    try { if (Test-Path -LiteralPath $script:SI_PacksDir) { [void](Remove-TreeSafe $script:SI_PacksDir $script:SI_Home) } } catch { Write-Log "packs не удалён: $($_.Exception.Message)" }      # без захода в ссылки
     $appRemoved = $true
+    $helperStarted = $false
+    $extra = @(); if ($inst -and $inst.Locked) { $extra = @([string]$inst.Locked) }
     try {
-        if (Test-Path -LiteralPath $script:SI_AppDir) { Remove-Item -LiteralPath $script:SI_AppDir -Recurse -Force }
+        if (Test-Path -LiteralPath $script:SI_AppDir) {
+            [void](Remove-TreeSafe $script:SI_AppDir $script:SI_Home)      # без захода в ссылки
+            if (Test-Path -LiteralPath $script:SI_AppDir) { throw 'часть файлов приложения занята' }
+        }
     } catch {
         $appRemoved = $false
         try {   # файлы заняты (мы из них запущены) - дочищаем после завершения процесса
-            Start-UninstallHelper -AppDir $script:SI_AppDir -HomeDir $script:SI_Home -WaitPid $PID -WorkDir $tmpDir
-            $appRemoved = $true
+            Start-UninstallHelper -AppDir $script:SI_AppDir -HomeDir $script:SI_Home -WaitPid $PID -WorkDir $tmpDir -ExtraFiles $extra
+            $appRemoved = $true; $helperStarted = $true
         } catch { Write-Log "Папка приложения не удалена: $($_.Exception.Message)" }
     }
+    if ($extra.Count -gt 0 -and -not $helperStarted) { try { Start-UninstallHelper -AppDir $script:SI_AppDir -HomeDir $script:SI_Home -WaitPid $PID -WorkDir $tmpDir -ExtraFiles $extra } catch { Write-Log "GlyphixSetup.exe не удалён: $($_.Exception.Message)" } }
     Write-Log 'Приложение удалено.'
     $script:SI_NoLogFile = $true
     try { if (Test-Path -LiteralPath $script:SI_LogFile) { Remove-Item -LiteralPath $script:SI_LogFile -Force } } catch { }
     try { if (Test-Path -LiteralPath ($script:SI_LogFile + '.old')) { Remove-Item -LiteralPath ($script:SI_LogFile + '.old') -Force } } catch { }
     try { if (Test-Path -LiteralPath $script:SI_Home -PathType Container) { Remove-EmptyDirs $script:SI_Home } } catch { }      # пустые backup\ и т.п.
-    try { if ((Test-Path -LiteralPath $script:SI_Home) -and -not (Get-ChildItem -LiteralPath $script:SI_Home -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $script:SI_Home -Force } } catch { }
+    try { if ((Test-Path -LiteralPath $script:SI_Home) -and -not (Get-ChildItem -LiteralPath $script:SI_Home -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $script:SI_Home -Recurse -Force -Confirm:$false } } catch { }
     return [pscustomobject]@{ Ok = $appRemoved; KeptBackup = $false; Aborted = $false; Message = '' }
 }

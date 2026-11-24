@@ -102,6 +102,19 @@
       </Setter>
     </Style>
 
+    <!-- ссылка автора в шапке: светло-синяя, при наведении подчёркивается -->
+    <Style x:Key="AuthorLink" TargetType="Hyperlink">
+      <Setter Property="Foreground" Value="#7FB0FF"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="TextDecorations" Value="None"/>
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Foreground" Value="#A9C8FF"/>
+          <Setter Property="TextDecorations" Value="Underline"/>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
     <Style x:Key="CardStyle" TargetType="Border">
       <Setter Property="Background" Value="{StaticResource CardBrush}"/>
       <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
@@ -213,14 +226,20 @@
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <TextBlock Grid.Row="0" Text="GLYPHIX" FontSize="22" FontWeight="Bold" TextTrimming="CharacterEllipsis">
-          <TextBlock.Foreground>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-              <GradientStop Color="#9C92FF" Offset="0"/>
-              <GradientStop Color="#6DB0FF" Offset="1"/>
-            </LinearGradientBrush>
-          </TextBlock.Foreground>
-        </TextBlock>
+        <!-- название и автор рядом: «GLYPHIX» + плашка «by F1KS · Telegram» со ссылкой на канал автора -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock Text="GLYPHIX" FontSize="22" FontWeight="Bold" VerticalAlignment="Center">
+            <TextBlock.Foreground>
+              <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                <GradientStop Color="#9C92FF" Offset="0"/>
+                <GradientStop Color="#6DB0FF" Offset="1"/>
+              </LinearGradientBrush>
+            </TextBlock.Foreground>
+          </TextBlock>
+          <Border Margin="14,2,0,0" Height="24" Background="{StaticResource GhostBrush}" BorderBrush="{StaticResource GhostBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="11,0" VerticalAlignment="Center">
+            <TextBlock FontSize="13" Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"><Run FontWeight="SemiBold" Text="by F1KS"/><Run Foreground="{StaticResource MutedBrush}" Text="  ·  Telegram "/><Hyperlink x:Name="LnkAuthor" Style="{StaticResource AuthorLink}" NavigateUri="https://t.me/Im_Flawless">@Im_Flawless</Hyperlink></TextBlock>
+          </Border>
+        </StackPanel>
         <TextBlock x:Name="TxtVersion" Grid.Row="1" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="1,1,0,0" TextTrimming="CharacterEllipsis"/>
       </Grid>
       <!-- появляется, только если на GitHub есть версия новее; место в шапке зарезервировано высотой 48, ничего не сдвигается -->
@@ -240,14 +259,22 @@
       <Grid Grid.Column="0" Margin="0,0,8,0">
         <Grid.RowDefinitions>
           <RowDefinition Height="28"/>
+          <RowDefinition Height="Auto"/>
           <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <TextBlock x:Name="TxtPacksTitle" Grid.Row="0" Foreground="{StaticResource TextBrush}" FontSize="15" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <!-- панель выбора нескольких паков: «Выбрано: N · Скачать выбранные · Выбрать все · Снять» -->
+        <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="8,2,0,6">
+          <TextBlock x:Name="TxtSelCount" Foreground="{StaticResource MutedBrush}" FontSize="13" VerticalAlignment="Center" Margin="0,0,14,0"/>
+          <Button x:Name="BtnSelDownload" Style="{StaticResource AccentButton}" Height="28" MinWidth="150" Padding="14,0" FontSize="12" Margin="0,2,10,2"/>
+          <Button x:Name="BtnSelAll" Style="{StaticResource GhostButton}" Height="28" MinWidth="100" Padding="12,0" FontSize="12" Margin="0,2,10,2"/>
+          <Button x:Name="BtnSelNone" Style="{StaticResource GhostButton}" Height="28" MinWidth="80" Padding="12,0" FontSize="12" Margin="0,2,0,2"/>
+        </WrapPanel>
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
           <!-- карточки одинакового размера (300x262 с полями), на любом экране переносятся по ширине, текст их не растягивает -->
           <WrapPanel x:Name="PackList" Orientation="Horizontal" ItemWidth="300" ItemHeight="262" HorizontalAlignment="Left" VerticalAlignment="Top"/>
         </ScrollViewer>
-        <TextBlock x:Name="TxtEmpty" Grid.Row="1" Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" Margin="30" Visibility="Collapsed"/>
+        <TextBlock x:Name="TxtEmpty" Grid.Row="2" Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" Margin="30" Visibility="Collapsed"/>
       </Grid>
 
       <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="16">
@@ -307,8 +334,8 @@
       <Popup x:Name="PopMenu" PlacementTarget="{Binding ElementName=BtnMenu}" Placement="Top" StaysOpen="False" AllowsTransparency="True">
         <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource GhostBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="8" Margin="8">
           <StackPanel>
+            <Button x:Name="BtnClearCache" Style="{StaticResource GhostButton}" MinWidth="180" Margin="0,0,0,6"/>
             <Button x:Name="BtnUninstall" Style="{StaticResource GhostButton}" MinWidth="180"/>
-            <TextBlock FontSize="11" Foreground="{StaticResource MutedBrush}" Opacity="0.75" HorizontalAlignment="Center" Margin="0,8,0,2">by F1KS · Telegram <Hyperlink x:Name="LnkAuthorMenu" NavigateUri="https://t.me/Im_Flawless" Foreground="#7F8FC8" TextDecorations="None">@Im_Flawless</Hyperlink></TextBlock>
           </StackPanel>
         </Border>
       </Popup>
@@ -326,11 +353,9 @@
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <TextBlock x:Name="TxtStatus" Grid.Column="0" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" VerticalAlignment="Center" Margin="0,0,12,0"/>
-        <TextBlock Grid.Column="1" FontSize="11" Foreground="{StaticResource MutedBrush}" Opacity="0.75" VerticalAlignment="Center" Margin="0,0,14,0">by F1KS · Telegram <Hyperlink x:Name="LnkAuthor" NavigateUri="https://t.me/Im_Flawless" Foreground="#7F8FC8" TextDecorations="None">@Im_Flawless</Hyperlink></TextBlock>
-        <Button x:Name="BtnLog" Grid.Column="2" Style="{StaticResource GhostButton}" Height="26" MinWidth="88" Padding="12,0" FontSize="12" VerticalAlignment="Center"/>
+        <Button x:Name="BtnLog" Grid.Column="1" Style="{StaticResource GhostButton}" Height="26" MinWidth="88" Padding="12,0" FontSize="12" VerticalAlignment="Center"/>
       </Grid>
       <Border x:Name="LogPanel" Grid.Row="2" Visibility="Collapsed" Margin="28,0,28,16" Background="#050815" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10">
         <TextBox x:Name="TxtLog" Height="150" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="Transparent" BorderThickness="0" Foreground="#AEB7E0" FontFamily="Consolas" FontSize="12" Padding="10,8"/>

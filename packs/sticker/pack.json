@@ -2,7 +2,7 @@
  "schema": 1,
  "id": "sticker",
  "name": "Sticker",
- "version": "2.4.0",
+ "version": "2.5.0",
  "author": "F1KS",
  "license": "CC BY-NC-SA 4.0",
  "description": "Яркие плоские стикеры с толстой белой обводкой и жёсткой тенью",
@@ -432,9 +432,9 @@
    "name": "Яндекс Музыка",
    "group": "apps",
    "ico": "icons/yandexmusic.ico",
-   "ico_sha256": "65ec843e9bca77a7e130b9cc1f8eb4cf22560661afc43ecfcafbbf1e0422c9eb",
+   "ico_sha256": "0a12624aa2093bb65893e6cb56c009bbded5d8827278ea573b04fb073cf4509b",
    "png": "icons/yandexmusic.png",
-   "png_sha256": "1d5282d9b94da74599cea3603a5b748ce7ab8b3129a407f4690b745f04bb5432",
+   "png_sha256": "cd215eea6118e2c81a083a39b8f1f855029b122f2f2a4513e8e31e833c538d67",
    "match": {
     "names": [
      "яндексмузыка",
@@ -2114,9 +2114,9 @@
    "name": "Docker Desktop",
    "group": "work",
    "ico": "icons/docker.ico",
-   "ico_sha256": "03e6fc1f6dc4fac04306c6323c27ef76ed5bbaac756f6a8e11ba8d9d1a44a52b",
+   "ico_sha256": "16afdecab94a7d3904879b7c95234ab1ef9da5e183f1d86da91269f21c930ad9",
    "png": "icons/docker.png",
-   "png_sha256": "a33f6372d61e6c54452125da661be3773f013de133c450e0438256a8ed592564",
+   "png_sha256": "796f3eac54798152d4f49db85e243ea96377f78b324d1d0ddd2415b1a28f09e8",
    "match": {
     "names": [
      "dockerdesktop",
@@ -2493,9 +2493,9 @@
    "name": "Visual Studio",
    "group": "work",
    "ico": "icons/visualstudio.ico",
-   "ico_sha256": "a6e8b6aaa34a7f299b76621aaa85f3706e6b2f768625c71b17e37383378a9c5f",
+   "ico_sha256": "22d689e8efe06b17932435101ca6489263d8f972088f13a1003d7b53effad372",
    "png": "icons/visualstudio.png",
-   "png_sha256": "5db3245e5dcceaf3dd4d4f379910ef526a385731c9dde2989e2ac750e79d6836",
+   "png_sha256": "f3c3161239955cffae1f822a9f6e39b914a2456bf2ed34395ae32d22c067a4a9",
    "match": {
     "names": [
      "visualstudio",
@@ -3869,9 +3869,9 @@
    "name": "OneDrive",
    "group": "work",
    "ico": "icons/onedrive.ico",
-   "ico_sha256": "8828e96f9ff03b453c85d67806cb018392125b8a3db75cb1df1d8cbd0f56269c",
+   "ico_sha256": "404864107a470a646e5d360a2176a45f1690a59dcbb82b7ecd3baa336284c9a8",
    "png": "icons/onedrive.png",
-   "png_sha256": "62387effd5faeaba0ba6cca48c456630a35878a76d4a5f7d020d8b5dcdfbbbd1",
+   "png_sha256": "7948b59965e5d7e57591ff432803c052ea9517470db1312e6a5ec6ddce7c560e",
    "match": {
     "names": [
      "onedrive",
@@ -4089,9 +4089,9 @@
    "name": "Word",
    "group": "work",
    "ico": "icons/word.ico",
-   "ico_sha256": "625d1c0169d902c840dff6670d5a1bf3077ad02ad28e75e4c16594e8884beb95",
+   "ico_sha256": "12e76ddee45fe823c5d1c02dc5900de8fe285aa1790e3125fba533c1e19b268d",
    "png": "icons/word.png",
-   "png_sha256": "6418d2b278eeb04c129cce19ca4c3f93efaed420e5214211acbb1ac8deb92a95",
+   "png_sha256": "dc10ddb4d2741affb10db5f8b9694b1ae1a8cd67400a129a698d965c7b307fbe",
    "match": {
     "names": [
      "microsoftword",
@@ -4108,9 +4108,9 @@
    "name": "Excel",
    "group": "work",
    "ico": "icons/excel.ico",
-   "ico_sha256": "75344516bf8c73a66edac9b79b162f2371712279f12756c69bc3a3a59e269edb",
+   "ico_sha256": "24620be860f43a9636059b14f28adeb738b663a9c4a6d39c32b6a3dde37603fc",
    "png": "icons/excel.png",
-   "png_sha256": "8ca4dc2b22f08143f58d70fc18da3cd81728d8bd372346744957ea949d24bbf2",
+   "png_sha256": "53f427026066475d37f092c2a45cc1660895024bb314e780560a02e80110997d",
    "match": {
     "names": [
      "microsoftexcel",
@@ -4126,9 +4126,9 @@
    "name": "PowerPoint",
    "group": "work",
    "ico": "icons/powerpoint.ico",
-   "ico_sha256": "763dbbe7d236ab7a1a08f8b52df655c58f804fca1f48bbffe870d25e2722a47a",
+   "ico_sha256": "f6325a97e650f3ac9c238a380925aa9f315bde0147982f3799ce9be0308b3b61",
    "png": "icons/powerpoint.png",
-   "png_sha256": "99923600beb650ccf700071eb2ad15f018c04854f4e27de47dad5662774c9607",
+   "png_sha256": "ccb98d373fd455532d45066206ff824f6ffceac4fd23b459bbff5d4532fcfb01",
    "match": {
     "names": [
      "microsoftpowerpoint",
@@ -4144,9 +4144,9 @@
    "name": "OneNote",
    "group": "work",
    "ico": "icons/onenote.ico",
-   "ico_sha256": "5c7b95c6ab680b97b1189ddb12d69b2f5fe85b4e602a5ab4bd20c0b5c4813e3c",
+   "ico_sha256": "2d9afec5d92b0db12dd20efe8ea1f92b7350cfd3055354c2dfdf1ee27f9355fc",
    "png": "icons/onenote.png",
-   "png_sha256": "666e6061b8e02c74db980975731eaa8c26160b91923be0de9bfdd584809ca441",
+   "png_sha256": "1cd0bcbd0b90a1474b81d3dccc0704ca6d558b73c91dc7cbdc4c73bf1d6b51a4",
    "match": {
     "names": [
      "microsoftonenote",
@@ -4163,9 +4163,9 @@
    "name": "Outlook",
    "group": "work",
    "ico": "icons/outlook.ico",
-   "ico_sha256": "09ad5e50be38c93fb383593cbace57bf8176577eaf1f65f8d3764193c95121dd",
+   "ico_sha256": "72722e6e694b5b72daeedbb35bc6aa69ee0abfcee19b338df07e8966fff9efee",
    "png": "icons/outlook.png",
-   "png_sha256": "094ae1dfebcebde58aa7672676e74a9e5d513fb6f3ed0a63402a051d1fba123b",
+   "png_sha256": "ac0ac3b0ce162a057c7925e2ef727ec301198c14a6f04aa1fae671259524bd2d",
    "match": {
     "names": [
      "microsoftoutlook",
@@ -4183,9 +4183,9 @@
    "name": "Microsoft Teams",
    "group": "work",
    "ico": "icons/teams.ico",
-   "ico_sha256": "d14696a0fbaefbafa86084d31f84b195d188b99c2a86b7de677d96e55443f6d4",
+   "ico_sha256": "0002d9ba7574842f12a9b50044e4efec70f287d14ff4250d208f894c148b4c64",
    "png": "icons/teams.png",
-   "png_sha256": "1b81b147bd9cce2b516432deae75650bc4b465f3f8101adec6ed801f03df9e7e",
+   "png_sha256": "579e84a6c1a78ec7656c6d289b6bbf59f4171036f48507bc0996bf650ac55c55",
    "match": {
     "names": [
      "microsoftteams",
@@ -4472,9 +4472,9 @@
    "name": "MAX",
    "group": "apps",
    "ico": "icons/max.ico",
-   "ico_sha256": "0c3737660ea19115e5a641e87f0282299133dc0df318cc0fdcec21feaa87c6c3",
+   "ico_sha256": "4d89b0bbf047ad8b752a4b59a21733db4b1a155e18fa1e1e0f5c7e80312f5dc5",
    "png": "icons/max.png",
-   "png_sha256": "3f8f3df7841f529acc5fba2c449ef45e9dd9886bc5cc37af0dd07c5b2fe8dcfb",
+   "png_sha256": "c7d348d19e9a8c745642326dacaadc738422631897ce6ce4021864522b699745",
    "match": {
     "names": [
      "max",
@@ -4660,9 +4660,9 @@
   {
    "id": "yandexmusic",
    "file": "tiles/yandexmusic.jpg",
-   "sha256": "e4e79cf3c70e161e1f35627b92f41ba662f03155a234056cc9f1d0b824ca172b",
+   "sha256": "95a30879da01a43d772a6342a8eb328547c650500593a4d77c2a8f64b4fe2942",
    "file_noname": "tiles_noname/yandexmusic.jpg",
-   "sha256_noname": "a9416699719ec5860460d87b8f692af02415849109e33d93d429c7d4b633045d"
+   "sha256_noname": "0fed2f8addefdeace502657d3da6f766603264053bb29a0778a430d143283a1d"
   },
   {
    "id": "pulsesync",
@@ -5325,9 +5325,9 @@
   {
    "id": "docker",
    "file": "tiles/docker.jpg",
-   "sha256": "3c9d872e8fd8a0e0a2e6a0a738dfed3a8ffd33028a71200799b73d3a5931a6f1",
+   "sha256": "cf0a1c91b655007f9c91ddf428d2ee3b941c0b7cef1c2143c50aea17b469cbee",
    "file_noname": "tiles_noname/docker.jpg",
-   "sha256_noname": "3d755af92b55fb01877685eb5e9cae90435081c231c7d47237ffc9b384470eac"
+   "sha256_noname": "d3c8c529fe8a5de3c2e9b679dade3320177935aebfe873e55708f0593d333810"
   },
   {
    "id": "termius",
@@ -5472,9 +5472,9 @@
   {
    "id": "visualstudio",
    "file": "tiles/visualstudio.jpg",
-   "sha256": "8d2390a2b48e86d23050fea7bb6a9bfc266f856e3b6670d626b544fb95d6d09c",
+   "sha256": "5614e8ed900cd6f5a62444ae41125a6fd40b04c05c6037135d699eabe1f07b09",
    "file_noname": "tiles_noname/visualstudio.jpg",
-   "sha256_noname": "93759e8683c176a31a32f60ee85b239419556e06444269e734ab95f9e2055c8d"
+   "sha256_noname": "4f0e936c6616016dcd47a30ace5a94d1d95f1deacf60323b43d98a166fb71c70"
   },
   {
    "id": "winterminal",
@@ -5997,9 +5997,9 @@
   {
    "id": "onedrive",
    "file": "tiles/onedrive.jpg",
-   "sha256": "97d3e7eac7f6394a082b55b001bd278ba9e6b048f16057fcb2f55a6e8e33700e",
+   "sha256": "7e67ce2b575955361b81cee6a18e75ac08a1bb07ca6c38b038349e8593ccf137",
    "file_noname": "tiles_noname/onedrive.jpg",
-   "sha256_noname": "60e391a69cb01020c73e0b9d7173cd3d8093752dd38c782700fb79d02b71938b"
+   "sha256_noname": "452c70e6930d40a5713ae0cd8075cb3419c10488343a3d8c3ee7b6b915ca854b"
   },
   {
    "id": "icloud",
@@ -6081,44 +6081,44 @@
   {
    "id": "word",
    "file": "tiles/word.jpg",
-   "sha256": "5f32368de58eecfaf1e4bdeb38928f84bb45be76fa4bbceff674795ea4ef8d4f",
+   "sha256": "d4fe2346128e9824d8462493467f8acfe042f5f2f584b135d153514a0b854b0e",
    "file_noname": "tiles_noname/word.jpg",
-   "sha256_noname": "058958f5b92da1353842c0e88ce8498f546c7b638da9f32588c0e9b95eed4248"
+   "sha256_noname": "43b12668a61a5012c42908b5350acc2a20be711cacf8df5fe1e7ad5653bceaea"
   },
   {
    "id": "excel",
    "file": "tiles/excel.jpg",
-   "sha256": "bb98ad3d959c0295e3358bf5d433af3b377d899db24acffa632eb977c0f97223",
+   "sha256": "259f0b5b9db5ed612700cd357bce918f143c316deb9330f310192fcc103a6774",
    "file_noname": "tiles_noname/excel.jpg",
-   "sha256_noname": "21fb78abeb962ee0e2178e4a6acf68c05fe01fbc221527ae4304795efb4429c9"
+   "sha256_noname": "a2dc24a6bcf1ce957feb654bd2f023a4e011f93767766bc9c97c5a88c8ac9a86"
   },
   {
    "id": "powerpoint",
    "file": "tiles/powerpoint.jpg",
-   "sha256": "f065723633b3475c482549757c244c749013b803036a99fe9efaea1493db3619",
+   "sha256": "f3d36f832d652a693dbfd653ad882b78725e308c2a188c1ecc7a972e5eaa6181",
    "file_noname": "tiles_noname/powerpoint.jpg",
-   "sha256_noname": "f5226eb14e43bccad46adf73f4bef69f4c3e2e231f6718970d774c5c32800658"
+   "sha256_noname": "4c52461a82aedb9e6ab992d270b8789f08fa3d97a200121939c444346dd74e45"
   },
   {
    "id": "onenote",
    "file": "tiles/onenote.jpg",
-   "sha256": "d821ae1ff5ed66f339b7e92274d6f41134ed359dcfc675683514f6e979d7e045",
+   "sha256": "701efa6bdedf98edba9ee46cf312444bf0dfe6cab59dd621e99cb817d162ccfc",
    "file_noname": "tiles_noname/onenote.jpg",
-   "sha256_noname": "6c2ff17a48ae8dac48238eb1069abc06833cb36095774a60efcdf4eb166bff1d"
+   "sha256_noname": "17fc497397f1632637337c5467e9b0aeeae26d195aad0dc0433e1605734206b4"
   },
   {
    "id": "outlook",
    "file": "tiles/outlook.jpg",
-   "sha256": "0b8ffc990bc9a1dee13e61a87fb721be4d159971986d8b79916d6f57fea178e7",
+   "sha256": "11dd669ecbe09358b84144a7521f326c585568578f99e29a57096243c8641dc9",
    "file_noname": "tiles_noname/outlook.jpg",
-   "sha256_noname": "c9cf4c0138e99251e67f4dfd526f9a81e761254095aca1902b97f80758ae00c1"
+   "sha256_noname": "848161720fab63b0c6f3fb529bffaeb79ca2ca69d2b38801fa38679dab2b7e3c"
   },
   {
    "id": "teams",
    "file": "tiles/teams.jpg",
-   "sha256": "01f1570e6bb4289191102f71fde7b22c6092e2013337242e288d518cba473f1a",
+   "sha256": "814d6627872f20e9147ab2cbec7cd422b64aaccbf5be87cf9df7e301b9341b10",
    "file_noname": "tiles_noname/teams.jpg",
-   "sha256_noname": "c07cc3b417226fcf9cf490bf8f335acc253f9db6ddff17124bd57c89fbe2155d"
+   "sha256_noname": "78c07adb2ebe11ad2933d62262d6e7a715141b76e2cb1ad072ca2f796c80904f"
   },
   {
    "id": "libreoffice",
@@ -6228,13 +6228,9 @@
   {
    "id": "max",
    "file": "tiles/max.jpg",
-   "sha256": "f7c44923cc947c24c7177ffd1c554b9871876ebfb24dd8f1103be80badbed9d9",
+   "sha256": "0a268a2d9550c9d554bf251ddffcaa512a9a9ce31b792523e57d72b35dd44fa0",
    "file_noname": "tiles_noname/max.jpg",
-   "sha256_noname": "d73c4cb66260f80b7ee446fa8f3b5a44ac30e0a40dd31a28fe8dfe0b05e55d50"
+   "sha256_noname": "2498806535a8225eb6df8b178d22bb8d08b99fe24163be3a4e07f426f6621795"
   }
- ],
- "auto": {
-  "file": "auto.json",
-  "sha256": "39b6d14d45d8e49f621d5173bcda1f9737899dd2ceca27daf0da9bf17b4b2bcb"
- }
+ ]
 }
