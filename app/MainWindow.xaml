@@ -358,6 +358,15 @@
     </Style>
 
     <!-- элемент списка без подсветки выбора (строки плана - не выбираемые) -->
+    <Style TargetType="ToolTip">
+      <Setter Property="Background" Value="#141B3A"/>
+      <Setter Property="Foreground" Value="#DDE3FF"/>
+      <Setter Property="BorderBrush" Value="#2A3570"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="10,6"/>
+      <Setter Property="FontSize" Value="12"/>
+    </Style>
+
     <Style x:Key="PlainItem" TargetType="ListBoxItem">
       <Setter Property="Focusable" Value="False"/>
       <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -373,7 +382,7 @@
 
     <!-- строка плана «Что поменяется»: одно приложение. Привязка к GlyphixGui.PlanRow; клики ловит ListBox (Tag: chk | icon | tile | style) -->
     <DataTemplate x:Key="PlanRowTemplate">
-      <Border Background="{StaticResource RowBrush}" CornerRadius="10" Margin="0,0,6,6" Padding="10,8,10,8" Height="104" ToolTip="{Binding Tip}" UseLayoutRounding="True" SnapsToDevicePixels="True">
+      <Border Background="{StaticResource RowBrush}" CornerRadius="10" Margin="0,0,6,6" Padding="10,8,10,8" MinHeight="104" ToolTip="{Binding Tip}" UseLayoutRounding="True" SnapsToDevicePixels="True">
         <Grid>
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="28"/>
@@ -394,7 +403,7 @@
             <Grid.RowDefinitions>
               <RowDefinition Height="24"/>
               <RowDefinition Height="26"/>
-              <RowDefinition Height="28"/>
+              <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <Grid Grid.Row="0">
               <Grid.ColumnDefinitions>
@@ -435,14 +444,16 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <WrapPanel Grid.Row="2" Orientation="Horizontal">
+            <StackPanel Grid.Row="2" Orientation="Vertical">
+              <StackPanel Orientation="Horizontal">
               <Button Grid.Column="0" Style="{StaticResource ModeIconButton}" Tag="icon" ToolTip="Что делать с иконкой ярлыков этого приложения" Visibility="{Binding HasIcon, Converter={StaticResource B2V}}">
                 <TextBlock><Run Text="Иконка: " Foreground="#8A93BD"/><Run Text="{Binding IconModeText, Mode=OneWay}"/><Run Text=" ▾" Foreground="#8A93BD"/></TextBlock>
               </Button>
               <Button Grid.Column="1" Style="{StaticResource ModeTileButton}" Tag="tile" ToolTip="Что делать с плиткой Start11 этого приложения" Visibility="{Binding HasTile, Converter={StaticResource B2V}}">
                 <TextBlock><Run Text="Плитка: " Foreground="#8A93BD"/><Run Text="{Binding TileModeText, Mode=OneWay}"/><Run Text=" ▾" Foreground="#8A93BD"/></TextBlock>
               </Button>
-              <Button Grid.Column="2" Style="{StaticResource StyleButton}" Tag="style" ToolTip="Взять иконку этого приложения из другого стиля" HorizontalAlignment="Right" MaxWidth="240" Visibility="{Binding CanStyle, Converter={StaticResource B2V}}">
+              </StackPanel>
+              <Button Grid.Column="2" Style="{StaticResource StyleButton}" Tag="style" ToolTip="Взять иконку этого приложения из другого стиля" HorizontalAlignment="Left" MaxWidth="300" Visibility="{Binding CanStyle, Converter={StaticResource B2V}}">
                 <Grid>
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -452,7 +463,7 @@
                   <TextBlock Grid.Column="1" Text=" ▾"/>
                 </Grid>
               </Button>
-            </WrapPanel>
+            </StackPanel>
           </Grid>
         </Grid>
       </Border>

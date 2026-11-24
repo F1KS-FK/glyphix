@@ -265,11 +265,11 @@
         $siFiles = [ordered]@{
         # BEGIN-HASHES
         'app/Engine.ps1' = '0ebea5169ed6073d91e7792dc57256c7dee7088b710900cb24864fd3602e5420'
-        'app/Glyphix.ps1' = '1b59870020bf54e8db0e314cc6fa58a33c5d9793272b31fca3a95d0d942df50f'
+        'app/Glyphix.ps1' = '5d644baa9369c1d7e84a6cd50a26908010bda3433a4fd78b2ea601b9abe1f787'
         'app/ShadowIcons.ps1' = '70de09bdba26fb2d51e710f8a3753a476fbdbf38faa873ce8d92957351d335a3'
-        'app/MainWindow.xaml' = '88c518a93ec58c7c5733c69d6f61e349118a518b2c35f650d4b7d0db273f2484'
+        'app/MainWindow.xaml' = 'a11e178dc08e098efa148b342c52c8747c45edb4802f264479b83796a55d4b96'
         'app/launch.vbs' = 'f07159a4489eb71c47d2b9bfa2c4e9939f83c0aaadf364eecbadc9da7685e337'
-        'app/version.txt' = 'c9163ff21f1f2b0390dc48bdda47179718f772f507a7cebceca59ce1a7129029'
+        'app/version.txt' = '892bef45a1a5205bfddb7849303ee13093d77185b84931419c334a38bc035672'
         'app/assets/app.ico' = '55780e2d17c72795d8f2390d6445e76df320587e83eb6dcc72517bcd954553c2'
         'app/assets/app.png' = 'a9dd1a82e50876dd88bab7343dbe40ea9597b05993672266a6a49acecfecb5a3'
         'app/assets/logo_tile.png' = '0cc3928dba30432041a4dd4e6d7224fddf7e05b0a612499664f72a33e79201e6'

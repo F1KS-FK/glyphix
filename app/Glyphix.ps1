@@ -424,7 +424,8 @@ function New-PlanRowVm {
     param($D)
     $r = New-Object GlyphixGui.PlanRow
     $r.AppKey = $D.AppKey; $r.Name = $D.Name; $r.IconId = $D.IconId; $r.IsAuto = $D.IsAuto; $r.IsCurrent = $D.IsCurrent; $r.HasIcon = $D.HasIcon; $r.HasTile = $D.HasTile; $r.CanStyle = $D.CanStyle
-    $r.SearchKey = $D.SearchKey; $r.Tip = $D.Tip; $r.Chips = [string[]]@($D.Chips)
+    $r.SearchKey = $D.SearchKey; $r.Tip = $(if ([string]$D.Tip) { [string]$D.Tip } else { $null });   # пустая строка = пустая белая подсказка WPF
+    $r.Chips = [string[]]@($D.Chips)
     Set-PlanRowFields $r $D
     return $r
 }
