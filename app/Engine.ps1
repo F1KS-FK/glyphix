@@ -1564,6 +1564,64 @@ function Get-AppIconPath {
     return $Fallback
 }
 
+# ---------- Общие (All Users) ярлыки ----------
+# Общие ярлыки видят все пользователи Windows, а .ico пака лежат в папке данных одного пользователя - у остальных иконки могут быть пустыми.
+# Раньше (2.4.1) иконки копировались в %ProgramData%\Glyphix\icons из повышенного процесса; это небезопасно (папку может заранее создать
+# обычный пользователь, в том числе как junction), поэтому с 2.4.2 ничего в ProgramData не пишем и не удаляем.
+$script:SI_LegacyCommonNoted = $false
+$script:SI_CommonNoteLogged = $false
+
+# ярлык в общей папке (рабочий стол всех пользователей / общее меню Пуск)?
+function Test-CommonLocation {
+    param([string]$Location)
+    return ($Location -eq 'desktop_all' -or $Location -eq 'start_all')
+}
+
+# Только чтение: если от 2.4.1 осталась папка %ProgramData%\Glyphix - один раз пишем о ней в журнал, сами её не трогаем
+function Write-LegacyCommonIconsNote {
+    if ($script:SI_LegacyCommonNoted) { return }
+    $script:SI_LegacyCommonNoted = $true
+    try {
+        $pd = [string]$env:ProgramData
+        if (-not $pd) { return }
+        $d = Join-Path $pd 'Glyphix'
+        if (Test-Path -LiteralPath $d) { Write-Log "Папка $d осталась от версии 2.4.1 - Glyphix её больше не использует и не трогает; при желании удалите её вручную (от имени администратора)." }
+    } catch { }
+}
+
+# ---------- Запущенные приложения (иконка окна, пока приложение открыто) ----------
+$script:SI_HintIgnoreProcs = @('explorer', 'cmd', 'powershell', 'pwsh', 'wscript', 'cscript', 'rundll32', 'control', 'conhost')
+
+# имя процесса по цели ярлыка ('C:\x\Steam.exe' -> 'Steam'); '' - если это не .exe или процесс не имеет смысла проверять
+function Get-TargetProcessName {
+    param([string]$Target)
+    $t = [Environment]::ExpandEnvironmentVariables(([string]$Target).Trim().Trim('"'))
+    if (-not $t -or $t -notmatch '(?i)\.exe$') { return '' }
+    $n = [IO.Path]::GetFileNameWithoutExtension($t.Replace('\', '/'))
+    if (-not $n -or ($script:SI_HintIgnoreProcs -contains $n.ToLowerInvariant())) { return '' }
+    return $n
+}
+
+function Test-TargetRunning {
+    param([string]$Target)
+    try {
+        $n = Get-TargetProcessName $Target
+        if (-not $n) { return $false }
+        return [bool](@(Get-Process -Name $n -ErrorAction SilentlyContinue).Count -gt 0)
+    } catch { return $false }
+}
+
+# Подсказка для строки состояния: до 3 приложений
+function Format-RunningHint {
+    param([string[]]$Names)
+    $n = @($Names | Where-Object { $_ } | Select-Object -Unique)
+    if ($n.Count -eq 0) { return '' }
+    $shown = @($n | Select-Object -First 3) -join ', '
+    if ($n.Count -gt 3) { $shown += ' и ещё ' + ($n.Count - 3) }
+    $verb = if ($n.Count -gt 1) { 'запущены' } else { 'запущен' }
+    return "$shown $verb — Windows может показывать иконку окна, пока приложение не закрыто"
+}
+
 function Apply-Pack {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Pack, $Items, [switch]$RestartExplorer, [switch]$NoAuto)
@@ -1571,10 +1629,12 @@ function Apply-Pack {
     Assert-LegacyMigrationComplete               # бэкап прежней версии ещё не перенесён - не применяем
     Confirm-PackFiles $Pack                      # иконки пака качаем только сейчас (если ещё не скачаны)
     Write-Log "Применяю пак: $($Pack.Name) $($Pack.Version)"
+    Write-LegacyCommonIconsNote
     if ($null -eq $Items) { $Items = @(Get-Matches -Pack $Pack -Auto:((-not $NoAuto) -and (Get-AutoEnabled))) }
     $backup = Load-Backup
     $changed = 0; $same = 0; $failed = 0; $autoDone = 0; $autoSkipped = 0
     $autoP = $null; $autoTried = $false; $autoReady = $false; $ov = $null
+    $running = New-Object 'System.Collections.Generic.List[string]'
     foreach ($m in @($Items)) {
         try {
             $regen = $false
@@ -1593,9 +1653,14 @@ function Apply-Pack {
             if ($m.Already -and -not $regen) { $same++; continue }
             if (-not (Test-Path -LiteralPath $m.IcoPath -PathType Leaf)) { throw "нет файла иконки $($m.IcoPath)" }
             $how = 'обновлён файл'
+            $ico = [string]$m.IcoPath
+            if ((Test-CommonLocation ([string]$m.Location)) -and -not $script:SI_CommonNoteLogged) {
+                $script:SI_CommonNoteLogged = $true
+                Write-Log '  общие ярлыки указывают на иконку в папке данных текущего пользователя: другие пользователи Windows могут видеть стандартные иконки'
+            }
             if (-not $m.Already) {
                 Backup-File $backup $m.Path ([string]$m.Icon)
-                $how = Set-LinkIcon $m.Path $m.IcoPath
+                $how = Set-LinkIcon $m.Path $ico
             }
             $after = [string](Get-WshShell).CreateShortcut($m.Path).IconLocation
             Send-ItemNotify $m.Path
@@ -1615,8 +1680,12 @@ function Apply-Pack {
                     }
                 }
             }
-            $ok = if (Test-IconIsSet $after $m.IcoPath) { 'OK' } else { '??' }
+            $ok = if (Test-IconIsSet $after $ico) { 'OK' } else { '??' }
             Write-Log "  $ok $($m.Name)  <-  $($m.IconName)  [$how]"
+            if (-not $m.Already -and (Test-TargetRunning ([string]$m.Target)) -and -not ($running -contains [string]$m.Name)) {
+                $running.Add([string]$m.Name)
+                Write-Log "       $($m.Name) запущен — Windows может показывать иконку окна, пока приложение не закрыто"
+            }
         } catch {
             $failed++
             Write-Log "  ошибка с $($m.Name): $($_.Exception.Message)"
@@ -1632,7 +1701,7 @@ function Apply-Pack {
     if ($failed -eq 0 -and ($changed + $same) -gt 0) { Invoke-LegacyCleanup }     # прежняя папка данных больше не нужна, если на неё не ссылается ни один ярлык
     $restarted = $false
     if ($changed -gt 0) { Update-IconView -RestartExplorer ([bool]$RestartExplorer) -ClearCache $true; $restarted = [bool]$RestartExplorer }
-    return [pscustomobject]@{ Changed = $changed; Same = $same; Failed = $failed; Total = @($Items).Count; Restarted = $restarted; Auto = $autoDone; AutoSkipped = $autoSkipped }
+    return [pscustomobject]@{ Changed = $changed; Same = $same; Failed = $failed; Total = @($Items).Count; Restarted = $restarted; Auto = $autoDone; AutoSkipped = $autoSkipped; Running = $running.ToArray() }
 }
 
 # ---------- Плитки Start11 ----------
@@ -1698,8 +1767,66 @@ function Get-S11ValueNames {
     try { return @($k.GetValueNames() | Where-Object { $_ } | ForEach-Object { [string]$_ }) } finally { $k.Close() }
 }
 
+# Папки, где может лежать установленный Start11 (Program Files и Program Files (x86))
+function Get-Start11InstallDirs {
+    $dirs = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($b in @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramW6432)) {
+        if (-not $b) { continue }
+        $d = Join-Path (Join-Path $b 'Stardock') 'Start11'
+        if (-not ($dirs -contains $d)) { $dirs.Add($d) }
+    }
+    return $dirs.ToArray()
+}
+
+# DisplayName записей удаления программ (HKLM 64/32 и HKCU); в тестах подменяется
+function Get-UninstallDisplayNames {
+    $names = New-Object 'System.Collections.Generic.List[string]'
+    $roots = @(
+        @([Microsoft.Win32.Registry]::LocalMachine, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'),
+        @([Microsoft.Win32.Registry]::LocalMachine, 'SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'),
+        @([Microsoft.Win32.Registry]::CurrentUser, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'))
+    foreach ($r in $roots) {
+        try {
+            $k = $r[0].OpenSubKey($r[1], $false)
+            if (-not $k) { continue }
+            try {
+                foreach ($sn in @($k.GetSubKeyNames())) {
+                    try {
+                        $sk = $k.OpenSubKey($sn, $false)
+                        if ($sk) { try { $dn = $sk.GetValue('DisplayName'); if ($dn) { $names.Add([string]$dn) } } finally { $sk.Close() } }
+                    } catch { }
+                }
+            } finally { $k.Close() }
+        } catch { }
+    }
+    return $names.ToArray()
+}
+
+# Имена установленных Store (AppX) пакетов Start11; если командлета нет или он не работает - пусто; в тестах подменяется
+function Get-Start11AppxNames {
+    try {
+        if (-not (Get-Command -Name Get-AppxPackage -ErrorAction SilentlyContinue)) { return @() }
+        return @(Get-AppxPackage -Name '*Start11*' -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.Name })
+    } catch { return @() }
+}
+
+# Start11 установлен: есть Start11*.exe в ...\Stardock\Start11\, запись удаления с DisplayName вида «Start11» либо Store-пакет (AppX) Start11.
+# Одного ключа реестра HKCU\...\Start8.ini мало: он остаётся после удаления Start11.
+function Test-Start11Installed {
+    try {
+        foreach ($d in @(Get-Start11InstallDirs)) {
+            if ((Test-Path -LiteralPath $d -PathType Container) -and (Get-ChildItem -LiteralPath $d -Filter 'Start11*.exe' -File -ErrorAction SilentlyContinue | Select-Object -First 1)) { return $true }
+        }
+    } catch { }
+    try { if (@(Get-UninstallDisplayNames | Where-Object { $_ -like '*Start11*' }).Count -gt 0) { return $true } } catch { }
+    try { if (@(Get-Start11AppxNames | Where-Object { $_ -like '*Start11*' }).Count -gt 0) { return $true } } catch { }
+    return $false
+}
+
+# Start11 есть, если есть и его настройки в HKCU, и сама установка; один реестр без установки - остатки, плитки не пишем
 function Test-Start11 {
-    return [bool](Test-S11Key $script:SI_S11Root)
+    if (-not (Test-S11Key $script:SI_S11Root)) { return $false }
+    return [bool](Test-Start11Installed)
 }
 
 # --- id плитки и сопоставление ---
@@ -4106,8 +4233,10 @@ function Test-LegacyHomeReferenced {
 # пустые подпапки внутри $Root (сам $Root не трогаем); в ссылки/junction не заходим
 function Remove-EmptyDirs {
     param([string]$Root)
-    $dirs = @(Get-ChildItem -LiteralPath $Root -Directory -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) } | Sort-Object { $_.FullName.Length } -Descending)
-    foreach ($d in $dirs) {
+    # обход вручную: Get-ChildItem -Recurse в Windows PowerShell 5.1 заходит в junction/symlink, поэтому ссылки (ReparsePoint) пропускаем целиком
+    foreach ($d in @(Get-ChildItem -LiteralPath $Root -Directory -Force -ErrorAction SilentlyContinue)) {
+        if ($d.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+        Remove-EmptyDirs $d.FullName
         try { if (-not (Get-ChildItem -LiteralPath $d.FullName -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $d.FullName -Force } } catch { }
     }
 }
@@ -4158,7 +4287,18 @@ function New-UninstallHelperScript {
         '    if (-not (Test-Path -LiteralPath $app)) { break }',
         '    Start-Sleep -Milliseconds 500',
         '}',
-        'if ((Test-Path -LiteralPath $home1) -and -not (Get-ChildItem -LiteralPath $home1 -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $home1 -Force -ErrorAction SilentlyContinue }'
+        '# пустые подпапки (backup\ и т.п.), затем сама папка данных, если опустела',
+        'if (Test-Path -LiteralPath $home1) {',
+        '    function Remove-EmptySub([string]$r) {',
+        '        foreach ($d in @(Get-ChildItem -LiteralPath $r -Directory -Force -ErrorAction SilentlyContinue)) {',
+        '            if ($d.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }',
+        '            Remove-EmptySub $d.FullName',
+        '            if (-not (Get-ChildItem -LiteralPath $d.FullName -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $d.FullName -Force -ErrorAction SilentlyContinue }',
+        '        }',
+        '    }',
+        '    Remove-EmptySub $home1',
+        '    if (-not (Get-ChildItem -LiteralPath $home1 -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $home1 -Force -ErrorAction SilentlyContinue }',
+        '}'
     )
     return ($lines -join "`r`n")
 }
@@ -4189,6 +4329,7 @@ function Uninstall-App {
     if ($u.PSObject.Properties['TilesKept'] -and $u.TilesKept) { Write-Log 'Start11 работает и не перезапущен: PNG плиток оставлены.' }
     else { Remove-Start11Files }       # PNG плиток - только теперь, когда значения реестра уже возвращены (иначе плитки остались бы без картинок)
     Remove-AutoFiles                     # созданные автоиконки (откат уже вернул все ярлыки)
+    Write-LegacyCommonIconsNote          # папка %ProgramData%\Glyphix от 2.4.1 (если есть) - только запись в журнал, не трогаем
     # не держим папку приложения/данных текущей: иначе её не удалить
     $tmpDir = if ($env:TEMP) { $env:TEMP } else { [IO.Path]::GetTempPath() }
     try { [Environment]::CurrentDirectory = $tmpDir } catch { }
@@ -4215,6 +4356,7 @@ function Uninstall-App {
     $script:SI_NoLogFile = $true
     try { if (Test-Path -LiteralPath $script:SI_LogFile) { Remove-Item -LiteralPath $script:SI_LogFile -Force } } catch { }
     try { if (Test-Path -LiteralPath ($script:SI_LogFile + '.old')) { Remove-Item -LiteralPath ($script:SI_LogFile + '.old') -Force } } catch { }
+    try { if (Test-Path -LiteralPath $script:SI_Home -PathType Container) { Remove-EmptyDirs $script:SI_Home } } catch { }      # пустые backup\ и т.п.
     try { if ((Test-Path -LiteralPath $script:SI_Home) -and -not (Get-ChildItem -LiteralPath $script:SI_Home -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $script:SI_Home -Force } } catch { }
     return [pscustomobject]@{ Ok = $appRemoved; KeptBackup = $false; Aborted = $false; Message = '' }
 }

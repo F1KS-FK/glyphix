@@ -1031,6 +1031,9 @@ $tr = & $doTiles $pk
             $s = $script:T.ApplyDone -f $r.Changed, $r.Same
             if ($r.Failed -gt 0) { $s += ($script:T.ApplyFail -f $r.Failed) }
             if ($r.Auto -gt 0) { $s += ($script:T.ApplyAuto -f $r.Auto) }
+            $rh = ''
+            try { if ($r.PSObject.Properties['Running']) { $rh = Format-RunningHint @($r.Running) } } catch { }       # приложение запущено - окно может показывать прежнюю иконку (один раз, до 3 имён)
+            if ($rh) { $s += ' | ' + $rh }
             Set-Status $s
         }
         if ($res.Tiles) {
