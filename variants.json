@@ -1,0 +1,2023 @@
+{
+ "schema": 1,
+ "updated": "2026-11-24",
+ "brand_colors": {
+  "glyphix": "#7C5CFF",
+  "shadowsystem": "#6D4AFF",
+  "telegram": "#26A5E4",
+  "discord": "#5865F2",
+  "chrome": "#4285F4",
+  "firefox": "#FF7139",
+  "edge": "#0078D7",
+  "opera": "#FF1B2D",
+  "operagx": "#EE2950",
+  "brave": "#FB542B",
+  "vivaldi": "#EF3939",
+  "torbrowser": "#7D4698",
+  "gemini": "#8E75B2",
+  "chatgpt": "#10A37F",
+  "claude": "#D97757",
+  "perplexity": "#1FB8CD",
+  "deepseek": "#5786FE",
+  "whatsapp": "#25D366",
+  "viber": "#7360F2",
+  "signal": "#3B45FD",
+  "skype": "#00AFF0",
+  "zoom": "#0B5CFF",
+  "slack": "#E01E5A",
+  "vk": "#0077FF",
+  "yandexmusic": "#FFDD00",
+  "pulsesync": "#8E6BFF",
+  "spotify": "#1ED760",
+  "applemusic": "#FA243C",
+  "youtube": "#FF0000",
+  "youtubemusic": "#FF0000",
+  "twitch": "#9146FF",
+  "netflix": "#E50914",
+  "kinopoisk": "#FF5500",
+  "vlc": "#FF8800",
+  "obs": "#E8E8E8",
+  "anilibrix": "#CD2523",
+  "anilibria": "#C8282C",
+  "taiga": "#F6AE00",
+  "steam": "#66C0F4",
+  "epicgames": "#F0F0F0",
+  "roblox": "#E2231A",
+  "minecraft": "#5D9B3A",
+  "fortnite": "#7B5CFF",
+  "valorant": "#FA4454",
+  "lol": "#C28F2C",
+  "riot": "#EB0029",
+  "battlenet": "#4381C3",
+  "ea": "#FF4747",
+  "ubisoft": "#0070FF",
+  "gog": "#86328A",
+  "rockstar": "#FCAF17",
+  "cs2": "#F2A93B",
+  "dota2": "#BF2E1A",
+  "xbox": "#107C10",
+  "playstation": "#0070D1",
+  "worldoftanks": "#F5A623",
+  "faceit": "#FF5500",
+  "curseforge": "#F16436",
+  "modrinth": "#00AF5C",
+  "r2modman": "#40A4F4",
+  "wemod": "#12D8F5",
+  "gearup": "#2995FF",
+  "nucleus": "#3FA34D",
+  "ds4windows": "#7EB1FF",
+  "nvidia": "#76B900",
+  "amd": "#ED1C24",
+  "msicenter": "#FF0000",
+  "afterburner": "#E60012",
+  "steelseries": "#FF5200",
+  "logitech": "#00B8FC",
+  "logicapture": "#00B8FC",
+  "razer": "#00FF00",
+  "asus": "#E5002B",
+  "redragon": "#D8232A",
+  "taskmgr": "#30B27B",
+  "explorer": "#FFC83D",
+  "files": "#FFC83D",
+  "calculator": "#3A86D1",
+  "store": "#005FB8",
+  "todo": "#2564CF",
+  "alarms": "#1E88E5",
+  "shutdown": "#E53935",
+  "uninstall": "#E55B2D",
+  "wintoys": "#A8ADB5",
+  "eartrumpet": "#F0A30A",
+  "start11": "#00CEFB",
+  "forcedeleter": "#5092F5",
+  "speedtest": "#F5F5F5",
+  "spacedesk": "#2B7DE9",
+  "kdeconnect": "#1D99F3",
+  "localsend": "#008080",
+  "adb": "#3DDC84",
+  "anydesk": "#EF443B",
+  "teamviewer": "#0E8EE9",
+  "qbittorrent": "#2F67BA",
+  "zapret": "#3FB950",
+  "nekobox": "#E3C770",
+  "protonvpn": "#66DEB1",
+  "nordvpn": "#4687FF",
+  "wireguard": "#88171A",
+  "edrawmind": "#25B485",
+  "pionex": "#FE8227",
+  "notion": "#F0F0F0",
+  "obsidian": "#7C3AED",
+  "standardnotes": "#076CD5",
+  "simplenote": "#3361CC",
+  "craft": "#6D5DFB",
+  "miro": "#FFD02F",
+  "todoist": "#E44332",
+  "ticktick": "#4772FA",
+  "evernote": "#00A82D",
+  "dropbox": "#0061FF",
+  "googledrive": "#4285F4",
+  "gmail": "#EA4335",
+  "vscode": "#007ACC",
+  "cursor": "#F0F0F0",
+  "pycharm": "#21D789",
+  "jetbrains": "#FF318C",
+  "github": "#F0F0F0",
+  "docker": "#2496ED",
+  "termius": "#4E7EF5",
+  "dolphinanty": "#B13EE3",
+  "figma": "#F24E1E",
+  "canva": "#00C4CC",
+  "blender": "#E87D0D",
+  "photoshop": "#31A8FF",
+  "premiere": "#9999FF",
+  "aftereffects": "#9999FF",
+  "pubg": "#F4B942",
+  "r6siege": "#E6E6E6",
+  "rustgame": "#CD412A",
+  "osu": "#FF66AA",
+  "worldofwarships": "#0A5284",
+  "warframe": "#136387",
+  "thefinals": "#D31F3C",
+  "itch": "#FA5C5C",
+  "playnite": "#FF5236",
+  "heroic": "#4B93FF",
+  "parsec": "#F50049",
+  "moonlight": "#D0D4DA",
+  "visualstudio": "#6B39CB",
+  "winterminal": "#4D4D4D",
+  "powershell": "#5391FE",
+  "cmd": "#B8B8B8",
+  "git": "#F03C2E",
+  "sublime": "#FF9800",
+  "postman": "#FF6C37",
+  "insomnia": "#4000BF",
+  "androidstudio": "#3DDC84",
+  "idea": "#FE315D",
+  "webstorm": "#07C3F2",
+  "rider": "#DD1265",
+  "clion": "#22D88F",
+  "datagrip": "#22D88F",
+  "unityhub": "#FFFFFF",
+  "unreal": "#F0F0F0",
+  "godot": "#478CBF",
+  "nodejs": "#5FA04E",
+  "python": "#3776AB",
+  "wsl": "#E95420",
+  "arduino": "#00979D",
+  "filezilla": "#BF0000",
+  "winscp": "#3C8DDE",
+  "putty": "#C9CED6",
+  "virtualbox": "#2F61B4",
+  "davinci": "#E8EEF5",
+  "capcut": "#FFFFFF",
+  "audacity": "#0000CC",
+  "ableton": "#F2F2F2",
+  "krita": "#3BABFF",
+  "gimp": "#8C8073",
+  "inkscape": "#F0F0F0",
+  "paintnet": "#3D8BE0",
+  "affinityphoto": "#4E3188",
+  "affinitydesigner": "#134881",
+  "lightroom": "#31A8FF",
+  "illustrator": "#FF9A00",
+  "acrobat": "#EC1C24",
+  "foobar": "#F0F0F0",
+  "aimp": "#FD9E12",
+  "plex": "#E5A00D",
+  "jellyfin": "#00A4DC",
+  "kodi": "#17B2E7",
+  "stremio": "#685CEE",
+  "deezer": "#A238FF",
+  "soundcloud": "#FF5500",
+  "tidal": "#33FFEE",
+  "powertoys": "#FFB900",
+  "everything": "#FF9800",
+  "winrar": "#A23FB3",
+  "7zip": "#D9D9D9",
+  "sharex": "#2885F1",
+  "lightshot": "#7B3FE4",
+  "snipping": "#0078D4",
+  "cpuz": "#2E75B6",
+  "hwinfo": "#3C9BD6",
+  "hwmonitor": "#43A047",
+  "rufus": "#C5CAD1",
+  "ventoy": "#1FA8E0",
+  "ccleaner": "#CB2D29",
+  "revo": "#E6492D",
+  "bitwarden": "#175DDC",
+  "keepassxc": "#6CAC4D",
+  "onepass": "#145FE4",
+  "malwarebytes": "#0D3ECC",
+  "eset": "#0093A0",
+  "avast": "#FF7800",
+  "winsecurity": "#2F80ED",
+  "controlpanel": "#3A96DD",
+  "settings": "#A0A8B3",
+  "paint": "#F2994A",
+  "notepad": "#2AA1E0",
+  "camera": "#6C7BDB",
+  "photos": "#3FA9F5",
+  "mediaplayer": "#D14DB0",
+  "onedrive": "#0078D4",
+  "icloud": "#3693F3",
+  "mega": "#D9272E",
+  "yandexdisk": "#FE7037",
+  "tailscale": "#F0F0F0",
+  "openvpn": "#EA7E20",
+  "hiddify": "#445EE8",
+  "v2rayn": "#3198CC",
+  "outlinevpn": "#2A9E7E",
+  "amnezia": "#E6E6E6",
+  "clashverge": "#9A80FE",
+  "happ": "#E6E6E6",
+  "word": "#185ABD",
+  "excel": "#107C41",
+  "powerpoint": "#D24726",
+  "onenote": "#7719AA",
+  "outlook": "#0078D4",
+  "teams": "#5B5FC7",
+  "libreoffice": "#18A303",
+  "onlyoffice": "#FF6F3D",
+  "wps": "#FE3D0A",
+  "thunderbird": "#0A84FF",
+  "element": "#0DBD8B",
+  "mattermost": "#0058CC",
+  "yabrowser": "#FC3F1D",
+  "telemost": "#35D07F",
+  "sber": "#21A038",
+  "tbank": "#FFDD2D",
+  "ozon": "#005BFF",
+  "wildberries": "#CB11AB",
+  "avito": "#04E061",
+  "vkmusic": "#E253FF",
+  "rutube": "#E8224A",
+  "max": "#14AEFC",
+  "v2raytun": "#E6E6E6",
+  "throne": "#1B8C25",
+  "flclash": "#5A6FEA",
+  "karing": "#5151FA",
+  "clashparty": "#8A93A6",
+  "nyanpasu": "#E6E6E6",
+  "guiforclash": "#E6E6E6",
+  "guiforsingbox": "#546E7A",
+  "invisibleman": "#6DCC8E",
+  "shadowsocks": "#197DBF",
+  "koalaclash": "#228734",
+  "clashforwindows": "#3A63B5"
+ },
+ "brand_flags": {
+  "chatgpt": {
+   "kind": "fallback",
+   "reason": "ChatGPT green"
+  },
+  "slack": {
+   "kind": "fallback",
+   "reason": "Slack pink (aubergine too dark)"
+  },
+  "obs": {
+   "kind": "fallback",
+   "reason": "official dark; light grey"
+  },
+  "steam": {
+   "kind": "fallback",
+   "reason": "official black; Steam blue"
+  },
+  "epicgames": {
+   "kind": "fallback",
+   "reason": "official dark; light grey"
+  },
+  "roblox": {
+   "kind": "fallback",
+   "reason": "official black; Roblox red"
+  },
+  "fortnite": {
+   "kind": "fallback",
+   "reason": "official black; purple accent"
+  },
+  "ubisoft": {
+   "kind": "fallback",
+   "reason": "official black; blue accent"
+  },
+  "cs2": {
+   "kind": "fallback",
+   "reason": "official black; CS2 orange"
+  },
+  "speedtest": {
+   "kind": "fallback",
+   "reason": "official dark; light grey"
+  },
+  "teamviewer": {
+   "kind": "fallback",
+   "reason": "TeamViewer blue"
+  },
+  "notion": {
+   "kind": "fallback",
+   "reason": "official black; light grey"
+  },
+  "miro": {
+   "kind": "fallback",
+   "reason": "Miro yellow"
+  },
+  "cursor": {
+   "kind": "fallback",
+   "reason": "official black; light grey"
+  },
+  "pycharm": {
+   "kind": "fallback",
+   "reason": "JetBrains product colour"
+  },
+  "jetbrains": {
+   "kind": "fallback",
+   "reason": "JetBrains pink"
+  },
+  "github": {
+   "kind": "fallback",
+   "reason": "official near-black; light grey"
+  },
+  "termius": {
+   "kind": "fallback",
+   "reason": "official black; blue accent"
+  },
+  "idea": {
+   "kind": "fallback",
+   "reason": "JetBrains product colour"
+  },
+  "webstorm": {
+   "kind": "fallback",
+   "reason": "JetBrains product colour"
+  },
+  "rider": {
+   "kind": "fallback",
+   "reason": "JetBrains product colour"
+  },
+  "clion": {
+   "kind": "fallback",
+   "reason": "JetBrains product colour"
+  },
+  "datagrip": {
+   "kind": "fallback",
+   "reason": "JetBrains product colour"
+  },
+  "unreal": {
+   "kind": "fallback",
+   "reason": "official dark; light grey"
+  },
+  "davinci": {
+   "kind": "fallback",
+   "reason": "official dark; light grey"
+  },
+  "inkscape": {
+   "kind": "fallback",
+   "reason": "official black; light grey"
+  },
+  "foobar": {
+   "kind": "fallback",
+   "reason": "official black; light grey"
+  },
+  "tidal": {
+   "kind": "fallback",
+   "reason": "official black; Tidal cyan"
+  },
+  "tailscale": {
+   "kind": "fallback",
+   "reason": "official dark; light grey"
+  },
+  "onlyoffice": {
+   "kind": "fallback",
+   "reason": "ONLYOFFICE orange"
+  },
+  "r6siege": {
+   "kind": "fallback",
+   "reason": "neutral/black official or no brand colour; light grey"
+  },
+  "moonlight": {
+   "kind": "fallback",
+   "reason": "neutral/black official or no brand colour; light grey"
+  },
+  "cmd": {
+   "kind": "fallback",
+   "reason": "neutral/black official or no brand colour; light grey"
+  },
+  "putty": {
+   "kind": "fallback",
+   "reason": "neutral/black official or no brand colour; light grey"
+  },
+  "capcut": {
+   "kind": "fallback",
+   "reason": "neutral/black official or no brand colour; light grey"
+  },
+  "ableton": {
+   "kind": "fallback",
+   "reason": "neutral/black official or no brand colour; light grey"
+  },
+  "7zip": {
+   "kind": "fallback",
+   "reason": "neutral/black official or no brand colour; light grey"
+  },
+  "rufus": {
+   "kind": "fallback",
+   "reason": "neutral/black official or no brand colour; light grey"
+  },
+  "amnezia": {
+   "kind": "fallback",
+   "reason": "neutral/black official or no brand colour; light grey"
+  },
+  "happ": {
+   "kind": "fallback",
+   "reason": "neutral/black official or no brand colour; light grey"
+  },
+  "wintoys": {
+   "kind": "fallback",
+   "reason": "neutral/black official or no brand colour; light grey"
+  },
+  "settings": {
+   "kind": "fallback",
+   "reason": "neutral/black official or no brand colour; light grey"
+  },
+  "craft": {
+   "kind": "fallback",
+   "reason": "official is very dark navy; lightened accent"
+  },
+  "rutube": {
+   "kind": "fallback",
+   "reason": "official is very dark navy; lightened accent"
+  },
+  "unityhub": {
+   "kind": "fallback",
+   "reason": "official black; white"
+  },
+  "v2raytun": {
+   "kind": "fallback",
+   "reason": "official black/white; light grey"
+  },
+  "nyanpasu": {
+   "kind": "fallback",
+   "reason": "white cat with black outline; light grey"
+  },
+  "guiforclash": {
+   "kind": "fallback",
+   "reason": "white cat; light grey"
+  },
+  "clashparty": {
+   "kind": "fallback",
+   "reason": "official dark grey #454B56; lighter tint"
+  },
+  "clashforwindows": {
+   "kind": "fallback",
+   "reason": "official dark navy #1E4477; lighter blue"
+  }
+ },
+ "sections": [
+  {
+   "id": "shadow",
+   "title": "Shadow",
+   "subtitle": "Чёрные глифы с цветной аурой",
+   "variants": [
+    {
+     "id": "shadow-violet",
+     "title": "Violet",
+     "base": "shadow",
+     "ops": [],
+     "preview": "variants/shadow-violet.jpg",
+     "tags": [
+      "dark",
+      "cool",
+      "default"
+     ]
+    },
+    {
+     "id": "shadow-blue",
+     "title": "Blue",
+     "base": "shadow",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#02050A"
+        ],
+        [
+         0.17,
+         "#0F2752"
+        ],
+        [
+         0.34,
+         "#2F7BFF"
+        ],
+        [
+         0.703,
+         "#A1C4FF"
+        ],
+        [
+         1,
+         "#EAF2FF"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/shadow-blue.jpg",
+     "tags": [
+      "dark",
+      "cool"
+     ]
+    },
+    {
+     "id": "shadow-red",
+     "title": "Red",
+     "base": "shadow",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#0A0203"
+        ],
+        [
+         0.17,
+         "#521319"
+        ],
+        [
+         0.34,
+         "#FF3B4E"
+        ],
+        [
+         0.703,
+         "#FFA7AF"
+        ],
+        [
+         1,
+         "#FFEBED"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/shadow-red.jpg",
+     "tags": [
+      "dark",
+      "warm"
+     ]
+    },
+    {
+     "id": "shadow-green",
+     "title": "Green",
+     "base": "shadow",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#020904"
+        ],
+        [
+         0.17,
+         "#0E4822"
+        ],
+        [
+         0.34,
+         "#2BE06B"
+        ],
+        [
+         0.703,
+         "#A0F1BC"
+        ],
+        [
+         1,
+         "#EAFCF0"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/shadow-green.jpg",
+     "tags": [
+      "dark",
+      "cool"
+     ]
+    },
+    {
+     "id": "shadow-cyan",
+     "title": "Cyan",
+     "base": "shadow",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#01080A"
+        ],
+        [
+         0.17,
+         "#0B444C"
+        ],
+        [
+         0.34,
+         "#22D3EE"
+        ],
+        [
+         0.703,
+         "#9CEBF7"
+        ],
+        [
+         1,
+         "#E9FBFD"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/shadow-cyan.jpg",
+     "tags": [
+      "dark",
+      "cool"
+     ]
+    },
+    {
+     "id": "shadow-gold",
+     "title": "Gold",
+     "base": "shadow",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#0A0702"
+        ],
+        [
+         0.17,
+         "#523B0F"
+        ],
+        [
+         0.34,
+         "#FFB92E"
+        ],
+        [
+         0.703,
+         "#FFE0A1"
+        ],
+        [
+         1,
+         "#FFF8EA"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/shadow-gold.jpg",
+     "tags": [
+      "dark",
+      "warm"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "glow",
+   "title": "Glow",
+   "subtitle": "Светящиеся цветные глифы",
+   "variants": [
+    {
+     "id": "glow-azure",
+     "title": "Azure",
+     "base": "azure",
+     "ops": [],
+     "preview": "variants/glow-azure.jpg",
+     "tags": [
+      "bright",
+      "cool",
+      "default"
+     ]
+    },
+    {
+     "id": "glow-violet",
+     "title": "Violet",
+     "base": "azure",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#06050A"
+        ],
+        [
+         0.35,
+         "#322752"
+        ],
+        [
+         0.7,
+         "#9B7BFF"
+        ],
+        [
+         0.865,
+         "#D2C4FF"
+        ],
+        [
+         1,
+         "#F5F2FF"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/glow-violet.jpg",
+     "tags": [
+      "bright",
+      "cool"
+     ]
+    },
+    {
+     "id": "glow-pink",
+     "title": "Pink",
+     "base": "azure",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#0A0407"
+        ],
+        [
+         0.35,
+         "#52243A"
+        ],
+        [
+         0.7,
+         "#FF6FB5"
+        ],
+        [
+         0.865,
+         "#FFBEDE"
+        ],
+        [
+         1,
+         "#FFF1F8"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/glow-pink.jpg",
+     "tags": [
+      "bright",
+      "warm"
+     ]
+    },
+    {
+     "id": "glow-green",
+     "title": "Green",
+     "base": "azure",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#030906"
+        ],
+        [
+         0.35,
+         "#194A2C"
+        ],
+        [
+         0.7,
+         "#4DE88A"
+        ],
+        [
+         0.865,
+         "#AFF5CA"
+        ],
+        [
+         1,
+         "#EDFDF3"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/glow-green.jpg",
+     "tags": [
+      "bright",
+      "cool"
+     ]
+    },
+    {
+     "id": "glow-orange",
+     "title": "Orange",
+     "base": "azure",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#0A0602"
+        ],
+        [
+         0.35,
+         "#523114"
+        ],
+        [
+         0.7,
+         "#FF9A3D"
+        ],
+        [
+         0.865,
+         "#FFD2A8"
+        ],
+        [
+         1,
+         "#FFF5EC"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/glow-orange.jpg",
+     "tags": [
+      "bright",
+      "warm"
+     ]
+    },
+    {
+     "id": "glow-white",
+     "title": "White",
+     "base": "azure",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#090A0A"
+        ],
+        [
+         0.31,
+         "#4B4D52"
+        ],
+        [
+         0.62,
+         "#EAF2FF"
+        ],
+        [
+         0.829,
+         "#FBFCFF"
+        ],
+        [
+         1,
+         "#FFFFFF"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/glow-white.jpg",
+     "tags": [
+      "bright",
+      "mono"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "mono",
+   "title": "Mono",
+   "subtitle": "Строгие однотонные иконки",
+   "variants": [
+    {
+     "id": "mono-white",
+     "title": "White",
+     "base": "white",
+     "ops": [],
+     "preview": "variants/mono-white.jpg",
+     "tags": [
+      "mono",
+      "light",
+      "default"
+     ]
+    },
+    {
+     "id": "mono-black",
+     "title": "Black",
+     "base": "black",
+     "ops": [],
+     "preview": "variants/mono-black.jpg",
+     "tags": [
+      "mono",
+      "dark",
+      "default"
+     ]
+    },
+    {
+     "id": "mono-graphite",
+     "title": "Graphite",
+     "base": "white",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#060607"
+        ],
+        [
+         0.45,
+         "#2D3034"
+        ],
+        [
+         0.9,
+         "#8E96A3"
+        ],
+        [
+         0.955,
+         "#C6CAD1"
+        ],
+        [
+         1,
+         "#EEEFF1"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/mono-graphite.jpg",
+     "tags": [
+      "mono",
+      "dark"
+     ]
+    },
+    {
+     "id": "mono-cream",
+     "title": "Cream",
+     "base": "white",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#0A0908"
+        ],
+        [
+         0.46,
+         "#4E4A40"
+        ],
+        [
+         0.92,
+         "#F3E6C8"
+        ],
+        [
+         0.964,
+         "#F9F2E4"
+        ],
+        [
+         1,
+         "#FDFBF7"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/mono-cream.jpg",
+     "tags": [
+      "mono",
+      "warm",
+      "light"
+     ]
+    },
+    {
+     "id": "mono-ice",
+     "title": "Ice",
+     "base": "white",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#08090A"
+        ],
+        [
+         0.46,
+         "#424A52"
+        ],
+        [
+         0.92,
+         "#CFE8FF"
+        ],
+        [
+         0.964,
+         "#E7F4FF"
+        ],
+        [
+         1,
+         "#F8FCFF"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/mono-ice.jpg",
+     "tags": [
+      "mono",
+      "cool",
+      "light"
+     ]
+    },
+    {
+     "id": "mono-crimson",
+     "title": "Crimson",
+     "base": "white",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#090102"
+        ],
+        [
+         0.45,
+         "#480C13"
+        ],
+        [
+         0.9,
+         "#E0243A"
+        ],
+        [
+         0.955,
+         "#F0929C"
+        ],
+        [
+         1,
+         "#FADEE1"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/mono-crimson.jpg",
+     "tags": [
+      "mono",
+      "warm"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "neon",
+   "title": "Neon",
+   "subtitle": "Неоновые рамки и свечение",
+   "variants": [
+    {
+     "id": "neon-synthwave",
+     "title": "Synthwave",
+     "base": "neon",
+     "ops": [],
+     "preview": "variants/neon-synthwave.jpg",
+     "tags": [
+      "neon",
+      "default"
+     ]
+    },
+    {
+     "id": "neon-toxic",
+     "title": "Toxic green",
+     "base": "neon",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#020A01"
+        ],
+        [
+         0.29,
+         "#125206"
+        ],
+        [
+         0.58,
+         "#39FF14"
+        ],
+        [
+         0.811,
+         "#A6FF95"
+        ],
+        [
+         1,
+         "#EBFFE8"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/neon-toxic.jpg",
+     "tags": [
+      "neon",
+      "cool"
+     ]
+    },
+    {
+     "id": "neon-red",
+     "title": "Red",
+     "base": "neon",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#0A0202"
+        ],
+        [
+         0.29,
+         "#520D14"
+        ],
+        [
+         0.58,
+         "#FF2A3D"
+        ],
+        [
+         0.811,
+         "#FF9FA8"
+        ],
+        [
+         1,
+         "#FFEAEC"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/neon-red.jpg",
+     "tags": [
+      "neon",
+      "warm"
+     ]
+    },
+    {
+     "id": "neon-sunset",
+     "title": "Sunset orange",
+     "base": "neon",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#0A0402"
+        ],
+        [
+         0.29,
+         "#5A1E06"
+        ],
+        [
+         0.58,
+         "#FF7A1A"
+        ],
+        [
+         0.811,
+         "#FFC38A"
+        ],
+        [
+         1,
+         "#FFF4E6"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/neon-sunset.jpg",
+     "tags": [
+      "neon",
+      "warm"
+     ]
+    },
+    {
+     "id": "neon-ultraviolet",
+     "title": "Ultraviolet",
+     "base": "neon",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#06030F"
+        ],
+        [
+         0.3,
+         "#2A1070"
+        ],
+        [
+         0.55,
+         "#7A2BFF"
+        ],
+        [
+         0.8,
+         "#4F8CFF"
+        ],
+        [
+         1,
+         "#E9E4FF"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/neon-ultraviolet.jpg",
+     "tags": [
+      "neon",
+      "cool"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "pixel",
+   "title": "Pixel",
+   "subtitle": "Пиксель-арт, как в старых играх",
+   "variants": [
+    {
+     "id": "pixel-blue",
+     "title": "Blue",
+     "base": "pixel",
+     "ops": [],
+     "preview": "variants/pixel-blue.jpg",
+     "tags": [
+      "pixel",
+      "cool",
+      "default"
+     ]
+    },
+    {
+     "id": "pixel-gameboy",
+     "title": "Game Boy green",
+     "base": "pixel",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#081C08"
+        ],
+        [
+         0.12,
+         "#0F380F"
+        ],
+        [
+         0.26,
+         "#306230"
+        ],
+        [
+         0.41,
+         "#8BAC0F"
+        ],
+        [
+         0.75,
+         "#9BBC0F"
+        ],
+        [
+         1,
+         "#E0F0B0"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/pixel-gameboy.jpg",
+     "tags": [
+      "pixel",
+      "retro"
+     ]
+    },
+    {
+     "id": "pixel-red",
+     "title": "Red",
+     "base": "pixel",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#0A0203"
+        ],
+        [
+         0.225,
+         "#521319"
+        ],
+        [
+         0.45,
+         "#FF3B4E"
+        ],
+        [
+         0.753,
+         "#FFA7AF"
+        ],
+        [
+         1,
+         "#FFEBED"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/pixel-red.jpg",
+     "tags": [
+      "pixel",
+      "warm"
+     ]
+    },
+    {
+     "id": "pixel-purple",
+     "title": "Purple",
+     "base": "pixel",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#07040A"
+        ],
+        [
+         0.225,
+         "#352252"
+        ],
+        [
+         0.45,
+         "#A56BFF"
+        ],
+        [
+         0.753,
+         "#D6BCFF"
+        ],
+        [
+         1,
+         "#F6F0FF"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/pixel-purple.jpg",
+     "tags": [
+      "pixel",
+      "cool"
+     ]
+    },
+    {
+     "id": "pixel-amber",
+     "title": "Amber",
+     "base": "pixel",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#140A00"
+        ],
+        [
+         0.3,
+         "#7A3E00"
+        ],
+        [
+         0.55,
+         "#E58A00"
+        ],
+        [
+         1,
+         "#FFD27A"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/pixel-amber.jpg",
+     "tags": [
+      "pixel",
+      "retro",
+      "warm"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "metal",
+   "title": "Metal",
+   "subtitle": "Золото, серебро и хром",
+   "variants": [
+    {
+     "id": "metal-gold",
+     "title": "Gold",
+     "base": "gold",
+     "ops": [],
+     "preview": "variants/metal-gold.jpg",
+     "tags": [
+      "metal",
+      "warm",
+      "default"
+     ]
+    },
+    {
+     "id": "metal-silver",
+     "title": "Silver",
+     "base": "gold",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#08090B"
+        ],
+        [
+         0.2,
+         "#3A3F47"
+        ],
+        [
+         0.45,
+         "#8E98A4"
+        ],
+        [
+         0.7,
+         "#D5DBE2"
+        ],
+        [
+         1,
+         "#FFFFFF"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/metal-silver.jpg",
+     "tags": [
+      "metal",
+      "cool"
+     ]
+    },
+    {
+     "id": "metal-rose",
+     "title": "Rose gold",
+     "base": "gold",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#0C0605"
+        ],
+        [
+         0.2,
+         "#4A2620"
+        ],
+        [
+         0.45,
+         "#A8645A"
+        ],
+        [
+         0.7,
+         "#EDB3A6"
+        ],
+        [
+         1,
+         "#FFF3EE"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/metal-rose.jpg",
+     "tags": [
+      "metal",
+      "warm"
+     ]
+    },
+    {
+     "id": "metal-bronze",
+     "title": "Bronze",
+     "base": "gold",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#0A0503"
+        ],
+        [
+         0.2,
+         "#3A1D0C"
+        ],
+        [
+         0.45,
+         "#7E4420"
+        ],
+        [
+         0.7,
+         "#C07A45"
+        ],
+        [
+         1,
+         "#F6CFA8"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/metal-bronze.jpg",
+     "tags": [
+      "metal",
+      "warm"
+     ]
+    },
+    {
+     "id": "metal-chrome",
+     "title": "Dark chrome",
+     "base": "gold",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#010203"
+        ],
+        [
+         0.3,
+         "#0E1116"
+        ],
+        [
+         0.5,
+         "#3C4450"
+        ],
+        [
+         0.68,
+         "#8794A6"
+        ],
+        [
+         0.85,
+         "#DCE4EE"
+        ],
+        [
+         1,
+         "#FFFFFF"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/metal-chrome.jpg",
+     "tags": [
+      "metal",
+      "dark"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "glass",
+   "title": "Glass",
+   "subtitle": "Прозрачное и матовое стекло",
+   "variants": [
+    {
+     "id": "glass-glass",
+     "title": "Glass",
+     "base": "glass",
+     "ops": [],
+     "preview": "variants/glass-glass.jpg",
+     "tags": [
+      "glass",
+      "default"
+     ]
+    },
+    {
+     "id": "glass-clear",
+     "title": "Clear",
+     "base": "glass",
+     "ops": [
+      {
+       "op": "alpha",
+       "lo": 0.6,
+       "hi": 0.95,
+       "a0": 0.2,
+       "a1": 1.0,
+       "target": "icons"
+      },
+      {
+       "op": "saturate",
+       "k": 0.5,
+       "target": "tiles"
+      },
+      {
+       "op": "brightness",
+       "k": 0.7,
+       "target": "tiles"
+      }
+     ],
+     "preview": "variants/glass-clear.jpg",
+     "tags": [
+      "glass",
+      "transparent"
+     ]
+    },
+    {
+     "id": "glass-frosted",
+     "title": "Frosted",
+     "base": "glass",
+     "ops": [
+      {
+       "op": "alpha",
+       "scale": 1.4,
+       "target": "icons"
+      },
+      {
+       "op": "brightness",
+       "k": 1.08
+      }
+     ],
+     "preview": "variants/glass-frosted.jpg",
+     "tags": [
+      "glass",
+      "light"
+     ]
+    },
+    {
+     "id": "glass-blue",
+     "title": "Blue tint",
+     "base": "glass",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#02060A"
+        ],
+        [
+         0.3,
+         "#0F3252"
+        ],
+        [
+         0.6,
+         "#2E9BFF"
+        ],
+        [
+         0.82,
+         "#8CC8FF"
+        ],
+        [
+         1,
+         "#E0F0FF"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/glass-blue.jpg",
+     "tags": [
+      "glass",
+      "cool"
+     ]
+    },
+    {
+     "id": "glass-smoke",
+     "title": "Smoke",
+     "base": "glass",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#050507"
+        ],
+        [
+         0.3,
+         "#2A2C33"
+        ],
+        [
+         0.65,
+         "#9A9DA6"
+        ],
+        [
+         1,
+         "#FFFFFF"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/glass-smoke.jpg",
+     "tags": [
+      "glass",
+      "dark"
+     ]
+    },
+    {
+     "id": "glass-pink",
+     "title": "Pink",
+     "base": "glass",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#0A0407"
+        ],
+        [
+         0.3,
+         "#52243B"
+        ],
+        [
+         0.6,
+         "#FF6FB8"
+        ],
+        [
+         0.82,
+         "#FFB0D8"
+        ],
+        [
+         1,
+         "#FFE9F4"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/glass-pink.jpg",
+     "tags": [
+      "glass",
+      "warm"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "system",
+   "title": "System",
+   "subtitle": "Интерфейс охотника, как в Solo Leveling",
+   "variants": [
+    {
+     "id": "system-blue",
+     "title": "Blue",
+     "base": "system",
+     "ops": [],
+     "preview": "variants/system-blue.jpg",
+     "tags": [
+      "hud",
+      "cool",
+      "default"
+     ]
+    },
+    {
+     "id": "system-monarch",
+     "title": "Monarch violet",
+     "base": "system",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#06040A"
+        ],
+        [
+         0.275,
+         "#311D52"
+        ],
+        [
+         0.55,
+         "#9A5CFF"
+        ],
+        [
+         0.798,
+         "#B88DFF"
+        ],
+        [
+         1,
+         "#EBDEFF"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/system-monarch.jpg",
+     "tags": [
+      "hud",
+      "cool"
+     ]
+    },
+    {
+     "id": "system-gate",
+     "title": "Red gate",
+     "base": "system",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#0A0202"
+        ],
+        [
+         0.275,
+         "#520E13"
+        ],
+        [
+         0.55,
+         "#FF2D3A"
+        ],
+        [
+         0.798,
+         "#FF6C75"
+        ],
+        [
+         1,
+         "#FFD5D8"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/system-gate.jpg",
+     "tags": [
+      "hud",
+      "warm"
+     ]
+    },
+    {
+     "id": "system-gold",
+     "title": "Gold",
+     "base": "system",
+     "ops": [
+      {
+       "op": "gradient_map",
+       "stops": [
+        [
+         0,
+         "#0A0700"
+        ],
+        [
+         0.275,
+         "#523800"
+        ],
+        [
+         0.55,
+         "#FFB000"
+        ],
+        [
+         0.798,
+         "#FFC84C"
+        ],
+        [
+         1,
+         "#FFEFCC"
+        ]
+       ]
+      }
+     ],
+     "preview": "variants/system-gold.jpg",
+     "tags": [
+      "hud",
+      "warm"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "holo",
+   "title": "Holo",
+   "subtitle": "Голографический перелив",
+   "variants": [
+    {
+     "id": "holo-holo",
+     "title": "Holo",
+     "base": "holo",
+     "ops": [],
+     "preview": "variants/holo-holo.jpg",
+     "tags": [
+      "holo",
+      "default"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "sticker",
+   "title": "Sticker",
+   "subtitle": "Яркие стикеры с обводкой",
+   "variants": [
+    {
+     "id": "sticker-sticker",
+     "title": "Sticker",
+     "base": "sticker",
+     "ops": [],
+     "preview": "variants/sticker-sticker.jpg",
+     "tags": [
+      "colorful",
+      "default"
+     ]
+    },
+    {
+     "id": "sticker-pastel",
+     "title": "Pastel",
+     "base": "sticker",
+     "ops": [
+      {
+       "op": "saturate",
+       "k": 0.7
+      },
+      {
+       "op": "gamma",
+       "g": 1.4
+      }
+     ],
+     "preview": "variants/sticker-pastel.jpg",
+     "tags": [
+      "colorful",
+      "light"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "brand",
+   "title": "Brand",
+   "subtitle": "Каждая иконка в цвете своего бренда",
+   "variants": [
+    {
+     "id": "brand-glow",
+     "title": "Glow Brand",
+     "base": "azure",
+     "ops": [
+      {
+       "op": "brand_map",
+       "stops": [
+        [
+         0,
+         "#000000"
+        ],
+        [
+         0.7,
+         "{brand}"
+        ],
+        [
+         1,
+         "#FFFFFF"
+        ]
+       ],
+       "min_l": 0.38,
+       "max_l": 0.85
+      }
+     ],
+     "preview": "variants/brand-glow.jpg",
+     "tags": [
+      "brand",
+      "bright"
+     ]
+    },
+    {
+     "id": "brand-neon",
+     "title": "Neon Brand",
+     "base": "neon",
+     "ops": [
+      {
+       "op": "brand_map",
+       "stops": [
+        [
+         0,
+         "#000000"
+        ],
+        [
+         0.58,
+         "{brand}"
+        ],
+        [
+         1,
+         "#FFFFFF"
+        ]
+       ],
+       "min_l": 0.38,
+       "max_l": 0.85
+      }
+     ],
+     "preview": "variants/brand-neon.jpg",
+     "tags": [
+      "brand",
+      "neon"
+     ]
+    },
+    {
+     "id": "brand-sticker",
+     "title": "Sticker Brand",
+     "base": "sticker",
+     "ops": [
+      {
+       "op": "colorize",
+       "color": "{brand}",
+       "target": "icons",
+       "min_l": 0.38,
+       "max_l": 0.85
+      },
+      {
+       "op": "colorize",
+       "color": "{brand}",
+       "target": "tiles",
+       "keep_v": true,
+       "min_l": 0.38,
+       "max_l": 0.85
+      }
+     ],
+     "preview": "variants/brand-sticker.jpg",
+     "tags": [
+      "brand",
+      "colorful"
+     ]
+    }
+   ]
+  }
+ ]
+}

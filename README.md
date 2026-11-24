@@ -12,10 +12,13 @@
 (закреплённые на панели задач, ярлыки на рабочем столе и в «Пуске», плитки **Start11**) и ставит им иконки из пака.
 
 - **Один клик:** «Применить» — и всё. «Откатить всё» возвращает исходные иконки и плитки.
-- **11 стилей по 249 иконок:** Shadow, Azure, White, Black, Neon, Pixel, Gold, Holo, Glass, System, Sticker — мессенджеры, браузеры, игры и лаунчеры
-  (Steam, Roblox, Minecraft, Epic, Riot, Battle.net, CS2, Dota 2…), музыка, системные приложения, работа и творчество.
+- **11 стилей, 49 вариантов цвета, 261 иконка:** Shadow, Glow, Mono, Neon, Pixel, Metal, Glass, System, Holo, Sticker и Brand (каждая иконка в цвете своего бренда) — мессенджеры, браузеры, игры и лаунчеры
+  (Steam, Roblox, Minecraft, Epic, Riot, Battle.net, CS2, Dota 2…), VPN-клиенты (Clash Verge, Hiddify, Happ, v2RayTun, NekoBox, Throne…), музыка, системные приложения, работа и творчество.
+  Цвета перекрашиваются прямо на твоём ПК — качается только основа стиля.
+- **Выбор по приложениям:** для каждого приложения — «Ставить / Не трогать / Вернуть родную» отдельно для иконки и плитки, иконка из другого стиля, откат выбранных.
+- **Избранное:** отмечай понравившиеся стили звёздочкой.
 - **Плитки Start11:** если установлен Start11, плитки ставятся автоматически (с подписью или без).
-- **Автоиконки:** приложениям, для которых в паке нет иконки, Glyphix сам перекрашивает их родную иконку в стиль пака (локально, без сети; нужен `auto.json` в паке). Для каждого приложения можно выбрать «Авто / Родная / Не трогать»; общий выключатель — галочка внизу окна.
+- **Автоиконки:** приложениям, для которых в паке нет иконки, Glyphix сам перекрашивает их родную иконку в стиль пака (локально, без сети; нужен `auto.json` в паке). Общий выключатель — галочка внизу окна.
 - **Обновления без архивов:** «Обновить паки» докачивает новое из этого репозитория.
 - **Ничего в фоне:** нет автозапуска, служб и задач планировщика.
 - **Безопасно:** при обновлении скачиваются только картинки (`.png`/`.ico`) и описания паков (`.json`),
@@ -37,22 +40,51 @@ irm https://raw.githubusercontent.com/F1KS-FK/glyphix/main/install.ps1 | iex
 
 **Удаление:** «Параметры → Приложения → Glyphix → Удалить» (или в приложении «⋯» → «Удалить приложение»). Перед удалением иконки и плитки возвращаются к исходным.
 
-## Паки
+## Стили
 
-| | |
-|---|---|
-| **Shadow** | **Azure** |
-| <img src="packs/shadow/preview.png" width="420"> | <img src="packs/azure/preview.png" width="420"> |
-| **White** | **Black** |
-| <img src="packs/white/preview.png" width="420"> | <img src="packs/black/preview.png" width="420"> |
-| **Neon** | **Pixel** |
-| <img src="packs/neon/preview.png" width="420"> | <img src="packs/pixel/preview.png" width="420"> |
-| **Gold** | **Holo** |
-| <img src="packs/gold/preview.png" width="420"> | <img src="packs/holo/preview.png" width="420"> |
-| **Glass** | **System** |
-| <img src="packs/glass/preview.png" width="420"> | <img src="packs/system/preview.png" width="420"> |
-| **Sticker** | |
-| <img src="packs/sticker/preview.png" width="420"> | |
+**Shadow** — Чёрные глифы с цветной аурой
+
+<img src="variants/shadow-violet.jpg" width="200" title="Shadow Violet"> <img src="variants/shadow-blue.jpg" width="200" title="Shadow Blue"> <img src="variants/shadow-red.jpg" width="200" title="Shadow Red"> <img src="variants/shadow-green.jpg" width="200" title="Shadow Green"> <img src="variants/shadow-cyan.jpg" width="200" title="Shadow Cyan"> <img src="variants/shadow-gold.jpg" width="200" title="Shadow Gold">
+
+**Glow** — Светящиеся цветные глифы
+
+<img src="variants/glow-azure.jpg" width="200" title="Glow Azure"> <img src="variants/glow-violet.jpg" width="200" title="Glow Violet"> <img src="variants/glow-pink.jpg" width="200" title="Glow Pink"> <img src="variants/glow-green.jpg" width="200" title="Glow Green"> <img src="variants/glow-orange.jpg" width="200" title="Glow Orange"> <img src="variants/glow-white.jpg" width="200" title="Glow White">
+
+**Mono** — Строгие однотонные иконки
+
+<img src="variants/mono-white.jpg" width="200" title="Mono White"> <img src="variants/mono-black.jpg" width="200" title="Mono Black"> <img src="variants/mono-graphite.jpg" width="200" title="Mono Graphite"> <img src="variants/mono-cream.jpg" width="200" title="Mono Cream"> <img src="variants/mono-ice.jpg" width="200" title="Mono Ice"> <img src="variants/mono-crimson.jpg" width="200" title="Mono Crimson">
+
+**Neon** — Неоновые рамки и свечение
+
+<img src="variants/neon-synthwave.jpg" width="200" title="Neon Synthwave"> <img src="variants/neon-toxic.jpg" width="200" title="Neon Toxic green"> <img src="variants/neon-red.jpg" width="200" title="Neon Red"> <img src="variants/neon-sunset.jpg" width="200" title="Neon Sunset orange"> <img src="variants/neon-ultraviolet.jpg" width="200" title="Neon Ultraviolet">
+
+**Pixel** — Пиксель-арт, как в старых играх
+
+<img src="variants/pixel-blue.jpg" width="200" title="Pixel Blue"> <img src="variants/pixel-gameboy.jpg" width="200" title="Pixel Game Boy green"> <img src="variants/pixel-red.jpg" width="200" title="Pixel Red"> <img src="variants/pixel-purple.jpg" width="200" title="Pixel Purple"> <img src="variants/pixel-amber.jpg" width="200" title="Pixel Amber">
+
+**Metal** — Золото, серебро и хром
+
+<img src="variants/metal-gold.jpg" width="200" title="Metal Gold"> <img src="variants/metal-silver.jpg" width="200" title="Metal Silver"> <img src="variants/metal-rose.jpg" width="200" title="Metal Rose gold"> <img src="variants/metal-bronze.jpg" width="200" title="Metal Bronze"> <img src="variants/metal-chrome.jpg" width="200" title="Metal Dark chrome">
+
+**Glass** — Прозрачное и матовое стекло
+
+<img src="variants/glass-glass.jpg" width="200" title="Glass Glass"> <img src="variants/glass-clear.jpg" width="200" title="Glass Clear"> <img src="variants/glass-frosted.jpg" width="200" title="Glass Frosted"> <img src="variants/glass-blue.jpg" width="200" title="Glass Blue tint"> <img src="variants/glass-smoke.jpg" width="200" title="Glass Smoke"> <img src="variants/glass-pink.jpg" width="200" title="Glass Pink">
+
+**System** — Интерфейс охотника, как в Solo Leveling
+
+<img src="variants/system-blue.jpg" width="200" title="System Blue"> <img src="variants/system-monarch.jpg" width="200" title="System Monarch violet"> <img src="variants/system-gate.jpg" width="200" title="System Red gate"> <img src="variants/system-gold.jpg" width="200" title="System Gold">
+
+**Holo** — Голографический перелив
+
+<img src="variants/holo-holo.jpg" width="200" title="Holo Holo">
+
+**Sticker** — Яркие стикеры с обводкой
+
+<img src="variants/sticker-sticker.jpg" width="200" title="Sticker Sticker"> <img src="variants/sticker-pastel.jpg" width="200" title="Sticker Pastel">
+
+**Brand** — Каждая иконка в цвете своего бренда
+
+<img src="variants/brand-glow.jpg" width="200" title="Brand Glow Brand"> <img src="variants/brand-neon.jpg" width="200" title="Brand Neon Brand"> <img src="variants/brand-sticker.jpg" width="200" title="Brand Sticker Brand">
 
 Нет иконки для твоего приложения? Открой issue с названием приложения.
 
@@ -64,7 +96,7 @@ irm https://raw.githubusercontent.com/F1KS-FK/glyphix/main/install.ps1 | iex
 
 ## Автор
 
-by **F1KS** · Telegram [@Im_Flawless](https://t.me/Im_Flawless)
+by **F1KS** · Telegram [@Im_Flawless](https://t.me/Im_Flawless) · Discord `f1ks_`
 
 ## Лицензия
 

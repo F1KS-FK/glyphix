@@ -2,7 +2,7 @@
  "schema": 1,
  "id": "white",
  "name": "White",
- "version": "2.5.0",
+ "version": "2.6.0",
  "author": "F1KS",
  "license": "CC BY-NC-SA 4.0",
  "description": "Белые минималистичные иконки",
@@ -432,9 +432,9 @@
    "name": "Яндекс Музыка",
    "group": "apps",
    "ico": "icons/yandexmusic.ico",
-   "ico_sha256": "f28b89ec9281a029642491b750d9d8fe84d5185bba916bd384268c1f58fed8ec",
+   "ico_sha256": "43da01bdd4e0c62f3e0c99be7ea05287f53f6a7684c1fdb9de6326188fc68452",
    "png": "icons/yandexmusic.png",
-   "png_sha256": "9d66d48159cf536cdb3503181a101ab3e83ec49926386f168cbbef406a578e32",
+   "png_sha256": "962155b30ce82177f6178a22590b589def4c5b5f30367e4112b7508c642ba696",
    "match": {
     "names": [
      "яндексмузыка",
@@ -1714,9 +1714,9 @@
    "name": "NekoBox",
    "group": "system",
    "ico": "icons/nekobox.ico",
-   "ico_sha256": "5950fac15928b44cab45df21e5bb52086d894d5133571af76629c9879a635fe8",
+   "ico_sha256": "cf37b1743ed3498acb3c4f69c05923f88bb23a44cb09878ef04dcaae02cb6fe4",
    "png": "icons/nekobox.png",
-   "png_sha256": "368728a461a0710ffa4414d90be8946a92fb33b0faf19fd60f616933daa2122a",
+   "png_sha256": "4f123b80320310459e19da8486c32f89161f7b01d5c4f89a664ed4f61d6d0672",
    "match": {
     "names": [
      "nekobox",
@@ -4057,8 +4057,7 @@
    "match": {
     "names": [
      "clashverge",
-     "clashvergerev",
-     "mihomo"
+     "clashvergerev"
     ],
     "exes": [
      "clashverge",
@@ -4486,6 +4485,215 @@
      "max"
     ]
    }
+  },
+  {
+   "id": "v2raytun",
+   "name": "v2RayTun",
+   "group": "system",
+   "ico": "icons/v2raytun.ico",
+   "ico_sha256": "b576c575c0641c98cd8d1a7c87297cbe48f33455518854b7e1ea393b84e3e9c3",
+   "png": "icons/v2raytun.png",
+   "png_sha256": "424a914c0717e69249057d02cdc892e4149c4d8636877dee992bbf0fa6d4fe9f",
+   "match": {
+    "names": [
+     "v2raytun"
+    ],
+    "exes": [
+     "v2raytun"
+    ]
+   }
+  },
+  {
+   "id": "throne",
+   "name": "Throne",
+   "group": "system",
+   "ico": "icons/throne.ico",
+   "ico_sha256": "3862f4f6cec0c1efab864760334e95217f381a6feac1a1403bd3b52adcf8fe8a",
+   "png": "icons/throne.png",
+   "png_sha256": "66e1ba94240233431fd64334aa52bf87881b62cddc7a83a330c8fd9186af1b91",
+   "match": {
+    "names": [
+     "throne"
+    ],
+    "exes": [
+     "throne"
+    ]
+   }
+  },
+  {
+   "id": "flclash",
+   "name": "FlClash",
+   "group": "system",
+   "ico": "icons/flclash.ico",
+   "ico_sha256": "2d9aee9d5602f02dd078ef51e3b2dec706a84450d4c43e9a1f37b87c5d5001b0",
+   "png": "icons/flclash.png",
+   "png_sha256": "2c156e3526e30105861db4bd00263307dd7a488d48efa3bc83e2fb3db50aaaf1",
+   "match": {
+    "names": [
+     "flclash"
+    ],
+    "exes": [
+     "flclash"
+    ]
+   }
+  },
+  {
+   "id": "karing",
+   "name": "Karing",
+   "group": "system",
+   "ico": "icons/karing.ico",
+   "ico_sha256": "7f094eea100cc21328f09c3a1c1e4ea502f92fc800d476598d5b67dee226cc21",
+   "png": "icons/karing.png",
+   "png_sha256": "d4c658a6e022cb23e76cc2775f0b4615bb6417c1d9b4569201b280441fa3408c",
+   "match": {
+    "names": [
+     "karing"
+    ],
+    "exes": [
+     "karing"
+    ]
+   }
+  },
+  {
+   "id": "clashparty",
+   "name": "Clash Party",
+   "group": "system",
+   "ico": "icons/clashparty.ico",
+   "ico_sha256": "d7f6a860b6eacd35a3e749eb44e2e9dc2882b574b4c520959ce7487717e8ee18",
+   "png": "icons/clashparty.png",
+   "png_sha256": "9407e8081c19fa12d988229fd5d910cdc15d15d537aebaaca7a347db60e87d7b",
+   "match": {
+    "names": [
+     "clashparty",
+     "mihomoparty",
+     "mihomo"
+    ],
+    "exes": [
+     "clashparty",
+     "mihomoparty"
+    ]
+   }
+  },
+  {
+   "id": "nyanpasu",
+   "name": "Clash Nyanpasu",
+   "group": "system",
+   "ico": "icons/nyanpasu.ico",
+   "ico_sha256": "56b2e72732628f169e09ae36ab7f6fe672dde3d06ae2469c31a1b403ac5eb517",
+   "png": "icons/nyanpasu.png",
+   "png_sha256": "416308087da3c1885af849485eca83207e0e0db3640285557e2fec58120c2cb7",
+   "match": {
+    "names": [
+     "clashnyanpasu",
+     "nyanpasu"
+    ],
+    "exes": [
+     "clashnyanpasu"
+    ]
+   }
+  },
+  {
+   "id": "guiforclash",
+   "name": "GUI.for.Clash",
+   "group": "system",
+   "ico": "icons/guiforclash.ico",
+   "ico_sha256": "23cf4e4fb88bc3be42bb4dfcdf5aca8b93e0dc8bc8c15236e39d39300dbe6c17",
+   "png": "icons/guiforclash.png",
+   "png_sha256": "4441452074ff9cee7d62793c7b371003337fc162d9aa259bc0a00ef74f77edbd",
+   "match": {
+    "names": [
+     "guiforclash"
+    ],
+    "exes": [
+     "guiforclash"
+    ]
+   }
+  },
+  {
+   "id": "guiforsingbox",
+   "name": "GUI.for.SingBox",
+   "group": "system",
+   "ico": "icons/guiforsingbox.ico",
+   "ico_sha256": "5cb40355b9e0dc1326b7f1d10666fe21e92cf5555f8b0807aa98d22026157500",
+   "png": "icons/guiforsingbox.png",
+   "png_sha256": "631264c1bb9292303a3de6b1c6d1b090a7596be76c458f2410b26f425d04377e",
+   "match": {
+    "names": [
+     "guiforsingbox"
+    ],
+    "exes": [
+     "guiforsingbox"
+    ]
+   }
+  },
+  {
+   "id": "invisibleman",
+   "name": "Invisible Man XRay",
+   "group": "system",
+   "ico": "icons/invisibleman.ico",
+   "ico_sha256": "3d5b7cf4ce7fb7519b5874b87f4cd96ad0262a9e6d9904e362574267a7c1a424",
+   "png": "icons/invisibleman.png",
+   "png_sha256": "0959a1491c526c0aba8114aa02e89a70edae2b81c515427fc7d029f2fe793b79",
+   "match": {
+    "names": [
+     "invisiblemanxray",
+     "invisibleman"
+    ],
+    "exes": [
+     "invisiblemanxray"
+    ]
+   }
+  },
+  {
+   "id": "shadowsocks",
+   "name": "Shadowsocks",
+   "group": "system",
+   "ico": "icons/shadowsocks.ico",
+   "ico_sha256": "1f303faf347f3bb5270d35e2154148e7168f8f37937f847b8040db4e77efd50b",
+   "png": "icons/shadowsocks.png",
+   "png_sha256": "d5ade8b7567051d8b58961fdae623eb381804ff55e32bb4fc63d31d47f353425",
+   "match": {
+    "names": [
+     "shadowsocks"
+    ],
+    "exes": [
+     "shadowsocks"
+    ]
+   }
+  },
+  {
+   "id": "koalaclash",
+   "name": "Koala Clash",
+   "group": "system",
+   "ico": "icons/koalaclash.ico",
+   "ico_sha256": "7976e2c3ad004cf970ce4e14e374e6058f13747a22947f89feb1f3c7b655f431",
+   "png": "icons/koalaclash.png",
+   "png_sha256": "dbd2981eaeecc2e8aff576ad1647d9df0d574819b515d513163a14b122d4743a",
+   "match": {
+    "names": [
+     "koalaclash"
+    ],
+    "exes": [
+     "koalaclash"
+    ]
+   }
+  },
+  {
+   "id": "clashforwindows",
+   "name": "Clash for Windows",
+   "group": "system",
+   "ico": "icons/clashforwindows.ico",
+   "ico_sha256": "a07e4044cc0b0466438cdb46b8a3a32643c66f0012c2639cf02fdbc3e2802a9e",
+   "png": "icons/clashforwindows.png",
+   "png_sha256": "a0a3fc3b591aee1d08901fe86647849ffa500bb73de73f667e17b616456b5905",
+   "match": {
+    "names": [
+     "clashforwindows"
+    ],
+    "exes": [
+     "clashforwindows"
+    ]
+   }
   }
  ],
  "tiles": [
@@ -4660,9 +4868,9 @@
   {
    "id": "yandexmusic",
    "file": "tiles/yandexmusic.jpg",
-   "sha256": "c4dd830a32699bd9be95950d52b8c12212474da73aad00752a0c6c1895f8d3b9",
+   "sha256": "eaff318c308498aaf7bf25bae1a85cf01cb7c2b698c427e37d65da5798dc471f",
    "file_noname": "tiles_noname/yandexmusic.jpg",
-   "sha256_noname": "c7a2facd6ce9da31559472f03568295027dcffcc8ba85c0ffd95f6287d4c3e94"
+   "sha256_noname": "ed849bfc0352ab399f6955205a7a1b2848a7d2ab753d40148d8017eecf1311a6"
   },
   {
    "id": "pulsesync",
@@ -5164,9 +5372,9 @@
   {
    "id": "nekobox",
    "file": "tiles/nekobox.jpg",
-   "sha256": "a6c16b82b3cde74b40b524ed549a9dd234d933601aa21ff5afbdd01e186ffb32",
+   "sha256": "c665be226ca1474b082ea90a4000449e98d637d5fe89df26dd343937c0b20f71",
    "file_noname": "tiles_noname/nekobox.jpg",
-   "sha256_noname": "1cd1146620f1b45bc50d925d5a9dec7b07d6e0814aff1a8c885f7f995826491f"
+   "sha256_noname": "2e1d8231942721389d3bc5210588dfea10966778845d872fa08aa8c94efdd0e4"
   },
   {
    "id": "protonvpn",
@@ -6231,6 +6439,90 @@
    "sha256": "9ae33e6b5bb4ae773d12b970d94670081722e149f66a217fe7f8e77a52b7899d",
    "file_noname": "tiles_noname/max.jpg",
    "sha256_noname": "c7928c3b21b6db77ded54e92487843d1cc90c302a0d4a7c25a17fdeff1ec2eb4"
+  },
+  {
+   "id": "v2raytun",
+   "file": "tiles/v2raytun.jpg",
+   "sha256": "32dfba86a53e4a6ca33bd6abf718c76a99d1b041f6102c7e076e31bf1e1bfa23",
+   "file_noname": "tiles_noname/v2raytun.jpg",
+   "sha256_noname": "7016e13a79f582c00ba7701769a2ee3ec682d08801c8dc8d15a322b2658528c0"
+  },
+  {
+   "id": "throne",
+   "file": "tiles/throne.jpg",
+   "sha256": "5120c2a470868f25e8089e676707b4599edb60b2008b26f5567784f80f51fdc8",
+   "file_noname": "tiles_noname/throne.jpg",
+   "sha256_noname": "13718c6274045f447970511bbbde684f1884b4bee43f8eb9bd58d1a49308482f"
+  },
+  {
+   "id": "flclash",
+   "file": "tiles/flclash.jpg",
+   "sha256": "32c341424fda173318c65cc865b3d620ba301bc76c7eea114e232ffa97be8081",
+   "file_noname": "tiles_noname/flclash.jpg",
+   "sha256_noname": "28d33b6bea2fbb369d2387894a6ca47b4a29943cd7b2e56432928e20f8c9ee23"
+  },
+  {
+   "id": "karing",
+   "file": "tiles/karing.jpg",
+   "sha256": "12f6e8c4ff6b6da6ef23efef2820540a755bed438154221829aba18409be2835",
+   "file_noname": "tiles_noname/karing.jpg",
+   "sha256_noname": "c39112098c0168556fb4eba565e741c106d56bafe63ba81d9e3e6f2abe6d9317"
+  },
+  {
+   "id": "clashparty",
+   "file": "tiles/clashparty.jpg",
+   "sha256": "da0416876b7062476fcd61c1687a96f4d4229f137002356507adf7bd4e60a374",
+   "file_noname": "tiles_noname/clashparty.jpg",
+   "sha256_noname": "ae64d9a1cd497d07ce69ec6f15a9ce7569affa1e4d18722795e9ad26d23c7a93"
+  },
+  {
+   "id": "nyanpasu",
+   "file": "tiles/nyanpasu.jpg",
+   "sha256": "94982ac2866f9f07db4a3917e59f9700a709589851ab1cb3f6cf7ce95274f1e4",
+   "file_noname": "tiles_noname/nyanpasu.jpg",
+   "sha256_noname": "57f1606bd2f95cc70154f26d398642625d4d55614c0b6d3c1a5e705357369211"
+  },
+  {
+   "id": "guiforclash",
+   "file": "tiles/guiforclash.jpg",
+   "sha256": "c0f47b3911fd07f5e883f991997fe26c40483cbe46280829fba6bdb5b768143e",
+   "file_noname": "tiles_noname/guiforclash.jpg",
+   "sha256_noname": "2d9f9dd56e07d62bbd62267a957f8cde268b2688906f0edbae9b29ee8ee53b84"
+  },
+  {
+   "id": "guiforsingbox",
+   "file": "tiles/guiforsingbox.jpg",
+   "sha256": "765414b5093757043a7ed3779ca7e3788e6c34597ef36bdb2be07d725dbe0365",
+   "file_noname": "tiles_noname/guiforsingbox.jpg",
+   "sha256_noname": "c53ff0270521709bae554b2a349d141625f659165ce8f14b71515b40e163d848"
+  },
+  {
+   "id": "invisibleman",
+   "file": "tiles/invisibleman.jpg",
+   "sha256": "3100c4baf984b688f203bed896262fe9b40baa765753f396b01b8768a71ca433",
+   "file_noname": "tiles_noname/invisibleman.jpg",
+   "sha256_noname": "6270becd6e52385b2fc42dac61c60eea2e395c38af6cef92f625bacd84bb07cd"
+  },
+  {
+   "id": "shadowsocks",
+   "file": "tiles/shadowsocks.jpg",
+   "sha256": "f7bc755b405ce28213de500837d87f7161cab8d9ffa86369b65ef1b2217961d8",
+   "file_noname": "tiles_noname/shadowsocks.jpg",
+   "sha256_noname": "75733a7ae7118be39e1e80321c75ac93d29f8c01def5db88cec0ffb934939157"
+  },
+  {
+   "id": "koalaclash",
+   "file": "tiles/koalaclash.jpg",
+   "sha256": "6b805844625ad2e67625026293c2ba406b5d25780b5a0e46aea3d13f360c17eb",
+   "file_noname": "tiles_noname/koalaclash.jpg",
+   "sha256_noname": "510e83ab1ee88374801a2b17d2d06b1c417e5b1ae9acc01132bcf8d721109a23"
+  },
+  {
+   "id": "clashforwindows",
+   "file": "tiles/clashforwindows.jpg",
+   "sha256": "ee597d357a0fac562d8b41d6ef12943e136741dfc6ce737191794036bc15d356",
+   "file_noname": "tiles_noname/clashforwindows.jpg",
+   "sha256_noname": "30d34ec5e1cda5cc1f2bfc9048a5f08142c49d1d221154b6c924afb573f35f48"
   }
  ]
 }

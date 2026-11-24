@@ -301,14 +301,108 @@ function Save-AppInstaller {
     return $f
 }
 
-# скачать install.ps1 и запустить ЕГО в новом powershell.exe без прав администратора (он сам проверит sha256 файлов и перезапустит приложение)
+# ---------- Самообновление через GlyphixSetup.exe (без окна консоли) ----------
+# Приложение скачивает GlyphixSetup.exe в <данные>\GlyphixSetup.exe.new, сверяет размер и sha256 с app/files.json ("setup"), кладёт на место и
+# запускает его с `/update /wait-pid <PID приложения>`; установщик сам ждёт выхода приложения, скачивает/проверяет файлы, подменяет app\ и
+# запускает Glyphix заново. Источники по порядку: raw.githubusercontent.com -> зеркало jsDelivr -> релиз GitHub (latest/download/<имя файла>;
+# вложения релиза плоские: имя = последний сегмент пути). Источник без файла (404, релиза ещё нет) или с файлом не по sha256 пропускается.
+# Ни одна ветка не запускает powershell.exe/cmd.exe и не открывает консоль. Путь через install.ps1 остаётся для опытных (Save-AppInstaller).
+$script:SI_ReleasesBaseUrl = 'https://github.com/F1KS-FK/glyphix/releases/latest/download/'
+$script:SI_SetupFileName = 'GlyphixSetup.exe'
+$script:SI_SetupMaxBytes = 33554432                   # установщик больше 32 МБ не принимаем (сейчас ~0,2 МБ)
+
+# Адреса одного файла по источникам: { Url; Name; Flat }. Пустой адрес источника = источника нет.
+function Get-SetupSourceUrls {
+    param([string]$Rel, [string]$BaseUrl = $script:SI_BaseUrl, [string]$MirrorUrl = $script:SI_MirrorBaseUrl, [string]$ReleasesUrl = $script:SI_ReleasesBaseUrl)
+    $r = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($s in @(@($BaseUrl, $false, 'GitHub'), @($MirrorUrl, $false, 'зеркало jsDelivr'), @($ReleasesUrl, $true, 'релиз GitHub'))) {
+        $b = [string]$s[0]
+        if (-not $b) { continue }
+        if (-not $b.EndsWith('/')) { $b += '/' }
+        $leaf = if ($s[1]) { $Rel.Substring($Rel.LastIndexOf('/') + 1) } else { $Rel }
+        $r.Add([pscustomobject]@{ Url = ($b + $leaf); Name = [string]$s[2]; Flat = [bool]$s[1] })
+    }
+    return $r.ToArray()
+}
+
+# files.json (байты) -> запись "setup" { Path; Sha256; Size; Version } или $null, если её нет / она некорректна (старый манифест на зеркале и т.п.)
+function ConvertTo-SetupEntry {
+    param([byte[]]$Bytes)
+    try {
+        $s = (ConvertFrom-JsonBytes $Bytes).setup
+        if (-not $s) { return $null }
+        $sha = ([string]$s.sha256).ToLowerInvariant(); $size = [long]$s.size
+        if ([string]$s.path -ne $script:SI_SetupFileName -or $sha -notmatch '^[0-9a-f]{64}$' -or $size -lt 1 -or $size -gt $script:SI_SetupMaxBytes) { return $null }
+        if ($null -eq (ConvertTo-VersionParts ([string]$s.version))) { return $null }
+        return [pscustomobject]@{ Path = [string]$s.path; Sha256 = $sha; Size = $size; Version = [string]$s.version }
+    } catch { return $null }
+}
+
+# Байты файла с первого источника, где $Check ($bytes -> $null/$false = не подходит) принял ответ. До 2 попыток на источник (сетевой сбой);
+# 404 и «не прошёл проверку» - сразу следующий источник. Результат: { Bytes; Url; Checked }. Все источники отказали - исключение со сводкой.
+function Get-SetupBytes {
+    param([object[]]$Sources, [int]$MaxBytes, [scriptblock]$Check, [int]$TimeoutMs = 20000)
+    Initialize-NetSecurity
+    $why = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($s in @($Sources)) {
+        for ($try = 1; $try -le 2; $try++) {
+            try {
+                $b = Get-WebBytesOnce $s.Url $MaxBytes $TimeoutMs ($try -gt 1) $s.Flat
+                $c = & $Check $b
+                if ($c) { Write-Log ('  источник: ' + $s.Name); return [pscustomobject]@{ Bytes = $b; Url = $s.Url; Checked = $c } }
+                $why.Add($s.Name + ': файл не прошёл проверку'); Write-Log ('  ' + $s.Name + ': ответ не прошёл проверку (sha256/формат) - пропускаю'); break
+            } catch {
+                $m = $_.Exception.Message
+                if (-not (Test-TransientWebError $_)) { $why.Add($s.Name + ': ' + $m); Write-Log ('  ' + $s.Name + ': ' + $m + ' - пропускаю'); break }
+                if ($try -eq 2) { $why.Add($s.Name + ': ' + $m) }
+                else { Write-Log ('  сеть: ' + $s.Name + ': ' + $m + ' - повтор'); $d = @($script:SI_WebRetryDelaysMs); if ($d.Count -gt 0 -and [int]$d[0] -gt 0) { Start-Sleep -Milliseconds ([int]$d[0]) } }
+            }
+        }
+    }
+    throw ('Не удалось получить ' + [IO.Path]::GetFileName([string]@($Sources)[0].Url) + ' ни из одного источника (' + ($why -join '; ') + ').')
+}
+
+# Скачать GlyphixSetup.exe в <Dest>.new, проверить размер и sha256 по app/files.json, поставить на место <Dest>. Ошибка - исключение, прежний файл цел.
+function Save-SetupInstaller {
+    param([string]$Dest = (Join-Path $script:SI_Home $script:SI_SetupFileName), [string]$BaseUrl = $script:SI_BaseUrl, [string]$MirrorUrl = $script:SI_MirrorBaseUrl, [string]$ReleasesUrl = $script:SI_ReleasesBaseUrl)
+    $m = Get-SetupBytes -Sources @(Get-SetupSourceUrls 'app/files.json' $BaseUrl $MirrorUrl $ReleasesUrl) -MaxBytes 1048576 -Check { param($b) ConvertTo-SetupEntry $b }
+    $e = $m.Checked
+    $f = Get-SetupBytes -Sources @(Get-SetupSourceUrls $script:SI_SetupFileName $BaseUrl $MirrorUrl $ReleasesUrl) -MaxBytes ([int]$e.Size) -Check ({ param($b) $b.Length -eq $e.Size -and (Get-BytesSha256 $b) -eq $e.Sha256 }.GetNewClosure())
+    $dir = [IO.Path]::GetDirectoryName($Dest)
+    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    $new = $Dest + '.new'
+    try {
+        [IO.File]::WriteAllBytes($new, $f.Bytes)
+        if ((Get-FileSha256 $new) -ne $e.Sha256) { throw 'Установщик повредился при записи на диск.' }
+        try { Move-IntoPlace $new $Dest 5000 }
+        catch { throw ('Не удалось заменить ' + $Dest + ': ' + $_.Exception.Message + ' Закройте окно установщика Glyphix, если оно открыто, и повторите.') }
+    } catch {
+        Remove-Item -LiteralPath $new -Force -ErrorAction SilentlyContinue
+        throw
+    }
+    return [pscustomobject]@{ Path = $Dest; Version = $e.Version; Url = $f.Url }
+}
+
+# Скачать установщик и запустить его в режиме обновления (без консоли, без прав администратора); возвращает путь к GlyphixSetup.exe.
+# Вызывающий (окно приложения) после этого закрывается: установщик ждёт его выхода по PID (до ~20 с), потом закрывает сам.
 function Start-AppSelfUpdate {
-    param([string]$BaseUrl = $script:SI_BaseUrl)
-    $f = Save-AppInstaller -BaseUrl $BaseUrl
-    $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    Write-Log "Обновление приложения: запускаю $f"
-    Start-NonElevated -Path $ps -Arguments ('-NoProfile -ExecutionPolicy Bypass -File "' + $f + '"')
-    return $f
+    param([string]$BaseUrl = $script:SI_BaseUrl, [string]$MirrorUrl = $script:SI_MirrorBaseUrl, [string]$ReleasesUrl = $script:SI_ReleasesBaseUrl, [string]$Dest = (Join-Path $script:SI_Home $script:SI_SetupFileName))
+    $s = Save-SetupInstaller -Dest $Dest -BaseUrl $BaseUrl -MirrorUrl $MirrorUrl -ReleasesUrl $ReleasesUrl
+    Write-Log ('Обновление приложения до ' + $s.Version + ': запускаю ' + $s.Path + ' /update')
+    Start-NonElevated -Path $s.Path -Arguments ('/update /wait-pid ' + $PID)
+    return $s.Path
+}
+
+# Ссылка для ручной загрузки установщика, если автообновление не вышло: файл последнего релиза (если он уже есть), иначе raw из main.
+function Get-SetupFallbackUrl {
+    param([string]$BaseUrl = $script:SI_BaseUrl, [string]$ReleasesUrl = $script:SI_ReleasesBaseUrl, [int]$TimeoutMs = 4000)
+    $raw = ([string]$BaseUrl).TrimEnd('/') + '/' + $script:SI_SetupFileName
+    try {
+        $rel = ([string]$ReleasesUrl).TrimEnd('/') + '/' + $script:SI_SetupFileName
+        $req = [Net.HttpWebRequest]::Create($rel); $req.Timeout = $TimeoutMs; $req.UserAgent = 'Glyphix/' + (Get-AppVersion)
+        $resp = $req.GetResponse(); $resp.Close()          # тело не читаем: нужен только код ответа
+        return $rel
+    } catch { return $raw }
 }
 
 # ---------- AppUserModelID ярлыков ----------
@@ -573,9 +667,9 @@ function Test-TransientWebError {
 
 # одна попытка; $FreshConn - не переиспользовать соединение (после сбоя «старое» соединение часто мёртво)
 function Get-WebBytesOnce {
-    param([string]$Url, [int]$MaxBytes = 8388608, [int]$TimeoutMs = 20000, [bool]$FreshConn = $false)
+    param([string]$Url, [int]$MaxBytes = 8388608, [int]$TimeoutMs = 20000, [bool]$FreshConn = $false, [bool]$NoCacheBust = $false)
     $sep = if ($Url.Contains('?')) { '&' } else { '?' }
-    $u = $Url + $sep + 'cb=' + [DateTime]::UtcNow.Ticks          # против кэша
+    $u = if ($NoCacheBust) { $Url } else { $Url + $sep + 'cb=' + [DateTime]::UtcNow.Ticks }          # против кэша (адреса вложений релиза GitHub - без параметра)
     $req = [Net.HttpWebRequest]::Create($u)
     $req.Method = 'GET'
     $req.UserAgent = 'Glyphix/' + (Get-AppVersion)
@@ -869,7 +963,9 @@ function Invoke-ParallelDownload {
                         $b = Receive-HttpFetch $j.Task
                         $got = Get-BytesSha256 $b
                         $want = ([string]$j.Item.Sha).ToLowerInvariant()
-                        if ($got -ne $want) { $err = "sha256 не совпал (ожидали $want, получили $got)" }
+                        if ($want -and $got -ne $want) { $err = "sha256 не совпал (ожидали $want, получили $got)" }
+                        elseif (-not $want -and $j.Item.PSObject.Properties['Check'] -and $j.Item.Check -and -not (& $j.Item.Check $b)) { $err = 'содержимое не похоже на ожидаемый файл' }      # файлы без хэша (превью каталога) - только проверка формата
+                        elseif (-not $want -and -not ($j.Item.PSObject.Properties['Check'] -and $j.Item.Check)) { $err = 'нет sha256 и проверки формата' }
                         else { Save-FileAtomic ([string]$j.Item.Dest) $b }
                     } catch { $err = $_.Exception.Message }
                 }
@@ -1274,6 +1370,9 @@ function Update-Packs {
         if (Test-IndexOlderThanLocal $ixLocal $idx) { Write-Log 'index.json на сервере (зеркало?) старше локального - локальный оставляю' }
         else { Save-FileAtomic $ixLocal $idxBytes }     # порядок паков в галерее
     } catch { Write-Log ('index.json не сохранён: ' + $_.Exception.Message) }
+    # 3.0: каталог вариантов (variants.json + превью) качается вместе с index.json, теми же повторами и зеркалом; его сбой не считается ошибкой паков
+    $vres = $null
+    try { $vres = Update-VariantCatalog -BaseUrl $BaseUrl -Index $idx -Cancel $Cancel } catch { Write-Log ('Каталог вариантов: ' + $_.Exception.Message) }
     # на каждом запуске - только index.json, pack.json и превью всех паков; иконки и плитки - по требованию (Install-Pack)
     $entries = @($idx.packs)
     $i = 0
@@ -1297,7 +1396,7 @@ function Update-Packs {
     }
     $msg = if ($errors.Count -gt 0) { "Обновление завершено с ошибками: $($errors.Count)" } elseif ($total -gt 0) { "Паки обновлены (файлов: $total)" } else { 'Все паки актуальны' }
     Write-Log $msg
-    return [pscustomobject]@{ Ok = ($errors.Count -eq 0); Downloaded = $total; Updated = $updated.ToArray(); Errors = $errors.ToArray(); Message = $msg }
+    return [pscustomobject]@{ Ok = ($errors.Count -eq 0); Downloaded = $total; Updated = $updated.ToArray(); Errors = $errors.ToArray(); Message = $msg; Variants = $vres }
 }
 
 # ---------- Локальные паки ----------
@@ -1756,6 +1855,7 @@ function Clear-UnusedCopies {
         $refs = Get-ReferencedFiles -ExtraRefs $KeepRefs
         if (-not $refs.Ok) { $out.Ok = $false; $out.Reason = $refs.Reason; Write-Log ('  неиспользуемые копии иконок не удалены: ' + $refs.Reason); return $out }
         $applied = Get-AppliedPackId
+        $appliedV = Get-AppliedVariantId
         foreach ($s in $roots) {
             $root = Get-NormalPath $s.Dir
             if (-not (Test-PathUnder $root $home2)) { continue }
@@ -1764,7 +1864,7 @@ function Clear-UnusedCopies {
             foreach ($pd in @(Get-ChildItem -LiteralPath $root -Directory -Force -ErrorAction SilentlyContinue)) {
                 if (Test-IsReparse $pd) { continue }
                 if ($pd.Name -notmatch '^[a-z0-9][a-z0-9_\-]{0,63}$') { continue }
-                if ($s.Label -eq 'auto' -and $pd.Name -eq $applied) { continue }
+                if ($s.Label -eq 'auto' -and ($pd.Name -eq $applied -or $pd.Name -eq $appliedV)) { continue }
                 $stems = @{}
                 if ($s.Label -eq 'auto') {      # у автоиконки .ico/.png/.jpg/.key одного ключа живут вместе: ссылка на любой из них сохраняет все
                     foreach ($k in @($refs.Paths.Keys)) { if ((Test-PathUnder $k $pd.FullName.ToLowerInvariant())) { $stems[([IO.Path]::GetFileName($k)).Split('.')[0]] = $true } }
@@ -1827,6 +1927,11 @@ function Clear-PackCache {
         try { [void](Remove-StaleTempFiles -Root $script:SI_PacksDir -MinAgeMinutes 0); $res.Bytes += [long]$script:SI_TempBytes } catch { }
         $cp = Clear-UnusedCopies
         $res.Bytes += $cp.Bytes; $res.Files += $cp.Files
+        # 3.0: отрисованные варианты (variants\): всё, кроме текущего ключа применённого варианта (копии для ярлыков лежат в applied\, а не здесь)
+        $keepV = @{}
+        try { $av = Get-AppliedVariantId; if ($av) { $vk = Get-AppliedVariantKey $av; if ($vk) { $keepV[$av] = $vk } } } catch { }
+        $vc = Clear-VariantCache -KeepKeys $keepV
+        $res.Bytes += $vc.Bytes; $res.Files += $vc.Files
     } catch { $res.Ok = $false; $res.Message = $_.Exception.Message; Write-Log ('Очистка кэша: ' + $_.Exception.Message) }
     $res.Packs = $removed.ToArray()
     if (-not $res.Message) { $res.Message = 'освобождено ' + (Format-DownloadSize $res.Bytes) + ', файлов: ' + $res.Files + ', паков удалено: ' + $removed.Count }
@@ -2199,7 +2304,9 @@ function Load-Backup {
             if (-not $e -or -not $e.Path -or -not $e.Copy) { continue }
             $icon = $null
             if ($e.PSObject.Properties['Icon'] -and $null -ne $e.Icon) { $icon = [string]$e.Icon }
-            $map[[string]$e.Path] = [pscustomobject]@{ Copy = [string]$e.Copy; Icon = $icon }
+            $ak = $null
+            if ($e.PSObject.Properties['AppKey'] -and $e.AppKey) { $ak = [string]$e.AppKey }          # 3.0: к какому приложению (AppKey плана) относится запись - для частичного отката
+            $map[[string]$e.Path] = [pscustomobject]@{ Copy = [string]$e.Copy; Icon = $icon; AppKey = $ak }
         }
     }
     return $map
@@ -2212,7 +2319,11 @@ function Save-Backup {
         return
     }
     if (-not (Test-Path -LiteralPath $script:SI_BackupDir)) { New-Item -ItemType Directory -Path $script:SI_BackupDir -Force | Out-Null }
-    $arr = foreach ($k in $Map.Keys) { [pscustomobject]@{ Path = $k; Copy = $Map[$k].Copy; Icon = $Map[$k].Icon } }
+    $arr = foreach ($k in $Map.Keys) {
+        $o = [ordered]@{ Path = $k; Copy = $Map[$k].Copy; Icon = $Map[$k].Icon }
+        if ($Map[$k].PSObject.Properties['AppKey'] -and $Map[$k].AppKey) { $o['AppKey'] = [string]$Map[$k].AppKey }
+        [pscustomobject]$o
+    }
     $json = ConvertTo-Json -InputObject @($arr)
     $tmp = Get-TempSibling $script:SI_BackupFile          # пишем во временный файл и переименовываем: обрыв не оставит битый index.json
     try {
@@ -2225,13 +2336,13 @@ function Save-Backup {
 
 # $Icon - исходный IconLocation ярлыка ("путь,индекс"); для .ico не нужен
 function Backup-File {
-    param([hashtable]$Map, [string]$Path, $Icon = $null)
+    param([hashtable]$Map, [string]$Path, $Icon = $null, [string]$AppKey = '')
     if ($Map.ContainsKey($Path)) { return }
     if (-not (Test-Path -LiteralPath $script:SI_BackupDir)) { New-Item -ItemType Directory -Path $script:SI_BackupDir -Force | Out-Null }
     $name = [IO.Path]::GetFileName($Path)
     $copy = Join-Path $script:SI_BackupDir (([guid]::NewGuid().ToString('N').Substring(0, 8)) + '_' + $name)
     Copy-Item -LiteralPath $Path -Destination $copy -Force
-    $Map[$Path] = [pscustomobject]@{ Copy = $copy; Icon = $(if ($null -ne $Icon) { [string]$Icon } else { $null }) }
+    $Map[$Path] = [pscustomobject]@{ Copy = $copy; Icon = $(if ($null -ne $Icon) { [string]$Icon } else { $null }); AppKey = $(if ($AppKey) { $AppKey } else { $null }) }
     Save-Backup $Map
 }
 
@@ -2360,7 +2471,9 @@ function Get-AppIconPath {
             $p = [string]$st['AppIcon']
             $e = [IO.Path]::GetExtension($p).ToLowerInvariant()
             $root = [IO.Path]::GetFullPath($script:SI_PacksDir).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
-            if (($e -eq '.ico' -or $e -eq '.png') -and [IO.Path]::GetFullPath($p).StartsWith($root, [StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $p -PathType Leaf)) { return $p }
+            $root2 = [IO.Path]::GetFullPath($script:SI_VariantsDir).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar          # 3.0: иконка из отрисованного варианта
+            $fullP = [IO.Path]::GetFullPath($p)
+            if (($e -eq '.ico' -or $e -eq '.png') -and ($fullP.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) -or $fullP.StartsWith($root2, [StringComparison]::OrdinalIgnoreCase)) -and (Test-Path -LiteralPath $p -PathType Leaf)) { return $p }
         }
     } catch { }
     return $Fallback
@@ -2444,29 +2557,35 @@ function Apply-Pack {
     $autoP = $null; $autoTried = $false; $autoReady = $false; $ov = $null
     $running = New-Object 'System.Collections.Generic.List[string]'
     $dests = New-Object 'System.Collections.Generic.List[string]'          # копии applied\, нужные в этом применении
+    $destsBy = @{}                                                         # то же по пакам-источникам (3.0: у приложения может быть свой вариант - PackId элемента)
     $keepRefs = New-Object 'System.Collections.Generic.List[string]'       # иконки ярлыков, которые остались как были (не удалять копии, на которые они смотрят)
     foreach ($m in @($Items)) {
         try {
             $regen = $false
             if (Test-AutoItem $m) {
                 # автоиконка: режим приложения читаем из state.json в момент применения (его могли поменять после сканирования)
-                if ($null -eq $ov) { $ov = Get-AutoOverrides }
-                if ((Get-AutoMode ([string]$m.AutoKey) $ov) -ne 'Auto') { $autoSkipped++; continue }
+                if (-not $m.PSObject.Properties['ModeSet']) {            # элементы плана (ModeSet) уже прошли через режимы приложений
+                    if ($null -eq $ov) { $ov = Get-AutoOverrides }
+                    if ((Get-AutoMode ([string]$m.AutoKey) $ov) -ne 'Auto') { $autoSkipped++; continue }
+                }
                 if (-not $autoTried) {
                     $autoTried = $true
                     $autoP = Get-PackAuto $Pack
                     if ($autoP) { try { $autoReady = Initialize-AutoNative } catch { Write-Log ('Автоиконки недоступны: ' + $_.Exception.Message) } }
                 }
                 if (-not $autoReady) { $autoSkipped++; continue }
-                $regen = ((New-AutoLinkFiles $m $autoP ([string]$Pack.Id) $backup) -eq 'generated')      # файлы в кэше актуальны или пересозданы (исходная иконка / стиль изменились)
+                $regen = ((New-AutoLinkFiles $m $autoP ([string]$Pack.Id) $backup $Pack) -eq 'generated')      # файлы в кэше актуальны или пересозданы (исходная иконка / стиль изменились)
             }
             if (-not (Test-Path -LiteralPath $m.IcoPath -PathType Leaf)) { throw "нет файла иконки $($m.IcoPath)" }
             $ico = [string]$m.IcoPath
             $already = [bool]$m.Already
             if (-not (Test-AutoItem $m)) {
                 # ярлык указывает на копию applied\<пак>\<id>.<sha8>.ico: изменился файл иконки - изменился путь - изменилась иконка ярлыка (кэш Windows не отдаст старую)
-                $ico = Publish-AppliedIcon ([string]$Pack.Id) ([string]$m.IconId) ([string]$m.IcoPath)
+                $itemPack = if ($m.PSObject.Properties['PackId'] -and [string]$m.PackId) { [string]$m.PackId } else { [string]$Pack.Id }
+                $ico = Publish-AppliedIcon $itemPack ([string]$m.IconId) ([string]$m.IcoPath)
                 $dests.Add($ico)
+                if (-not $destsBy.ContainsKey($itemPack)) { $destsBy[$itemPack] = New-Object 'System.Collections.Generic.List[string]' }
+                $destsBy[$itemPack].Add($ico)
                 $already = Test-IconIsSet ([string]$m.Icon) $ico
             }
             if ($already -and -not $regen) { $same++; $keepRefs.Add([string]$m.Icon); continue }
@@ -2476,7 +2595,7 @@ function Apply-Pack {
                 Write-Log '  общие ярлыки указывают на иконку в папке данных текущего пользователя: другие пользователи Windows могут видеть стандартные иконки'
             }
             if (-not $already) {
-                Backup-File $backup $m.Path ([string]$m.Icon)
+                Backup-File $backup $m.Path ([string]$m.Icon) (Get-ItemAppKey $m)
                 $how = Set-LinkIcon $m.Path $ico
             }
             $after = [string](Get-WshShell).CreateShortcut($m.Path).IconLocation
@@ -2490,7 +2609,7 @@ function Apply-Pack {
                 if ((Test-IcoSwapPath $orig) -and (Test-Path -LiteralPath $orig -PathType Leaf)) {
                     if ((Get-FileSha256 $orig) -ne (Get-FileSha256 $m.IcoPath)) {
                         try {
-                            Backup-File $backup $orig
+                            Backup-File $backup $orig $null (Get-ItemAppKey $m)
                             Copy-Item -LiteralPath $m.IcoPath -Destination $orig -Force
                             Write-Log "       + подменён файл иконки приложения: $orig"
                         } catch { Write-Log "       не удалось подменить $orig : $($_.Exception.Message)" }
@@ -2509,11 +2628,11 @@ function Apply-Pack {
             Write-Log "  ошибка с $($m.Name): $($_.Exception.Message)"
         }
     }
-    if ($dests.Count -gt 0) { [void](Clear-StaleAppliedIcons ([string]$Pack.Id) $dests.ToArray() $keepRefs.ToArray()) }
+    foreach ($dp in @($destsBy.Keys)) { [void](Clear-StaleAppliedIcons ([string]$dp) $destsBy[$dp].ToArray() $keepRefs.ToArray()) }
     [void](Set-AppIconState $Pack)               # иконка самого приложения следует за паком (иконка с id 'glyphix')
     $st = Read-State
     if ($changed -gt 0 -or $same -gt 0) {
-        $st['Applied'] = @{ PackId = $Pack.Id; Version = $Pack.Version; At = (Get-Date).ToString('s'); Count = ($changed + $same) }
+        $st['Applied'] = @{ PackId = $(if ($Pack.PSObject.Properties['BaseId'] -and $Pack.BaseId) { [string]$Pack.BaseId } else { [string]$Pack.Id }); VariantId = [string]$Pack.Id; CacheKey = $(if ($Pack.PSObject.Properties['CacheKey']) { [string]$Pack.CacheKey } else { '' }); Version = $Pack.Version; At = (Get-Date).ToString('s'); Count = ($changed + $same) }
         Save-State $st
     }
     Write-Log "Пак $($Pack.Name) $($Pack.Version): заменено $changed, уже стояли $same, ошибок $failed$(if ($autoDone -gt 0 -or $autoSkipped -gt 0) { ', автоиконок: ' + $autoDone + ' (пропущено: ' + $autoSkipped + ')' })"
@@ -2699,6 +2818,10 @@ function Get-Start11Candidates {
         $o = [pscustomobject]@{ Id = [string]$n; Name = ''; Source = 'reg'; AppId = '' }
         $map[$n] = $o; $list.Add($o)
     }
+    # 3.0: закреплённые элементы Start11 (GroupContents): их id - основной источник плиток, которых нет в Get-StartApps
+    $pinSkipped = New-Object 'System.Collections.Generic.List[string]'
+    try { [void](Add-PinnedCandidates $list $map $pinSkipped) } catch { Write-Log ('закреплённые элементы Start11: ' + $_.Exception.Message) }
+    foreach ($ps in $pinSkipped) { Write-Log ('  Диагностика плиток: закреплённый id ' + $ps) }
     # сам Glyphix (2.6.0): ярлык «Glyphix» в меню Пуск идёт через wscript.exe с AppUserModelID F1KS.Glyphix; Get-StartApps может его не вернуть -
     # тогда плитку не на что вешать. Ярлык есть, а кандидата нет - добавляем кандидата F1KS.Glyphix сами (ровно один ключ, без запасных путей: wscript.exe общий).
     try {
@@ -2708,7 +2831,7 @@ function Get-Start11Candidates {
         if ($have) {
             if (-not [string]$have.Name) { $have.Name = 'Glyphix' }
             if (-not [string]$have.AppId) { $have.AppId = $self }
-        } elseif (-not (@($list | Where-Object { (Get-Key ([string]$_.Name)) -eq 'glyphix' }).Count -gt 0) -and (Test-AppStartShortcut)) {
+        } elseif (-not (@($list | Where-Object { (Get-Key ([string]$_.Name)) -eq 'glyphix' -and [string]$_.Source -ne 'pinned' }).Count -gt 0) -and (Test-AppStartShortcut)) {
             $o = [pscustomobject]@{ Id = $self; Name = 'Glyphix'; Source = 'app'; AppId = $self }
             $list.Add($o)
             Write-Log ("  плитка Glyphix: Get-StartApps не вернул ярлык - добавлен кандидат '" + $self + "'")
@@ -2728,6 +2851,7 @@ function Test-SelfTileCandidate {
     $self = [string]$script:SI_AppId
     if (-not $C) { return $false }
     if ([string]$C.Id -ceq $self) { return $true }
+    if ($C.PSObject.Properties['Aumid'] -and ([string]$C.Aumid -ceq $self)) { return $true }          # закреплённый ярлык Glyphix (.lnk с AUMID F1KS.Glyphix)
     return [bool]($C.PSObject.Properties['AppId'] -and ([string]$C.AppId -ceq $self))
 }
 
@@ -2899,7 +3023,10 @@ function Get-Start11Matches {
                 $selfIc = @($Pack.Icons | Where-Object { [string]$_.Id -ieq 'glyphix' }) | Select-Object -First 1
                 if ($selfIc) { $m = [pscustomobject]@{ Icon = $selfIc; Rule = 'self' } }
             }
-            if (-not $m) { $m = Find-TileMatch $index $c.Name $c.Id }
+            $matchId = $(if ($c.PSObject.Properties['RawId'] -and [string]$c.RawId) { [string]$c.RawId } else { [string]$c.Id })        # закреплённые: id с '\' (имя файла в конце), а не склеенный через '_'
+            if (-not $m) { $m = Find-TileMatch $index $c.Name $matchId }
+            if (-not $m -and $c.PSObject.Properties['Target'] -and [string]$c.Target -and -not (Test-LauncherHostName ([string]$c.Target))) { $m = Find-IconMatch $index $c.Name ([string]$c.Target) ([string]$c.Args) }       # .lnk закреплённого: цель - настоящий exe
+            if (-not $m -and $c.PSObject.Properties['Aumid'] -and [string]$c.Aumid) { $m = Find-TileMatch $index '' ([string]$c.Aumid) }          # .lnk с AUMID (Glyphix: F1KS.Glyphix)
             if (-not $m) {
                 if ($autoP) { $ai = New-AutoTileItem $c ([string]$Pack.Id) $Overrides ([bool]$NoName); if ($ai) { $out.Add($ai) } }
                 continue
@@ -2942,7 +3069,9 @@ function Load-S11Backup {
             if (-not $absent -and $null -eq $e.Data) { continue }
             $kind = 'String'
             if ($e.PSObject.Properties['Kind'] -and [string]$e.Kind -eq 'ExpandString') { $kind = 'ExpandString' }     # старые записи без Kind - String
-            $map[[string]$e.Id] = [pscustomobject]@{ Absent = $absent; Data = $(if ($absent) { $null } else { [string]$e.Data }); Kind = $kind }
+            $ak = $null
+            if ($e.PSObject.Properties['AppKey'] -and $e.AppKey) { $ak = [string]$e.AppKey }
+            $map[[string]$e.Id] = [pscustomobject]@{ Absent = $absent; Data = $(if ($absent) { $null } else { [string]$e.Data }); Kind = $kind; AppKey = $ak }
         }
     }
     return $map
@@ -2954,7 +3083,11 @@ function Save-S11Backup {
         if (Test-Path -LiteralPath $script:SI_S11BackupFile) { Remove-Item -LiteralPath $script:SI_S11BackupFile -Force }
         return
     }
-    $arr = foreach ($k in $Map.Keys) { [pscustomobject]@{ Id = $k; Absent = [bool]$Map[$k].Absent; Data = $Map[$k].Data; Kind = $(if ($Map[$k].PSObject.Properties['Kind'] -and $Map[$k].Kind) { [string]$Map[$k].Kind } else { 'String' }) } }
+    $arr = foreach ($k in $Map.Keys) {
+        $o = [ordered]@{ Id = $k; Absent = [bool]$Map[$k].Absent; Data = $Map[$k].Data; Kind = $(if ($Map[$k].PSObject.Properties['Kind'] -and $Map[$k].Kind) { [string]$Map[$k].Kind } else { 'String' }) }
+        if ($Map[$k].PSObject.Properties['AppKey'] -and $Map[$k].AppKey) { $o['AppKey'] = [string]$Map[$k].AppKey }
+        [pscustomobject]$o
+    }
     Save-JsonAtomic $script:SI_S11BackupFile (ConvertTo-Json -InputObject @($arr))
 }
 
@@ -3122,7 +3255,7 @@ function Apply-Start11Tiles {
         try {
             $kind = Get-S11Kind $script:SI_S11Tiles ([string]$_.TileId)
             if ($kind -and $kind -ne 'String' -and $kind -ne 'ExpandString') { return $false }
-            -not (Test-Start11TileSet ([string]$_.TileId) (Get-Start11TileDest ([string]$Pack.Id) ([string]$_.IconId) ([string]$_.TilePath)) ([string]$_.TilePath))
+            -not (Test-Start11TileSet ([string]$_.TileId) (Get-Start11TileDest (Get-ItemPackId $_ $Pack) ([string]$_.IconId) ([string]$_.TilePath)) ([string]$_.TilePath))
         } catch { $true } })
     $stop = $null; $restarted = $true
     if ($needs.Count -gt 0 -and -not $NoReload) { $stop = Stop-Start11 }
@@ -3132,14 +3265,14 @@ function Apply-Start11Tiles {
             $id = [string]$m.TileId; $src = [string]$m.TilePath; $icId = [string]$m.IconId
             if (-not $id -or $icId -notmatch '^[A-Za-z0-9_\-]+$') { throw 'неверные данные плитки' }
             if ($src -notmatch '\.(png|jpe?g)$' -or -not (Test-Path -LiteralPath $src -PathType Leaf)) { throw "нет файла плитки $src" }
-            $dest = Get-Start11TileDest ([string]$Pack.Id) $icId $src
+            $dest = Get-Start11TileDest (Get-ItemPackId $m $Pack) $icId $src
             if (Test-Start11TileSet $id $dest $src) { Remove-StaleTileFiles $dest; $same++; continue }
             $cur = Get-S11Value $script:SI_S11Tiles $id                    # не REG_SZ - исключение, значение не трогаем
             $curKind = 'String'
             if ($null -ne $cur) { $k0 = Get-S11Kind $script:SI_S11Tiles $id; if ($k0 -eq 'ExpandString') { $curKind = 'ExpandString' } }
             Save-FileAtomic $dest ([IO.File]::ReadAllBytes($src))
             if (-not $backup.ContainsKey($id)) {                           # первый оригинал храним, пока не откатим
-                $backup[$id] = [pscustomobject]@{ Absent = ($null -eq $cur); Data = $cur; Kind = $curKind }
+                $backup[$id] = [pscustomobject]@{ Absent = ($null -eq $cur); Data = $cur; Kind = $curKind; AppKey = $(Get-ItemAppKey $m) }
                 Save-S11Backup $backup
             }
             Set-S11Value $script:SI_S11Tiles $id $dest
@@ -3155,19 +3288,24 @@ function Apply-Start11Tiles {
     } finally {
         if ($stop) { $restarted = (Start-Start11Paths $stop.Launch) }
     }
-    # одна строка для диагностики по log.txt: под каким id записана плитка самого Glyphix
+    # диагностика по log.txt: под каким id записана плитка самого Glyphix (закреплённые id, Get-StartApps, AUMID ярлыков, записанные id)
     try {
-        $selfM = @($Items | Where-Object { [string]$_.IconId -ieq 'glyphix' }) | Select-Object -First 1
-        if ($selfM) {
-            $selfNow = $null; try { $selfNow = Get-S11Value $script:SI_S11Tiles ([string]$selfM.TileId) } catch { }
-            Write-Log ("  плитка Glyphix: id '" + [string]$selfM.TileId + "' <- иконка glyphix, " + $(if ($selfNow) { 'в реестре: ' + $selfNow } else { 'в реестре значения нет' }))
-        } elseif (@($Pack.Icons | Where-Object { [string]$_.Id -ieq 'glyphix' }).Count -gt 0) {
-            Write-Log ("  плитка Glyphix: не применена - среди кандидатов Start11 нет '" + [string]$script:SI_AppId + "' (нет ярлыка в меню Пуск и Get-StartApps его не вернул)")
+        $selfM = @($Items | Where-Object { [string]$_.IconId -ieq 'glyphix' })
+        if ($selfM.Count -gt 0 -or @($Pack.Icons | Where-Object { [string]$_.Id -ieq 'glyphix' }).Count -gt 0) {
+            $wr = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($sm in $selfM) {
+                $now = $null; try { $now = Get-S11Value $script:SI_S11Tiles ([string]$sm.TileId) } catch { }
+                $wr.Add([string]$sm.TileId + $(if ($now) { ' (в реестре: ' + $now + ')' } else { ' (значения в реестре нет)' }))
+                Write-Log ("  плитка Glyphix: id '" + [string]$sm.TileId + "' <- иконка glyphix, " + $(if ($now) { 'в реестре: ' + $now } else { 'в реестре значения нет' }))
+            }
+            $dg = Get-GlyphixTileDiagnostics -Written $wr.ToArray()
+            foreach ($ln in $dg.Lines) { Write-Log ('  ' + $ln) }
+            if ($selfM.Count -eq 0) { Write-Log ("  плитка Glyphix: не применена - среди кандидатов Start11 нет '" + [string]$script:SI_AppId + "' (нет ярлыка в меню Пуск и Get-StartApps его не вернул)") }
         }
     } catch { }
     $st = Read-State
     if ($changed -gt 0 -or $same -gt 0) {
-        $st['Tiles'] = @{ PackId = $Pack.Id; Version = $Pack.Version; At = (Get-Date).ToString('s'); Count = ($changed + $same) }
+        $st['Tiles'] = @{ PackId = $(if ($Pack.PSObject.Properties['BaseId'] -and $Pack.BaseId) { [string]$Pack.BaseId } else { [string]$Pack.Id }); VariantId = [string]$Pack.Id; Version = $Pack.Version; At = (Get-Date).ToString('s'); Count = ($changed + $same) }
         Save-State $st
     }
     Write-Log "Плитки Start11: заменено $changed, уже стояли $same, ошибок $failed"
@@ -3188,10 +3326,13 @@ function Apply-Start11Tiles {
 # и Start11 либо корректно перезапущен, либо вообще не запущен; при -NoReload и работающем Start11 оставляем их (Kept = $true).
 function Undo-Start11Tiles {
     [CmdletBinding()]
-    param([switch]$NoReload)
+    param([switch]$NoReload, [string[]]$Ids = $null)          # -Ids (3.0): вернуть только эти плитки (частичный откат приложений), остальное в бэкапе остаётся
     Assert-ElevationSafe
     $backup = Load-S11Backup
-    if ($backup.Count -eq 0) { return [pscustomobject]@{ Restored = 0; Failed = 0; Nothing = $true; Kept = $false; Reload = $null; Hint = '' } }
+    $partial = ($null -ne $Ids)
+    if ($partial) { $want = @{}; foreach ($i in @($Ids)) { $want[[string]$i] = $true } }
+    $keys = @($backup.Keys | Where-Object { -not $partial -or $want.ContainsKey([string]$_) })
+    if ($backup.Count -eq 0 -or $keys.Count -eq 0) { return [pscustomobject]@{ Restored = 0; Failed = 0; Nothing = $true; Kept = $false; Reload = $null; Hint = '' } }
     $n = 0; $failed = 0
     $stop = $null; $restarted = $true; $running = $false
     if ($NoReload) {
@@ -3200,7 +3341,7 @@ function Undo-Start11Tiles {
         $stop = Stop-Start11
     }
     try {
-        foreach ($id in @($backup.Keys)) {
+        foreach ($id in $keys) {
             $e = $backup[$id]
             try {
                 if ($e.Absent) { Remove-S11Value $script:SI_S11Tiles $id } else { Set-S11Value $script:SI_S11Tiles $id ([string]$e.Data) ([string]$e.Kind) }
@@ -3225,10 +3366,10 @@ function Undo-Start11Tiles {
             if (-not $okAll) { $hint = $script:SI_S11Hint; Write-Log $hint }
         }
     }
-    if ($failed -eq 0 -and $safe) { Remove-Start11Files }
+    if ($failed -eq 0 -and $safe -and $backup.Count -eq 0) { Remove-Start11Files }
     elseif ($failed -eq 0 -and $kept) { Write-Log 'Start11 работает: PNG плиток и start11.json оставлены, повторите откат после перезапуска Start11.' }
     $st = Read-State
-    if ($failed -eq 0 -and $safe -and $st.ContainsKey('Tiles')) { $st.Remove('Tiles'); Save-State $st }
+    if ($failed -eq 0 -and $safe -and $backup.Count -eq 0 -and $st.ContainsKey('Tiles')) { $st.Remove('Tiles'); Save-State $st }
     Write-Log "Плитки Start11 возвращены: $n$(if ($failed -gt 0) { ', не удалось: ' + $failed })"
     return [pscustomobject]@{ Restored = $n; Failed = $failed; Nothing = $false; Kept = $kept; Reload = $reload; Hint = $hint }
 }
@@ -4299,6 +4440,7 @@ function Set-AutoOverride {
     if ($canon -eq 'Auto') { $h.Remove($Key) } else { $h[$Key] = $canon }
     if ($h.Count -eq 0) { [void]$st.Remove('AutoOverrides') } else { $st['AutoOverrides'] = $h }
     Save-State $st
+    try { Sync-AppOverrideFromLegacy $Key $canon } catch { Write-Log ('AppOverrides: ' + $_.Exception.Message) }       # 3.0: тот же выбор в AppOverrides (приложение 'auto:<ключ>')
 }
 
 # ключ приложения для режима: по имени (один выбор действует на все его ярлыки и плитку Start11)
@@ -4345,6 +4487,7 @@ function Get-AutoSkipReasonTile {
     if (-not $aid) { return 'нет AppID' }
     if (-not (Get-AutoAppKey $name)) { return 'нет имени' }
     if ($name -match $script:SI_AutoJunkNameRx) { return 'справка/сайт/удаление/панель управления' }
+    if ($C.PSObject.Properties['Ambiguous'] -and $C.Ambiguous) { return 'общий хост (wscript/cmd/powershell) без AUMID' }
     $info = Get-TileIdInfo ([string]$C.Id)
     if ($info.Url -or $aid -match '^[A-Za-z][A-Za-z0-9+.\-]*://') { return 'ссылка' }
     if (Test-UninstallLike (Get-Key $name) $info.Last) { return 'деинсталлятор' }
@@ -4373,8 +4516,8 @@ function Get-AutoPaths {
 
 # ключ кэша: версия алгоритма | что строим (ico/tile) | sha256 пикселей исходной иконки | sha256 auto.json | подпись плитки
 function Get-AutoCacheKey {
-    param([string]$Kind, [string]$SrcHash, [string]$AutoSha, [string]$Title = '')
-    $s = ('v' + $script:SI_AutoStyleVersion + '|' + $Kind + '|' + $SrcHash + '|' + $AutoSha + '|' + $Title + $(if ($Kind -eq 'ico') { '|' + ($script:SI_AutoIcoSizes -join ',') } else { '' }))
+    param([string]$Kind, [string]$SrcHash, [string]$AutoSha, [string]$Title = '', [string]$OpsKey = '')
+    $s = ('v' + $script:SI_AutoStyleVersion + '|' + $Kind + '|' + $SrcHash + '|' + $AutoSha + '|' + $Title + $(if ($Kind -eq 'ico') { '|' + ($script:SI_AutoIcoSizes -join ',') } else { '' }) + $(if ($OpsKey) { '|ops:' + $OpsKey } else { '' }))
     return (Get-BytesSha256 ([System.Text.Encoding]::UTF8.GetBytes($s)))
 }
 
@@ -4436,6 +4579,7 @@ function New-AutoTileItem {
         IconId = $iconId; IconName = 'авто'; Group = 'auto'; TilePath = $pp.Tile
         Rule = 'auto'; Already = (($mode -eq 'Auto') -and (Test-Start11TileSet ([string]$C.Id) $dest $pp.Tile))
         Auto = $true; AutoKey = $key; AutoMode = $mode; SafeKey = $safe; AppId = [string]$C.AppId; AutoNoName = $NoName
+        Pinned = [bool]($C.PSObject.Properties['Pinned'] -and $C.Pinned)
     }
 }
 
@@ -4489,7 +4633,9 @@ function Get-AutoTileSources {
     $list = New-Object 'System.Collections.Generic.List[object]'
     $aid = [string]$Item.AppId
     if ($aid) {
-        $list.Add(@{ Kind = 'shell'; Path = ('shell:AppsFolder\' + $aid) })
+        $pinP = ''; if ($Item.PSObject.Properties['Pinned'] -and $Item.Pinned) { $pinP = Expand-PinnedPath $aid }
+        if ($pinP) { try { if (Test-Path -LiteralPath $pinP -PathType Leaf) { $list.Add(@{ Kind = 'shell'; Path = $pinP }) } } catch { } }       # закреплённый путь / .lnk - иконку берём у файла
+        else { $list.Add(@{ Kind = 'shell'; Path = ('shell:AppsFolder\' + $aid) }) }
         $ex = [Environment]::ExpandEnvironmentVariables($aid)
         try { if ($ex -match '^[A-Za-z]:\\' -and (Test-Path -LiteralPath $ex -PathType Leaf)) { $list.Add(@{ Kind = 'file'; Path = $ex }) } } catch { }
     }
@@ -4514,14 +4660,16 @@ function Get-AutoSourceImage {
 # ---------- генерация файлов ----------
 # .ico (кадры PNG 16..128) + превью .png для ярлыка. 'cached' - файлы актуальны (тот же ключ), 'generated' - пересозданы. Ошибка - исключение.
 function New-AutoLinkFiles {
-    param($Item, $Auto, [string]$PackId, $Backup)
+    param($Item, $Auto, [string]$PackId, $Backup, $Variant = $null)
     [void](Initialize-AutoNative)
     $pp = Get-AutoPaths $PackId ([string]$Item.SafeKey)
     $img = Get-AutoSourceImage (Get-AutoLinkSources $Item $Backup)
     if (-not $img) { throw 'не удалось получить иконку приложения' }
-    $ck = Get-AutoCacheKey 'ico' $img.Hash ([string]$Auto.Sha)
+    $vk = Get-AutoVariantKey $Variant
+    $ck = Get-AutoCacheKey 'ico' $img.Hash ([string]$Auto.Sha) '' $vk
     if ((Test-AutoCache $pp.Ico $ck) -and (Test-Path -LiteralPath $pp.Png -PathType Leaf)) { return 'cached' }
     $st = [GlyphixAuto.AutoStyle]::Stylize($img.Pixels, $img.W, $img.H, (ConvertTo-AutoNativeParams $Auto), 256)
+    $st = Invoke-AutoVariantOps $st $Variant $Auto 'icon'
     Save-FileAtomic $pp.Png ([GlyphixAuto.AutoStyle]::EncodePng($st, 256, 256))
     Save-FileAtomic $pp.Ico ([GlyphixAuto.AutoStyle]::MakeIco($st, 256, $script:SI_AutoIcoSizes))
     Save-AutoCacheKey $pp.Ico $ck
@@ -4530,17 +4678,23 @@ function New-AutoLinkFiles {
 
 # плитка Start11 640x640 (.jpg): фон-градиент, рамка, иконка, подпись (без подписи при $NoName)
 function New-AutoTileFile {
-    param($Item, $Auto, [string]$PackId, [bool]$NoName = $false)
+    param($Item, $Auto, [string]$PackId, [bool]$NoName = $false, $Variant = $null)
     [void](Initialize-AutoNative)
     $pp = Get-AutoPaths $PackId ([string]$Item.SafeKey)
     $img = Get-AutoSourceImage (Get-AutoTileSources $Item)
     if (-not $img) { throw 'не удалось получить иконку приложения' }
     $title = if ($NoName) { '' } else { [string]$Item.Name }
-    $ck = Get-AutoCacheKey 'tile' $img.Hash ([string]$Auto.Sha) $title
+    $vk = Get-AutoVariantKey $Variant
+    $ck = Get-AutoCacheKey 'tile' $img.Hash ([string]$Auto.Sha) $title $vk
     if (Test-AutoCache $pp.Tile $ck) { return 'cached' }
     $cv = [int]$script:SI_AutoTileIcon
     $st = [GlyphixAuto.AutoStyle]::Stylize($img.Pixels, $img.W, $img.H, (ConvertTo-AutoNativeParams $Auto), $cv)
-    $jpg = [GlyphixAuto.AutoShell]::RenderTile($st, $cv, $cv, $title, (ConvertTo-AutoRgb $Auto.Bg0), (ConvertTo-AutoRgb $Auto.Bg1), (ConvertTo-AutoRgb $Auto.Border), (ConvertTo-AutoRgb $Auto.Title), $script:SI_AutoTileSize, 92)
+    if ($vk) {           # вариант с операциями: плитка с качеством 100, операции для плиток, и итоговое сохранение с качеством 92 (см. Invoke-AutoVariantTile)
+        $jpg = [GlyphixAuto.AutoShell]::RenderTile($st, $cv, $cv, $title, (ConvertTo-AutoRgb $Auto.Bg0), (ConvertTo-AutoRgb $Auto.Bg1), (ConvertTo-AutoRgb $Auto.Border), (ConvertTo-AutoRgb $Auto.Title), $script:SI_AutoTileSize, 100)
+        $jpg = Invoke-AutoVariantTile $jpg $Variant $Auto
+    } else {
+        $jpg = [GlyphixAuto.AutoShell]::RenderTile($st, $cv, $cv, $title, (ConvertTo-AutoRgb $Auto.Bg0), (ConvertTo-AutoRgb $Auto.Bg1), (ConvertTo-AutoRgb $Auto.Border), (ConvertTo-AutoRgb $Auto.Title), $script:SI_AutoTileSize, 92)
+    }
     Save-FileAtomic $pp.Tile $jpg
     Save-AutoCacheKey $pp.Tile $ck
     return 'generated'
@@ -4548,9 +4702,9 @@ function New-AutoTileFile {
 
 # файлы для одного элемента (ярлык или плитка); для превью в GUI и перед применением
 function New-AutoFiles {
-    param($Item, $Auto, [string]$PackId, $Backup, [bool]$NoName = $false)
-    if ($Item.PSObject.Properties['TileId']) { return (New-AutoTileFile $Item $Auto $PackId $NoName) }
-    return (New-AutoLinkFiles $Item $Auto $PackId $Backup)
+    param($Item, $Auto, [string]$PackId, $Backup, [bool]$NoName = $false, $Variant = $null)
+    if ($Item.PSObject.Properties['TileId']) { return (New-AutoTileFile $Item $Auto $PackId $NoName $Variant) }
+    return (New-AutoLinkFiles $Item $Auto $PackId $Backup $Variant)
 }
 
 # папка auto\ целиком (только внутри папки данных); вызывается после полного отката и при удалении приложения
@@ -4571,15 +4725,17 @@ function Resolve-AutoTileItems {
     $auto = $null; $ov = $null; $ready = $false; $tried = $false
     foreach ($m in @($Items)) {
         if (-not (Test-AutoItem $m)) { $keep.Add($m); continue }
-        if ($null -eq $ov) { $ov = Get-AutoOverrides }
-        if ((Get-AutoMode ([string]$m.AutoKey) $ov) -ne 'Auto') { $skipped++; continue }
+        if (-not $m.PSObject.Properties['ModeSet']) {            # элементы плана (ModeSet) уже прошли через режимы приложений
+            if ($null -eq $ov) { $ov = Get-AutoOverrides }
+            if ((Get-AutoMode ([string]$m.AutoKey) $ov) -ne 'Auto') { $skipped++; continue }
+        }
         if (-not $tried) {
             $tried = $true
             $auto = Get-PackAuto $Pack
             if ($auto) { try { $ready = Initialize-AutoNative } catch { Write-Log ('Автоиконки: ' + $_.Exception.Message) } }
         }
         if (-not $ready) { $skipped++; continue }
-        try { [void](New-AutoTileFile $m $auto ([string]$Pack.Id) $NoName); $keep.Add($m) }
+        try { [void](New-AutoTileFile $m $auto ([string]$Pack.Id) $NoName $Pack); $keep.Add($m) }
         catch { $failed++; Write-Log "  автоплитка $($m.Name): $($_.Exception.Message)" }
     }
     return [pscustomobject]@{ Items = $keep.ToArray(); Failed = $failed; Skipped = $skipped }
@@ -5305,6 +5461,9 @@ function Uninstall-App {
     else { Remove-Start11Files }       # PNG плиток - только теперь, когда значения реестра уже возвращены (иначе плитки остались бы без картинок)
     Remove-AutoFiles                     # созданные автоиконки (откат уже вернул все ярлыки)
     Remove-AppliedFiles                  # копии применённых иконок (applied\)
+    foreach ($vd in @($script:SI_VariantsDir, $script:SI_CatalogDir)) {      # 3.0: кэш отрисованных вариантов (variants\) и каталог с превью (catalog\)
+        try { if ($vd -and (Test-Path -LiteralPath $vd -PathType Container)) { [void](Remove-TreeSafe $vd $script:SI_Home) } } catch { Write-Log ('не удалено: ' + $vd) }
+    }
     Write-LegacyCommonIconsNote          # папка %ProgramData%\Glyphix от 2.4.1 (если есть) - только запись в журнал, не трогаем
     # не держим папку приложения/данных текущей: иначе её не удалить
     $tmpDir = if ($env:TEMP) { $env:TEMP } else { [IO.Path]::GetTempPath() }
@@ -5342,4 +5501,2058 @@ function Uninstall-App {
     try { if (Test-Path -LiteralPath $script:SI_Home -PathType Container) { Remove-EmptyDirs $script:SI_Home } } catch { }      # пустые backup\ и т.п.
     try { if ((Test-Path -LiteralPath $script:SI_Home) -and -not (Get-ChildItem -LiteralPath $script:SI_Home -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $script:SI_Home -Recurse -Force -Confirm:$false } } catch { }
     return [pscustomobject]@{ Ok = $appRemoved; KeptBackup = $false; Aborted = $false; Message = '' }
+}
+
+# =====================================================================================================================================
+# ======================================================  GLYPHIX 3.0  ================================================================
+# =====================================================================================================================================
+# Цветовые варианты, план по приложениям, режимы, частичный откат, избранное, плитки из закреплённых элементов Start11.
+# Описание API: docs/engine_api_3.md. Спецификация операций: docs/variants_spec.md (эталон gen/variants.py).
+
+# ---------- Перекраска (C#): GlyphixVariants ----------
+# Чистое ядро (байты RGBA, без System.Drawing/WPF - компилируется и проверяется на Linux): операции variants.json, PNG (чтение/запись), ICO, уменьшение,
+# параллельная пакетная отрисовка. Слой кодеков JPEG: на Windows - GDI+ (System.Drawing), в тестах на Linux - заглушка (JPEG недоступен).
+# C# 5 / .NET 4.x: без интерполяции строк, ?., expression-bodied членов, out var.
+$script:SI_VariantsCoreCode = @'
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
+using System.Threading;
+
+namespace GlyphixVariants
+{
+    // Одна операция каталога. Name: gradient_map | brand_map | hue_rotate | saturate | brightness | contrast | gamma | mix | colorize | alpha.
+    // Цвета - 0xRRGGBB, -1 в StopRgb = "{brand}".
+    public sealed class Op
+    {
+        public string Name;
+        public int Target;                         // 0 - иконки и плитки, 1 - только иконки, 2 - только плитки
+        public double[] StopPos;
+        public int[] StopRgb;
+        public double Strength = 1.0;
+        public bool SourceMax;
+        public double Deg;
+        public double K;
+        public double G = 1.0;
+        public int Color;
+        public bool ColorBrand;
+        public double MinL = double.NaN;
+        public double MaxL = double.NaN;
+        public double Scale = 1.0;
+        public double Lo = 0.0;
+        public double Hi = 1.0;
+        public double A0 = 1.0;
+        public double A1 = 1.0;
+        public double Gain = 1.5;
+        public bool KeepV;
+    }
+
+    public static class Recolor
+    {
+        // rnd(x) = clamp(floor(x + 0.5), 0, 255)
+        public static int Rnd(double x)
+        {
+            if (double.IsNaN(x)) return 0;
+            double v = Math.Floor(x + 0.5);
+            if (v < 0.0) return 0;
+            if (v > 255.0) return 255;
+            return (int)v;
+        }
+
+        public static int LumIndex(int r, int g, int b)
+        {
+            return (2126 * r + 7152 * g + 722 * b + 5000) / 10000;
+        }
+
+        // Зажим светлоты цвета бренда (0xRRGGBB -> 0xRRGGBB); NaN в minL / maxL = параметр не задан.
+        public static int ClampBrand(int rgb, double minL, double maxL)
+        {
+            double r = (rgb >> 16) & 255, g = (rgb >> 8) & 255, b = rgb & 255;
+            double L = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0;
+            if (!double.IsNaN(minL) && L < minL)
+            {
+                double t = (minL - L) / (1.0 - L);
+                r = r + (255.0 - r) * t; g = g + (255.0 - g) * t; b = b + (255.0 - b) * t;
+            }
+            else if (!double.IsNaN(maxL) && L > maxL)
+            {
+                double f = maxL / L;
+                r = r * f; g = g * f; b = b * f;
+            }
+            return (Rnd(r) << 16) | (Rnd(g) << 8) | Rnd(b);
+        }
+
+        // LUT 256 x RGB (768 байт) по точкам градиента; brandRgb - уже зажатый цвет для точек "{brand}"
+        public static byte[] BuildLut(double[] pos, int[] rgb, int brandRgb)
+        {
+            int n = pos.Length;
+            double[] cr = new double[n], cg = new double[n], cb = new double[n];
+            for (int i = 0; i < n; i++)
+            {
+                int c = rgb[i];
+                if (c < 0)
+                {
+                    if (brandRgb < 0) throw new InvalidOperationException("brand_map: нужен цвет бренда");
+                    c = brandRgb;
+                }
+                cr[i] = (c >> 16) & 255; cg[i] = (c >> 8) & 255; cb[i] = c & 255;
+            }
+            byte[] lut = new byte[768];
+            for (int i = 0; i < 256; i++)
+            {
+                double t = i / 255.0;
+                double r, g, b;
+                if (t <= pos[0]) { r = cr[0]; g = cg[0]; b = cb[0]; }
+                else if (t >= pos[n - 1]) { r = cr[n - 1]; g = cg[n - 1]; b = cb[n - 1]; }
+                else
+                {
+                    r = cr[n - 1]; g = cg[n - 1]; b = cb[n - 1];
+                    for (int k = 0; k < n - 1; k++)
+                    {
+                        double p0 = pos[k], p1 = pos[k + 1];
+                        if (p0 <= t && t <= p1)
+                        {
+                            double u = (p1 == p0) ? 0.0 : (t - p0) / (p1 - p0);
+                            r = cr[k] + (cr[k + 1] - cr[k]) * u;
+                            g = cg[k] + (cg[k + 1] - cg[k]) * u;
+                            b = cb[k] + (cb[k + 1] - cb[k]) * u;
+                            break;
+                        }
+                    }
+                }
+                lut[i * 3] = (byte)Rnd(r); lut[i * 3 + 1] = (byte)Rnd(g); lut[i * 3 + 2] = (byte)Rnd(b);
+            }
+            return lut;
+        }
+
+        static int BrandFor(Op op, int brand)
+        {
+            if (brand < 0) throw new InvalidOperationException("операция " + op.Name + " с {brand}: нужен цвет бренда");
+            return ClampBrand(brand, op.MinL, op.MaxL);
+        }
+
+        static void Matrix(byte[] p, double[] m)
+        {
+            for (int i = 0; i + 3 < p.Length; i += 4)
+            {
+                double r = p[i], g = p[i + 1], b = p[i + 2];
+                p[i] = (byte)Rnd(r * m[0] + g * m[1] + b * m[2]);
+                p[i + 1] = (byte)Rnd(r * m[3] + g * m[4] + b * m[5]);
+                p[i + 2] = (byte)Rnd(r * m[6] + g * m[7] + b * m[8]);
+            }
+        }
+
+        static void ApplyOne(byte[] p, Op op, int brand)
+        {
+            int n = p.Length;
+            switch (op.Name)
+            {
+                case "gradient_map":
+                case "brand_map":
+                {
+                    bool needBrand = false;
+                    for (int i = 0; i < op.StopRgb.Length; i++) { if (op.StopRgb[i] < 0) needBrand = true; }
+                    int bc = needBrand ? BrandFor(op, brand) : -1;
+                    byte[] lut = BuildLut(op.StopPos, op.StopRgb, bc);
+                    double s = op.Strength;
+                    for (int i = 0; i + 3 < n; i += 4)
+                    {
+                        int idx = op.SourceMax ? Math.Max(p[i], Math.Max(p[i + 1], p[i + 2])) : LumIndex(p[i], p[i + 1], p[i + 2]);
+                        for (int c = 0; c < 3; c++)
+                        {
+                            double src = p[i + c];
+                            double m = lut[idx * 3 + c];
+                            p[i + c] = (byte)Rnd(src + (m - src) * s);
+                        }
+                    }
+                    break;
+                }
+                case "hue_rotate":
+                {
+                    double a = op.Deg * Math.PI / 180.0;
+                    double c = Math.Cos(a), s = Math.Sin(a);
+                    double[] m = new double[] {
+                        0.213 + c * 0.787 - s * 0.213, 0.715 - c * 0.715 - s * 0.715, 0.072 - c * 0.072 + s * 0.928,
+                        0.213 - c * 0.213 + s * 0.143, 0.715 + c * 0.285 + s * 0.140, 0.072 - c * 0.072 - s * 0.283,
+                        0.213 - c * 0.213 - s * 0.787, 0.715 - c * 0.715 + s * 0.715, 0.072 + c * 0.928 + s * 0.072 };
+                    Matrix(p, m);
+                    break;
+                }
+                case "saturate":
+                {
+                    double k = op.K;
+                    double[] m = new double[] {
+                        0.213 + 0.787 * k, 0.715 - 0.715 * k, 0.072 - 0.072 * k,
+                        0.213 - 0.213 * k, 0.715 + 0.285 * k, 0.072 - 0.072 * k,
+                        0.213 - 0.213 * k, 0.715 - 0.715 * k, 0.072 + 0.928 * k };
+                    Matrix(p, m);
+                    break;
+                }
+                case "brightness":
+                    for (int i = 0; i + 3 < n; i += 4) { for (int c = 0; c < 3; c++) p[i + c] = (byte)Rnd(p[i + c] * op.K); }
+                    break;
+                case "contrast":
+                    for (int i = 0; i + 3 < n; i += 4) { for (int c = 0; c < 3; c++) p[i + c] = (byte)Rnd((p[i + c] - 128.0) * op.K + 128.0); }
+                    break;
+                case "gamma":
+                {
+                    byte[] lut = new byte[256];
+                    for (int i = 0; i < 256; i++) lut[i] = (byte)Rnd(255.0 * Math.Pow(i / 255.0, 1.0 / op.G));
+                    for (int i = 0; i + 3 < n; i += 4) { p[i] = lut[p[i]]; p[i + 1] = lut[p[i + 1]]; p[i + 2] = lut[p[i + 2]]; }
+                    break;
+                }
+                case "mix":
+                {
+                    int col = op.ColorBrand ? BrandFor(op, brand) : op.Color;
+                    double cr = (col >> 16) & 255, cg = (col >> 8) & 255, cb = col & 255, k = op.K;
+                    for (int i = 0; i + 3 < n; i += 4)
+                    {
+                        double r = p[i], g = p[i + 1], b = p[i + 2];
+                        p[i] = (byte)Rnd(r + (cr - r) * k); p[i + 1] = (byte)Rnd(g + (cg - g) * k); p[i + 2] = (byte)Rnd(b + (cb - b) * k);
+                    }
+                    break;
+                }
+                case "colorize":
+                {
+                    int col = op.ColorBrand ? BrandFor(op, brand) : op.Color;
+                    double tr = (col >> 16) & 255, tg = (col >> 8) & 255, tb = col & 255;
+                    for (int i = 0; i + 3 < n; i += 4)
+                    {
+                        double r = p[i], g = p[i + 1], b = p[i + 2];
+                        double mx = Math.Max(r, Math.Max(g, b)), mn = Math.Min(r, Math.Min(g, b));
+                        double S = mx > 0 ? (mx - mn) / Math.Max(mx, 1.0) : 0.0;
+                        double w = S * op.Gain;
+                        if (w < 0.0) w = 0.0; else if (w > 1.0) w = 1.0;
+                        double ur = tr, ug = tg, ub = tb;
+                        if (op.KeepV) { double f = mx / 255.0; ur = tr * f; ug = tg * f; ub = tb * f; }
+                        p[i] = (byte)Rnd(r * (1.0 - w) + ur * w);
+                        p[i + 1] = (byte)Rnd(g * (1.0 - w) + ug * w);
+                        p[i + 2] = (byte)Rnd(b * (1.0 - w) + ub * w);
+                    }
+                    break;
+                }
+                case "alpha":
+                    for (int i = 0; i + 3 < n; i += 4)
+                    {
+                        double L = LumIndex(p[i], p[i + 1], p[i + 2]) / 255.0;
+                        double t = (op.Hi == op.Lo) ? (L >= op.Hi ? 1.0 : 0.0) : (L - op.Lo) / (op.Hi - op.Lo);
+                        if (t < 0.0) t = 0.0; else if (t > 1.0) t = 1.0;
+                        double m = op.A0 + (op.A1 - op.A0) * t;
+                        p[i + 3] = (byte)Rnd(p[i + 3] * op.Scale * m);
+                    }
+                    break;
+                default:
+                    throw new InvalidOperationException("неизвестная операция: " + op.Name);
+            }
+        }
+
+        // Применить ops к RGBA (новый массив). tile = true: плитка (op с target "icons" пропускаются, в конце A = 255); иначе иконка (пропускаются "tiles").
+        // brand - цвет бренда 0xRRGGBB или -1.
+        public static byte[] Apply(byte[] rgba, Op[] ops, bool tile, int brand)
+        {
+            byte[] p = new byte[rgba.Length];
+            Buffer.BlockCopy(rgba, 0, p, 0, rgba.Length);
+            if (ops != null)
+            {
+                for (int i = 0; i < ops.Length; i++)
+                {
+                    Op op = ops[i];
+                    if (op.Target == 1 && tile) continue;
+                    if (op.Target == 2 && !tile) continue;
+                    ApplyOne(p, op, brand);
+                }
+            }
+            if (tile) { for (int i = 3; i < p.Length; i += 4) p[i] = 255; }
+            return p;
+        }
+
+        public static byte[] SwapRB(byte[] px)
+        {
+            byte[] o = new byte[px.Length];
+            for (int i = 0; i + 3 < px.Length; i += 4) { o[i] = px[i + 2]; o[i + 1] = px[i + 1]; o[i + 2] = px[i]; o[i + 3] = px[i + 3]; }
+            return o;
+        }
+    }
+
+    // ---------- PNG / ICO / уменьшение (чистый C#) ----------
+    public static class Img
+    {
+        static uint[] crcTable;
+
+        static uint Crc32(byte[] d, int off, int len, uint crc)
+        {
+            if (crcTable == null)
+            {
+                uint[] t = new uint[256];
+                for (uint n = 0; n < 256; n++)
+                {
+                    uint c = n;
+                    for (int k = 0; k < 8; k++) c = ((c & 1) != 0) ? (0xEDB88320u ^ (c >> 1)) : (c >> 1);
+                    t[n] = c;
+                }
+                crcTable = t;
+            }
+            crc = crc ^ 0xFFFFFFFFu;
+            for (int i = 0; i < len; i++) crc = crcTable[(crc ^ d[off + i]) & 0xFF] ^ (crc >> 8);
+            return crc ^ 0xFFFFFFFFu;
+        }
+
+        static void WriteBE(Stream s, uint v)
+        {
+            s.WriteByte((byte)(v >> 24)); s.WriteByte((byte)(v >> 16)); s.WriteByte((byte)(v >> 8)); s.WriteByte((byte)v);
+        }
+
+        static void Chunk(Stream s, string type, byte[] data)
+        {
+            WriteBE(s, (uint)data.Length);
+            byte[] tb = new byte[4 + data.Length];
+            for (int i = 0; i < 4; i++) tb[i] = (byte)type[i];
+            Buffer.BlockCopy(data, 0, tb, 4, data.Length);
+            s.Write(tb, 0, tb.Length);
+            WriteBE(s, Crc32(tb, 0, tb.Length, 0));
+        }
+
+        static uint Adler32(byte[] d)
+        {
+            uint a = 1, b = 0;
+            for (int i = 0; i < d.Length; i++) { a = (a + d[i]) % 65521u; b = (b + a) % 65521u; }
+            return (b << 16) | a;
+        }
+
+        // RGBA -> PNG (RGBA 8 бит)
+        public static byte[] EncodePng(byte[] rgba, int w, int h)
+        {
+            int stride = w * 4 + 1;
+            byte[] raw = new byte[stride * h];
+            for (int y = 0; y < h; y++)
+            {
+                raw[y * stride] = 0;
+                Buffer.BlockCopy(rgba, y * w * 4, raw, y * stride + 1, w * 4);
+            }
+            MemoryStream z = new MemoryStream();
+            z.WriteByte(0x78); z.WriteByte(0x9C);
+            using (DeflateStream ds = new DeflateStream(z, CompressionMode.Compress, true)) { ds.Write(raw, 0, raw.Length); }
+            WriteBE(z, Adler32(raw));
+            MemoryStream ms = new MemoryStream();
+            byte[] sig = new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 };
+            ms.Write(sig, 0, sig.Length);
+            MemoryStream ih = new MemoryStream();
+            WriteBE(ih, (uint)w); WriteBE(ih, (uint)h);
+            ih.WriteByte(8); ih.WriteByte(6); ih.WriteByte(0); ih.WriteByte(0); ih.WriteByte(0);
+            Chunk(ms, "IHDR", ih.ToArray());
+            Chunk(ms, "IDAT", z.ToArray());
+            Chunk(ms, "IEND", new byte[0]);
+            return ms.ToArray();
+        }
+
+        static uint ReadBE(byte[] d, int o) { return ((uint)d[o] << 24) | ((uint)d[o + 1] << 16) | ((uint)d[o + 2] << 8) | d[o + 3]; }
+
+        // PNG -> RGBA (без чересстрочности; 8 и 16 бит; типы 0, 2, 3, 4, 6). Не поддерживается / битый - null.
+        public static byte[] DecodePng(byte[] d, out int w, out int h)
+        {
+            w = 0; h = 0;
+            if (d == null || d.Length < 33 || d[0] != 137 || d[1] != 80 || d[2] != 78 || d[3] != 71) return null;
+            int pos = 8, depth = 0, ctype = -1, interlace = 0;
+            byte[] pal = null, trns = null;
+            MemoryStream idat = new MemoryStream();
+            while (pos + 8 <= d.Length)
+            {
+                long len = ReadBE(d, pos);
+                string type = "" + (char)d[pos + 4] + (char)d[pos + 5] + (char)d[pos + 6] + (char)d[pos + 7];
+                int dp = pos + 8;
+                if (len < 0 || dp + len > d.Length) return null;
+                if (type == "IHDR")
+                {
+                    if (len < 13) return null;
+                    w = (int)ReadBE(d, dp); h = (int)ReadBE(d, dp + 4);
+                    depth = d[dp + 8]; ctype = d[dp + 9]; interlace = d[dp + 12];
+                }
+                else if (type == "PLTE") { pal = new byte[len]; Buffer.BlockCopy(d, dp, pal, 0, (int)len); }
+                else if (type == "tRNS") { trns = new byte[len]; Buffer.BlockCopy(d, dp, trns, 0, (int)len); }
+                else if (type == "IDAT") { idat.Write(d, dp, (int)len); }
+                else if (type == "IEND") break;
+                pos = dp + (int)len + 4;
+            }
+            if (w < 1 || h < 1 || w > 16384 || h > 16384 || interlace != 0 || (depth != 8 && depth != 16)) return null;
+            int ch;
+            switch (ctype) { case 0: ch = 1; break; case 2: ch = 3; break; case 3: ch = 1; break; case 4: ch = 2; break; case 6: ch = 4; break; default: return null; }
+            if (ctype == 3 && (depth != 8 || pal == null)) return null;
+            int bps = depth / 8, bpp = ch * bps, rowLen = w * bpp;
+            byte[] comp = idat.ToArray();
+            if (comp.Length < 3) return null;
+            byte[] raw = new byte[(rowLen + 1) * h];
+            try
+            {
+                using (MemoryStream cs = new MemoryStream(comp, 2, comp.Length - 2))
+                using (DeflateStream ds = new DeflateStream(cs, CompressionMode.Decompress))
+                {
+                    int got = 0;
+                    while (got < raw.Length)
+                    {
+                        int r = ds.Read(raw, got, raw.Length - got);
+                        if (r <= 0) break;
+                        got += r;
+                    }
+                    if (got < raw.Length) return null;
+                }
+            }
+            catch (Exception) { return null; }
+            byte[] cur = new byte[rowLen], prev = new byte[rowLen];
+            byte[] o = new byte[w * h * 4];
+            for (int y = 0; y < h; y++)
+            {
+                int ro = y * (rowLen + 1);
+                int ft = raw[ro];
+                for (int x = 0; x < rowLen; x++)
+                {
+                    int v = raw[ro + 1 + x];
+                    int a = x >= bpp ? cur[x - bpp] : 0, b = prev[x], c = x >= bpp ? prev[x - bpp] : 0;
+                    switch (ft)
+                    {
+                        case 0: break;
+                        case 1: v += a; break;
+                        case 2: v += b; break;
+                        case 3: v += (a + b) / 2; break;
+                        case 4:
+                        {
+                            int pp = a + b - c, pa = Math.Abs(pp - a), pb = Math.Abs(pp - b), pc = Math.Abs(pp - c);
+                            v += (pa <= pb && pa <= pc) ? a : (pb <= pc ? b : c);
+                            break;
+                        }
+                        default: return null;
+                    }
+                    cur[x] = (byte)v;
+                }
+                for (int x = 0; x < w; x++)
+                {
+                    int si = x * bpp, di = (y * w + x) * 4;
+                    byte r8, g8, b8, a8 = 255;
+                    switch (ctype)
+                    {
+                        case 0: r8 = g8 = b8 = cur[si]; break;
+                        case 2: r8 = cur[si]; g8 = cur[si + bps]; b8 = cur[si + 2 * bps]; break;
+                        case 3:
+                        {
+                            int pi = cur[si];
+                            if (pi * 3 + 2 >= pal.Length) return null;
+                            r8 = pal[pi * 3]; g8 = pal[pi * 3 + 1]; b8 = pal[pi * 3 + 2];
+                            if (trns != null && pi < trns.Length) a8 = trns[pi];
+                            break;
+                        }
+                        case 4: r8 = g8 = b8 = cur[si]; a8 = cur[si + bps]; break;
+                        default: r8 = cur[si]; g8 = cur[si + bps]; b8 = cur[si + 2 * bps]; a8 = cur[si + 3 * bps]; break;
+                    }
+                    o[di] = r8; o[di + 1] = g8; o[di + 2] = b8; o[di + 3] = a8;
+                }
+                byte[] t = prev; prev = cur; cur = t;
+            }
+            return o;
+        }
+
+        // Уменьшение/масштаб RGBA усреднением по площади (в предумноженном виде): для иконок 256 -> 48/32/24/16 без «лесенки»
+        public static byte[] Resize(byte[] rgba, int w, int h, int nw, int nh)
+        {
+            byte[] o = new byte[nw * nh * 4];
+            double sx = (double)w / nw, sy = (double)h / nh;
+            for (int dy = 0; dy < nh; dy++)
+            {
+                double y0 = dy * sy, y1 = (dy + 1) * sy;
+                int iy0 = (int)Math.Floor(y0), iy1 = Math.Min(h - 1, (int)Math.Ceiling(y1) - 1);
+                for (int dx = 0; dx < nw; dx++)
+                {
+                    double x0 = dx * sx, x1 = (dx + 1) * sx;
+                    int ix0 = (int)Math.Floor(x0), ix1 = Math.Min(w - 1, (int)Math.Ceiling(x1) - 1);
+                    double sw = 0, sa = 0, sr = 0, sg = 0, sb = 0;
+                    for (int y = iy0; y <= iy1; y++)
+                    {
+                        double wy = Math.Min(y + 1, y1) - Math.Max(y, y0);
+                        if (wy <= 0) continue;
+                        for (int x = ix0; x <= ix1; x++)
+                        {
+                            double wx = Math.Min(x + 1, x1) - Math.Max(x, x0);
+                            if (wx <= 0) continue;
+                            double wt = wx * wy;
+                            int i = (y * w + x) * 4;
+                            double a = rgba[i + 3] / 255.0;
+                            sw += wt; sa += a * wt;
+                            sr += rgba[i] * a * wt; sg += rgba[i + 1] * a * wt; sb += rgba[i + 2] * a * wt;
+                        }
+                    }
+                    int di = (dy * nw + dx) * 4;
+                    if (sw <= 0 || sa <= 0) continue;
+                    o[di] = (byte)Recolor.Rnd(sr / sa); o[di + 1] = (byte)Recolor.Rnd(sg / sa); o[di + 2] = (byte)Recolor.Rnd(sb / sa);
+                    o[di + 3] = (byte)Recolor.Rnd(sa / sw * 255.0);
+                }
+            }
+            return o;
+        }
+
+        public static byte[] BuildIco(byte[][] pngs, int[] sizes)
+        {
+            int n = pngs.Length;
+            MemoryStream ms = new MemoryStream();
+            BinaryWriter bw = new BinaryWriter(ms);
+            bw.Write((ushort)0); bw.Write((ushort)1); bw.Write((ushort)n);
+            int offset = 6 + 16 * n;
+            for (int i = 0; i < n; i++)
+            {
+                byte sz = (byte)(sizes[i] >= 256 ? 0 : sizes[i]);
+                bw.Write(sz); bw.Write(sz); bw.Write((byte)0); bw.Write((byte)0);
+                bw.Write((ushort)1); bw.Write((ushort)32);
+                bw.Write((uint)pngs[i].Length); bw.Write((uint)offset);
+                offset += pngs[i].Length;
+            }
+            for (int i = 0; i < n; i++) bw.Write(pngs[i]);
+            bw.Flush();
+            return ms.ToArray();
+        }
+
+        // RGBA -> .ico (кадры PNG): главный кадр = размер исходника (не больше 256, без «раздувания»: у паков иконки 128 px) и уменьшенные 64, 48, 40, 32, 24, 20, 16
+        // (усреднение по площади). Для исходника 256 px это 256 + 64/48/40/32/24/20/16.
+        public static byte[] MakeIco(byte[] rgba, int w, int h)
+        {
+            int top = Math.Min(256, Math.Max(w, h));
+            byte[] big = rgba;
+            if (w != top || h != top) big = Resize(rgba, w, h, top, top);
+            List<byte[]> frames = new List<byte[]>();
+            List<int> szs = new List<int>();
+            frames.Add(EncodePng(big, top, top)); szs.Add(top);
+            foreach (int s in new int[] { 64, 48, 40, 32, 24, 20, 16 })
+            {
+                if (s >= top) continue;
+                frames.Add(EncodePng(Resize(big, top, top, s, s), s, s)); szs.Add(s);
+            }
+            return BuildIco(frames.ToArray(), szs.ToArray());
+        }
+
+        // PNG или JPEG (по сигнатуре) -> RGBA; JPEG - через слой кодеков (только Windows)
+        public static byte[] Decode(byte[] data, out int w, out int h)
+        {
+            w = 0; h = 0;
+            if (data == null || data.Length < 4) throw new InvalidDataException("пустой файл");
+            byte[] px = null;
+            if (data[0] == 137 && data[1] == 80) px = DecodePng(data, out w, out h);
+            if (px != null) return px;
+            return Codec.Decode(data, out w, out h);
+        }
+    }
+
+    // ---------- Пакетная отрисовка в несколько потоков ----------
+    public sealed class Job
+    {
+        public string Kind;                // "icon" | "tile"
+        public string Src;
+        public string OutPng;              // icon: PNG 256 (необязательно)
+        public string OutIco;              // icon: ICO (необязательно)
+        public string OutTile;             // tile: .jpg / .jpeg (JPEG, качество 92) или .png
+        public Op[] Ops;
+        public int Brand = -1;
+        public string Error;
+    }
+
+    public sealed class Batch
+    {
+        readonly Job[] jobs;
+        readonly int threads;
+        Thread[] ths;
+        int next = -1, done = 0, failed = 0;
+        volatile bool cancel = false;
+
+        public Batch(Job[] jobs, int threads) { this.jobs = jobs; this.threads = Math.Max(1, threads); }
+        public int Total { get { return jobs.Length; } }
+        public int Done { get { return Thread.VolatileRead(ref done); } }
+        public int Failed { get { return Thread.VolatileRead(ref failed); } }
+        public bool IsCompleted { get { return Done >= jobs.Length; } }
+        public Job[] Jobs { get { return jobs; } }
+        public void Cancel() { cancel = true; }
+
+        public void Start()
+        {
+            int n = Math.Min(threads, Math.Max(1, jobs.Length));
+            ths = new Thread[n];
+            for (int i = 0; i < n; i++)
+            {
+                ths[i] = new Thread(Work);
+                ths[i].IsBackground = true;
+                ths[i].Start();
+            }
+        }
+
+        public bool Wait(int ms)
+        {
+            if (ths == null) return true;
+            DateTime end = DateTime.UtcNow.AddMilliseconds(ms);
+            foreach (Thread t in ths)
+            {
+                int left = (int)(end - DateTime.UtcNow).TotalMilliseconds;
+                if (left < 0) left = 0;
+                if (!t.Join(left)) return false;
+            }
+            return true;
+        }
+
+        void Work()
+        {
+            while (true)
+            {
+                int i = Interlocked.Increment(ref next);
+                if (i >= jobs.Length) break;
+                if (cancel) { jobs[i].Error = "отменено"; Interlocked.Increment(ref failed); Interlocked.Increment(ref done); continue; }
+                try { Process(jobs[i]); }
+                catch (Exception ex) { jobs[i].Error = ex.Message; Interlocked.Increment(ref failed); }
+                Interlocked.Increment(ref done);
+            }
+        }
+
+        static void WriteAtomic(string path, byte[] bytes)
+        {
+            string dir = Path.GetDirectoryName(path);
+            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+            string tmp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            File.WriteAllBytes(tmp, bytes);
+            try
+            {
+                if (File.Exists(path)) File.Replace(tmp, path, null);
+                else
+                {
+                    try { File.Move(tmp, path); }
+                    catch (IOException) { if (!File.Exists(path)) throw; File.Replace(tmp, path, null); }       // тот же файл успел записать другой поток / процесс
+                }
+            }
+            finally { if (File.Exists(tmp)) { try { File.Delete(tmp); } catch (Exception) { } } }
+        }
+
+        public static void Process(Job j)
+        {
+            int w, h;
+            byte[] px = Img.Decode(File.ReadAllBytes(j.Src), out w, out h);
+            bool tile = (j.Kind == "tile");
+            byte[] o = Recolor.Apply(px, j.Ops, tile, j.Brand);
+            if (!tile)
+            {
+                if (!string.IsNullOrEmpty(j.OutPng)) WriteAtomic(j.OutPng, Img.EncodePng(o, w, h));
+                if (!string.IsNullOrEmpty(j.OutIco)) WriteAtomic(j.OutIco, Img.MakeIco(o, w, h));
+            }
+            else
+            {
+                string ext = Path.GetExtension(j.OutTile).ToLowerInvariant();
+                byte[] enc = (ext == ".jpg" || ext == ".jpeg") ? Codec.EncodeJpeg(o, w, h, 92) : Img.EncodePng(o, w, h);
+                WriteAtomic(j.OutTile, enc);
+            }
+        }
+    }
+}
+'@
+
+# слой кодеков: заглушка (Linux / тесты) - JPEG недоступен
+$script:SI_VariantsCodecStub = @'
+namespace GlyphixVariants
+{
+    using System;
+    public static class Codec
+    {
+        public static bool Available { get { return false; } }
+        public static byte[] Decode(byte[] data, out int w, out int h) { w = 0; h = 0; throw new NotSupportedException("JPEG-кодек доступен только в Windows"); }
+        public static byte[] EncodeJpeg(byte[] rgba, int w, int h, int quality) { throw new NotSupportedException("JPEG-кодек доступен только в Windows"); }
+    }
+}
+'@
+
+# слой кодеков Windows: GDI+ (System.Drawing). Только Windows; в тестах не проверяется.
+$script:SI_VariantsCodecWin = @'
+namespace GlyphixVariants
+{
+    using System;
+    using System.Drawing;
+    using System.Drawing.Imaging;
+    using System.IO;
+    using System.Runtime.InteropServices;
+
+    public static class Codec
+    {
+        public static bool Available { get { return true; } }
+
+        // PNG / JPEG / любой формат GDI+ -> RGBA (прямая прозрачность)
+        public static byte[] Decode(byte[] data, out int w, out int h)
+        {
+            using (MemoryStream ms = new MemoryStream(data))
+            using (Bitmap src = new Bitmap(ms))
+            {
+                w = src.Width; h = src.Height;
+                BitmapData d = src.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                try
+                {
+                    byte[] o = new byte[w * h * 4];
+                    byte[] row = new byte[w * 4];
+                    for (int y = 0; y < h; y++)
+                    {
+                        Marshal.Copy(new IntPtr(d.Scan0.ToInt64() + (long)y * d.Stride), row, 0, w * 4);
+                        for (int x = 0; x < w; x++)
+                        {
+                            int i = (y * w + x) * 4;
+                            o[i] = row[x * 4 + 2]; o[i + 1] = row[x * 4 + 1]; o[i + 2] = row[x * 4]; o[i + 3] = row[x * 4 + 3];
+                        }
+                    }
+                    return o;
+                }
+                finally { src.UnlockBits(d); }
+            }
+        }
+
+        public static byte[] EncodeJpeg(byte[] rgba, int w, int h, int quality)
+        {
+            using (Bitmap bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb))
+            {
+                BitmapData d = bmp.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+                try
+                {
+                    byte[] row = new byte[Math.Abs(d.Stride)];
+                    for (int y = 0; y < h; y++)
+                    {
+                        Array.Clear(row, 0, row.Length);
+                        for (int x = 0; x < w; x++)
+                        {
+                            int i = (y * w + x) * 4;
+                            row[x * 3] = rgba[i + 2]; row[x * 3 + 1] = rgba[i + 1]; row[x * 3 + 2] = rgba[i];
+                        }
+                        Marshal.Copy(row, 0, new IntPtr(d.Scan0.ToInt64() + (long)y * d.Stride), Math.Abs(d.Stride));
+                    }
+                }
+                finally { bmp.UnlockBits(d); }
+                ImageCodecInfo codec = null;
+                foreach (ImageCodecInfo c in ImageCodecInfo.GetImageEncoders()) { if (c.MimeType == "image/jpeg") { codec = c; break; } }
+                MemoryStream ms = new MemoryStream();
+                if (codec == null) { bmp.Save(ms, ImageFormat.Jpeg); return ms.ToArray(); }
+                using (EncoderParameters ep = new EncoderParameters(1))
+                {
+                    ep.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, (long)quality);
+                    bmp.Save(ms, codec, ep);
+                }
+                return ms.ToArray();
+            }
+        }
+    }
+}
+'@
+
+# Компиляция один раз на процесс (как Initialize-AutoNative: мьютекс - фоновые runspace'ы одного процесса не компилируют тип дважды)
+function Initialize-VariantsNative {
+    if ('GlyphixVariants.Recolor' -as [type]) { return $true }
+    $win = ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT)
+    $mtx = $null; $held = $false
+    try { $mtx = New-Object System.Threading.Mutex($false, 'Local\GlyphixVariantsCompile') } catch { $mtx = $null }
+    try {
+        if ($mtx) {
+            try { $held = $mtx.WaitOne(20000) } catch [System.Threading.AbandonedMutexException] { $held = $true }
+        }
+        if ('GlyphixVariants.Recolor' -as [type]) { return $true }
+        try {
+            if ($win) { Add-Type -TypeDefinition ($script:SI_VariantsCoreCode + "`n" + $script:SI_VariantsCodecWin) -Language CSharp -ReferencedAssemblies 'System.Drawing' }
+            else { Add-Type -TypeDefinition ($script:SI_VariantsCoreCode + "`n" + $script:SI_VariantsCodecStub) -Language CSharp }
+        } catch {
+            if (-not ('GlyphixVariants.Recolor' -as [type])) { throw }
+        }
+    } finally {
+        if ($mtx) { if ($held) { try { $mtx.ReleaseMutex() } catch { } }; $mtx.Dispose() }
+    }
+    return $true
+}
+
+$script:SI_VariantOpNames = @('gradient_map', 'brand_map', 'hue_rotate', 'saturate', 'brightness', 'contrast', 'gamma', 'mix', 'colorize', 'alpha')
+$script:SI_VariantRenderVersion = 1                  # меняется вместе с алгоритмом отрисовки (часть ключа кэша)
+$script:SI_Inv = [Globalization.CultureInfo]::InvariantCulture
+
+function ConvertTo-VariantRgb {
+    param($Hex)
+    $s = ([string]$Hex).Trim()
+    if ($s -eq '{brand}') { return -1 }
+    if ($s -notmatch '^#[0-9a-fA-F]{6}$') { throw "неверный цвет '$s'" }
+    return [int][Convert]::ToInt32($s.Substring(1), 16)
+}
+
+function ConvertTo-VariantNum {
+    param($V)
+    return [double]::Parse(([string]([double]$V)), $script:SI_Inv)
+}
+
+# JSON-операции каталога (массив объектов) -> GlyphixVariants.Op[]; неизвестная операция / неверное значение - исключение
+function ConvertTo-VariantOps {
+    param($Ops)
+    [void](Initialize-VariantsNative)
+    $list = New-Object 'System.Collections.Generic.List[GlyphixVariants.Op]'
+    foreach ($o in @($Ops)) {
+        if ($null -eq $o) { continue }
+        $name = [string](Get-JsonProp $o 'op')
+        if ($script:SI_VariantOpNames -notcontains $name) { throw "неизвестная операция '$name'" }
+        $op = New-Object GlyphixVariants.Op
+        $op.Name = $name
+        $tg = Get-JsonProp $o 'target'
+        if ($null -ne $tg) {
+            if ([string]$tg -eq 'icons') { $op.Target = 1 } elseif ([string]$tg -eq 'tiles') { $op.Target = 2 } else { throw "неверный target '$tg'" }
+        }
+        $num = {
+            param([string]$Key, [double]$Def)
+            $v = Get-JsonProp $o $Key
+            if ($null -eq $v) { return $Def }
+            return [double]$v
+        }
+        $mn = Get-JsonProp $o 'min_l'; if ($null -ne $mn) { $op.MinL = [double]$mn }
+        $mx = Get-JsonProp $o 'max_l'; if ($null -ne $mx) { $op.MaxL = [double]$mx }
+        switch ($name) {
+            { $_ -eq 'gradient_map' -or $_ -eq 'brand_map' } {
+                $st = @(Get-JsonProp $o 'stops')
+                if ($st.Count -lt 1) { throw 'gradient_map: нет точек' }
+                $pos = New-Object 'double[]' $st.Count; $rgb = New-Object 'int[]' $st.Count
+                for ($i = 0; $i -lt $st.Count; $i++) {
+                    $pr = @($st[$i])
+                    if ($pr.Count -ne 2) { throw 'gradient_map: точка должна быть [pos, цвет]' }
+                    $pos[$i] = [double]$pr[0]; $rgb[$i] = ConvertTo-VariantRgb $pr[1]
+                    if ($i -gt 0 -and $pos[$i] -lt $pos[$i - 1]) { throw 'gradient_map: pos должны идти по возрастанию' }
+                }
+                $op.StopPos = $pos; $op.StopRgb = $rgb
+                $op.Strength = (& $num 'strength' 1.0)
+                $op.SourceMax = ([string](Get-JsonProp $o 'source') -eq 'max')
+            }
+            'hue_rotate' { $op.Deg = (& $num 'deg' 0.0) }
+            'saturate' { $op.K = (& $num 'k' 1.0) }
+            'brightness' { $op.K = (& $num 'k' 1.0) }
+            'contrast' { $op.K = (& $num 'k' 1.0) }
+            'gamma' { $op.G = (& $num 'g' 1.0); if ($op.G -le 0) { throw 'gamma: g должно быть > 0' } }
+            'mix' {
+                $c = ConvertTo-VariantRgb (Get-JsonProp $o 'color'); if ($c -lt 0) { $op.ColorBrand = $true } else { $op.Color = $c }
+                $op.K = (& $num 'k' 0.0)
+            }
+            'colorize' {
+                $c = ConvertTo-VariantRgb (Get-JsonProp $o 'color'); if ($c -lt 0) { $op.ColorBrand = $true } else { $op.Color = $c }
+                $op.Gain = (& $num 'gain' 1.5)
+                $kv = Get-JsonProp $o 'keep_v'; if ($null -ne $kv) { $op.KeepV = [bool]$kv }
+            }
+            'alpha' {
+                $op.Scale = (& $num 'scale' 1.0); $op.Lo = (& $num 'lo' 0.0); $op.Hi = (& $num 'hi' 1.0); $op.A0 = (& $num 'a0' 1.0); $op.A1 = (& $num 'a1' 1.0)
+            }
+        }
+        $list.Add($op)
+    }
+    return , $list.ToArray()
+}
+
+# цвет '#RRGGBB' -> int (-1 - нет / неверный)
+function ConvertTo-BrandRgb {
+    param($Hex)
+    $s = ([string]$Hex).Trim()
+    if ($s -notmatch '^#[0-9a-fA-F]{6}$') { return -1 }
+    return [int][Convert]::ToInt32($s.Substring(1), 16)
+}
+
+# Перекрасить RGBA-пиксели (byte[]): $Kind 'icon' | 'tile', $Brand '#RRGGBB' или ''
+function Invoke-VariantOps {
+    param([byte[]]$Rgba, $Ops, [string]$Kind = 'icon', [string]$Brand = '')
+    [void](Initialize-VariantsNative)
+    $nOps = if ($Ops -is [GlyphixVariants.Op[]]) { $Ops } else { ConvertTo-VariantOps $Ops }
+    return , [GlyphixVariants.Recolor]::Apply($Rgba, $nOps, ($Kind -eq 'tile'), (ConvertTo-BrandRgb $Brand))
+}
+
+# Зажим светлоты цвета бренда: '#RRGGBB' -> '#RRGGBB'; MinL / MaxL необязательны ($null)
+function Get-ClampedBrand {
+    param([string]$Hex, $MinL = $null, $MaxL = $null)
+    $mn = [double]::NaN; $mx = [double]::NaN
+    if ($null -ne $MinL) { $mn = [double]$MinL }
+    if ($null -ne $MaxL) { $mx = [double]$MaxL }
+    [void](Initialize-VariantsNative)
+    $c = [GlyphixVariants.Recolor]::ClampBrand((ConvertTo-VariantRgb $Hex), $mn, $mx)
+    return ('#{0:X6}' -f $c)
+}
+
+# ---------- Каталог вариантов (variants.json) ----------
+# Локально: catalog\variants.json + catalog\previews\<id>.jpg (скачиваются вместе с index.json, Update-Packs -> Update-VariantCatalog).
+# Нет каталога / он не читается - запасной каталог из паков (index.json): каждый пак = один вариант без операций (id варианта = id пака).
+$script:SI_CatalogDir = Join-Path $script:SI_Home 'catalog'
+$script:SI_CatalogFile = Join-Path $script:SI_CatalogDir 'variants.json'
+$script:SI_PreviewDir = Join-Path $script:SI_CatalogDir 'previews'
+$script:SI_PreviewStamp = Join-Path $script:SI_CatalogDir 'previews.stamp'
+$script:SI_VariantsDir = Join-Path $script:SI_Home 'variants'                        # кэш отрисованных вариантов: variants\<id>\<ключ>\...
+$script:SI_CatalogMaxBytes = 2097152
+$script:SI_CatalogCache = $null
+$script:SI_IdRx = '^[a-z0-9][a-z0-9_\-]{0,63}$'
+
+function Test-OpsUseBrand {
+    param($Ops)
+    foreach ($o in @($Ops)) {
+        if ([string](Get-JsonProp $o 'color') -eq '{brand}') { return $true }
+        foreach ($st in @(Get-JsonProp $o 'stops')) { if ($st -and @($st).Count -ge 2 -and [string]@($st)[1] -eq '{brand}') { return $true } }
+    }
+    return $false
+}
+
+function Add-VariantProps {
+    param($V, $Section, [string]$PreviewDir)
+    $pp = $null
+    $cand = Join-Path $PreviewDir ([string]$V.Id + '.jpg')
+    if (Test-Path -LiteralPath $cand -PathType Leaf) { $pp = $cand }
+    return [pscustomobject]@{
+        Id = [string]$V.Id; Title = [string]$V.Title; Base = [string]$V.Base; Ops = @($V.Ops); IsBase = (@($V.Ops).Count -eq 0)
+        UsesBrand = (Test-OpsUseBrand $V.Ops); Preview = [string]$V.Preview; PreviewPath = $pp; Tags = @($V.Tags)
+        SectionId = [string]$Section.Id; SectionTitle = [string]$Section.Title; Fallback = $false; Description = ''
+    }
+}
+
+# Разбор и проверка variants.json. Возвращает каталог или бросает исключение (такой файл не сохраняется и не принимается). Варианты с неизвестной
+# операцией / неверными данными пропускаются (в журнал), остальные работают.
+function ConvertFrom-VariantCatalog {
+    param([byte[]]$Bytes, [string]$PreviewDir = $script:SI_PreviewDir)
+    $j = ConvertFrom-JsonBytes $Bytes
+    if ($null -eq $j -or $j -isnot [pscustomobject]) { throw 'variants.json: ожидался объект' }
+    $schema = Get-JsonProp $j 'schema'
+    if ($null -eq $schema -or [int]$schema -ne 1) { throw "variants.json: неподдерживаемая schema '$schema'" }
+    $secs = @(Get-JsonProp $j 'sections')
+    if ($secs.Count -eq 0) { throw 'variants.json: нет секций' }
+    $brand = @{}
+    $bc = Get-JsonProp $j 'brand_colors'
+    if ($bc) { foreach ($p in $bc.PSObject.Properties) { if ($p.Name -match '^[A-Za-z0-9_\-]+$' -and ([string]$p.Value) -match '^#[0-9a-fA-F]{6}$') { $brand[$p.Name] = ([string]$p.Value).ToUpperInvariant() } } }
+    $flags = @{}
+    $bf = Get-JsonProp $j 'brand_flags'
+    if ($bf) { foreach ($p in $bf.PSObject.Properties) { if ($p.Name -match '^[A-Za-z0-9_\-]+$') { $flags[$p.Name] = $p.Value } } }
+    $outSecs = New-Object 'System.Collections.Generic.List[object]'
+    $flat = New-Object 'System.Collections.Generic.List[object]'
+    $byId = @{}
+    foreach ($s in $secs) {
+        $sid = [string](Get-JsonProp $s 'id')
+        if ($sid -notmatch '^[A-Za-z0-9_\-]{1,40}$') { Write-Log "  каталог вариантов: секция с неверным id '$sid' пропущена"; continue }
+        $sec = [pscustomobject]@{ Id = $sid; Title = [string](Get-JsonProp $s 'title'); Subtitle = [string](Get-JsonProp $s 'subtitle'); Variants = $null }
+        $vl = New-Object 'System.Collections.Generic.List[object]'
+        foreach ($v in @(Get-JsonProp $s 'variants')) {
+            $vid = [string](Get-JsonProp $v 'id'); $vb = [string](Get-JsonProp $v 'base')
+            if ($vid -notmatch $script:SI_IdRx -or $vb -notmatch $script:SI_IdRx) { Write-Log "  каталог вариантов: вариант '$vid' (base '$vb') пропущен - неверный id"; continue }
+            if ($byId.ContainsKey($vid)) { Write-Log "  каталог вариантов: повторный id '$vid' пропущен"; continue }
+            $ops = @(Get-JsonProp $v 'ops')
+            try { [void](ConvertTo-VariantOps $ops) } catch { Write-Log "  каталог вариантов: '$vid' пропущен - $($_.Exception.Message)"; continue }
+            $prev = [string](Get-JsonProp $v 'preview')
+            if ($prev -and -not (Test-SafeRel $prev @('.jpg', '.jpeg', '.png'))) { Write-Log "  каталог вариантов: у '$vid' небезопасный путь превью - убран"; $prev = '' }
+            $tags = @(Get-JsonProp $v 'tags' | ForEach-Object { [string]$_ })
+            $o = Add-VariantProps ([pscustomobject]@{ Id = $vid; Title = $(if (Get-JsonProp $v 'title') { [string](Get-JsonProp $v 'title') } else { $vid }); Base = $vb; Ops = $ops; Preview = $prev; Tags = $tags }) $sec $PreviewDir
+            $vl.Add($o); $flat.Add($o); $byId[$vid] = $o
+        }
+        $sec.Variants = $vl.ToArray()
+        if ($vl.Count -gt 0) { $outSecs.Add($sec) }
+    }
+    if ($flat.Count -eq 0) { throw 'variants.json: ни одного допустимого варианта' }
+    return [pscustomobject]@{ Schema = 1; Updated = [string](Get-JsonProp $j 'updated'); Source = 'catalog'; Sections = $outSecs.ToArray(); Variants = $flat.ToArray(); ById = $byId; BrandColors = $brand; BrandFlags = $flags }
+}
+
+# Запасной каталог: паки из локального packs\index.json (порядок как в нём), иначе - прочитанные Get-Packs. Каждый пак = вариант без операций.
+function Get-FallbackVariantCatalog {
+    $entries = New-Object 'System.Collections.Generic.List[object]'
+    $ixf = Join-Path $script:SI_PacksDir 'index.json'
+    try {
+        if (Test-Path -LiteralPath $ixf -PathType Leaf) {
+            foreach ($e in @((Read-JsonFile $ixf).packs)) {
+                $id = [string]$e.id
+                if ($id -match $script:SI_IdRx) { $entries.Add([pscustomobject]@{ Id = $id; Name = [string]$e.name; Description = [string]$e.description }) }
+            }
+        }
+    } catch { Write-Log ('запасной каталог: index.json не прочитан - ' + $_.Exception.Message) }
+    if ($entries.Count -eq 0) {
+        try { foreach ($p in @(Get-Packs)) { $entries.Add([pscustomobject]@{ Id = [string]$p.Id; Name = [string]$p.Name; Description = [string]$p.Description }) } } catch { }
+    }
+    $sec = [pscustomobject]@{ Id = 'packs'; Title = 'Паки'; Subtitle = ''; Variants = $null }
+    $flat = New-Object 'System.Collections.Generic.List[object]'
+    $byId = @{}
+    foreach ($e in $entries) {
+        if ($byId.ContainsKey($e.Id)) { continue }
+        $pv = Join-Path (Join-Path $script:SI_PacksDir $e.Id) 'preview.png'
+        $o = [pscustomobject]@{
+            Id = $e.Id; Title = $(if ($e.Name) { $e.Name } else { $e.Id }); Base = $e.Id; Ops = @(); IsBase = $true; UsesBrand = $false; Preview = ''
+            PreviewPath = $(if (Test-Path -LiteralPath $pv -PathType Leaf) { $pv } else { $null }); Tags = @(); SectionId = 'packs'; SectionTitle = 'Паки'; Fallback = $true; Description = $e.Description
+        }
+        $flat.Add($o); $byId[$e.Id] = $o
+    }
+    $sec.Variants = $flat.ToArray()
+    return [pscustomobject]@{ Schema = 1; Updated = ''; Source = 'fallback'; Sections = $(if ($flat.Count -gt 0) { @($sec) } else { @() }); Variants = $flat.ToArray(); ById = $byId; BrandColors = @{}; BrandFlags = @{} }
+}
+
+# Каталог для показа: локальный catalog\variants.json (если читается и проходит проверку), иначе запасной из паков. Результат кэшируется по файлу.
+function Get-VariantCatalog {
+    param([switch]$Fallback)
+    if (-not $Fallback -and (Test-Path -LiteralPath $script:SI_CatalogFile -PathType Leaf)) {
+        try {
+            $fi = Get-Item -LiteralPath $script:SI_CatalogFile
+            $key = $script:SI_CatalogFile + '|' + $fi.LastWriteTimeUtc.Ticks + '|' + $fi.Length
+            $pc = $script:SI_CatalogCache
+            if ($pc -and $pc.Key -eq $key -and -not $pc.PreviewsChanged) { return $pc.Value }
+            $cat = ConvertFrom-VariantCatalog ([IO.File]::ReadAllBytes($script:SI_CatalogFile))
+            $script:SI_CatalogCache = [pscustomobject]@{ Key = $key; Value = $cat; PreviewsChanged = $false }
+            return $cat
+        } catch { Write-Log ('каталог вариантов не прочитан, беру паки: ' + $_.Exception.Message) }
+    }
+    return (Get-FallbackVariantCatalog)
+}
+
+# Вариант по id: из каталога; нет там - пак с таким id (старые вызовы 2.x: «применить пак shadow»); иначе $null
+function Get-Variant {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Id)
+    $cat = Get-VariantCatalog
+    if ($cat.ById.ContainsKey($Id)) { return $cat.ById[$Id] }
+    if ($cat.Source -ne 'fallback') { $fb = Get-FallbackVariantCatalog; if ($fb.ById.ContainsKey($Id)) { return $fb.ById[$Id] } }
+    return $null
+}
+
+# Путь к превью карточки варианта (JPEG из каталога или preview.png пака); файла нет - $null
+function Get-VariantPreviewPath {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Id)
+    $v = Get-Variant $Id
+    if (-not $v) { return $null }
+    if ($v.PreviewPath -and (Test-Path -LiteralPath ([string]$v.PreviewPath) -PathType Leaf)) { return [string]$v.PreviewPath }
+    $cand = Join-Path $script:SI_PreviewDir ($Id + '.jpg')
+    if (Test-Path -LiteralPath $cand -PathType Leaf) { return $cand }
+    return $null
+}
+
+# Скачать variants.json и превью (вместе с index.json: вызывается из Update-Packs). Те же повторы и зеркало, что у паков. Ничего не бросает.
+# Возвращает { Ok; Updated (каталог заменён); Previews (скачано); Failed; Message }.
+function Update-VariantCatalog {
+    [CmdletBinding()]
+    param([string]$BaseUrl = $script:SI_BaseUrl, $Index = $null, [switch]$NoPreviews, $Cancel = $null)
+    $res = [pscustomobject]@{ Ok = $false; Updated = $false; Previews = 0; Failed = 0; Message = '' }
+    try {
+        if (-not $BaseUrl.EndsWith('/')) { $BaseUrl += '/' }
+        $bytes = Get-WebBytes ($BaseUrl + 'variants.json') $script:SI_CatalogMaxBytes
+        if ($Index) {
+            $want = [string](Get-JsonProp $Index 'variants_sha256')           # необязательно: если издатель указал хэш в index.json - сверяем
+            if ($want -and (Get-BytesSha256 $bytes) -ne $want.ToLowerInvariant()) { throw 'sha256 variants.json не совпал с index.json' }
+        }
+        $cat = ConvertFrom-VariantCatalog $bytes
+        $keepLocal = $false
+        if (Test-Path -LiteralPath $script:SI_CatalogFile -PathType Leaf) {
+            try {
+                $loc = ConvertFrom-VariantCatalog ([IO.File]::ReadAllBytes($script:SI_CatalogFile))
+                if ($loc.Updated -and $cat.Updated -and [string]::CompareOrdinal($loc.Updated, $cat.Updated) -gt 0) { $keepLocal = $true; Write-Log "каталог вариантов на сервере (зеркало?) старше локального ($($cat.Updated) < $($loc.Updated)) - локальный оставляю" }
+                elseif ((Get-FileSha256 $script:SI_CatalogFile) -eq (Get-BytesSha256 $bytes)) { $keepLocal = $true }
+            } catch { }
+        }
+        if (-not $keepLocal) { Save-FileAtomic $script:SI_CatalogFile $bytes; $res.Updated = $true; $script:SI_CatalogCache = $null; Write-Log "Каталог вариантов обновлён: вариантов $(@($cat.Variants).Count)" }
+        $res.Ok = $true
+        if ($NoPreviews -or (Test-RefreshCancelled $Cancel)) { return $res }
+        $cur = Get-VariantCatalog
+        $stampWant = [string]$cur.Updated + ':' + (Get-FileSha256 $script:SI_CatalogFile).Substring(0, 8)
+        $stampHave = ''; try { if (Test-Path -LiteralPath $script:SI_PreviewStamp -PathType Leaf) { $stampHave = ([IO.File]::ReadAllText($script:SI_PreviewStamp)).Trim() } } catch { }
+        $items = New-Object 'System.Collections.Generic.List[object]'
+        $jpegCheck = { param($b) ($b.Length -gt 4 -and $b[0] -eq 0xFF -and $b[1] -eq 0xD8) -or ($b.Length -gt 8 -and $b[0] -eq 0x89 -and $b[1] -eq 0x50) }
+        foreach ($v in @($cur.Variants)) {
+            if (-not $v.Preview) { continue }
+            $dest = Join-Path $script:SI_PreviewDir ([string]$v.Id + '.jpg')
+            if ($stampHave -eq $stampWant -and (Test-Path -LiteralPath $dest -PathType Leaf)) { continue }
+            $items.Add([pscustomobject]@{ Rel = [string]$v.Preview; Url = ($BaseUrl + [string]$v.Preview); Dest = $dest; Sha = ''; Check = $jpegCheck })
+        }
+        if ($items.Count -gt 0) {
+            $d = Invoke-ParallelDownload -Items $items.ToArray() -Label 'превью вариантов'
+            $res.Previews = [int]$d.Done; $res.Failed = [int]$d.Failed.Count
+            $script:SI_CatalogCache = $null
+        }
+        if ($res.Failed -eq 0) { try { Save-FileAtomic $script:SI_PreviewStamp ([System.Text.UTF8Encoding]::new($false).GetBytes($stampWant)) } catch { } }
+        else { $res.Ok = $false; $res.Message = "превью не скачано: $($res.Failed)" }
+    } catch {
+        $res.Ok = $false; $res.Message = $_.Exception.Message
+        Write-Log ('Каталог вариантов не обновлён: ' + $_.Exception.Message)
+    }
+    return $res
+}
+
+# ---------- Варианты как паки ----------
+# Канонический JSON (ключи по алфавиту, числа в инвариантной записи): не зависит от версии PowerShell - иначе ключ кэша менялся бы между 5.1 и 7
+function ConvertTo-CanonicalJson {
+    param($V)
+    if ($null -eq $V) { return 'null' }
+    if ($V -is [bool]) { return $(if ($V) { 'true' } else { 'false' }) }
+    if ($V -is [string]) { return ('"' + ($V -replace '\\', '\\' -replace '"', '\"') + '"') }
+    if ($V -is [int] -or $V -is [long] -or $V -is [double] -or $V -is [single] -or $V -is [decimal]) { return ([double]$V).ToString('R', $script:SI_Inv) }
+    if ($V -is [System.Collections.IDictionary]) {
+        $parts = foreach ($k in @($V.Keys | Sort-Object { [string]$_ })) { '"' + [string]$k + '":' + (ConvertTo-CanonicalJson $V[$k]) }
+        return ('{' + (@($parts) -join ',') + '}')
+    }
+    if ($V -is [System.Collections.IEnumerable]) { return ('[' + ((@($V | ForEach-Object { ConvertTo-CanonicalJson $_ })) -join ',') + ']') }
+    $props = @($V.PSObject.Properties | Sort-Object Name)
+    $parts2 = foreach ($p in $props) { '"' + $p.Name + '":' + (ConvertTo-CanonicalJson $p.Value) }
+    return ('{' + (@($parts2) -join ',') + '}')
+}
+
+# Ключ кэша отрисованного варианта: sha256(версия отрисовки | пак-основа, его версия и хэш pack.json | операции | таблица цветов брендов (если операции её используют))[0..7]
+function Get-VariantCacheKey {
+    param($Variant, $Base, $Catalog = $null)
+    $brand = ''
+    if ($Variant.UsesBrand) {
+        $bc = if ($Catalog) { $Catalog.BrandColors } else { @{} }
+        $brand = (@($bc.Keys | Sort-Object | ForEach-Object { $_ + '=' + $bc[$_] }) -join ';')
+        $brand = Get-BytesSha256 ([System.Text.Encoding]::UTF8.GetBytes($brand))
+    }
+    $s = 'r' + $script:SI_VariantRenderVersion + '|' + [string]$Variant.Base + '|' + [string]$Base.Version + '|' + [string]$Base.ManifestSha + '|' + (ConvertTo-CanonicalJson @($Variant.Ops)) + '|' + $brand
+    return (Get-BytesSha256 ([System.Text.Encoding]::UTF8.GetBytes($s))).Substring(0, 8)
+}
+
+# цвет бренда иконки для {brand}: из каталога; нет - основной цвет автоиконок пака, иначе фиолетовый Glyphix
+function Get-VariantBrandColor {
+    param($Catalog, [string]$IconId, $Base = $null)
+    if ($Catalog -and $Catalog.BrandColors.ContainsKey($IconId)) { return [string]$Catalog.BrandColors[$IconId] }
+    if ($Base -and $Base.PSObject.Properties['Auto'] -and $Base.Auto -and $Base.Auto.Mid) { return ([string]$Base.Auto.Mid).ToUpperInvariant() }
+    return '#7C5CFF'
+}
+
+# Паки-основы, которые нужны для вариантов: id пака, версия, хэш pack.json
+function Get-VariantBasePack {
+    param([string]$BaseId, [string[]]$SyncParts, [bool]$Sync = $true)
+    if ($Sync) { return (Sync-PackForApply -Id $BaseId -Parts $SyncParts) }
+    $pk = @(Get-Packs -OnlyId $BaseId) | Select-Object -First 1
+    if (-not $pk) { throw "пак '$BaseId' не найден" }
+    return $pk
+}
+
+# Вариант -> объект, совместимый с конвейером применения (как элемент Get-Packs): Id (= id варианта), Name, Version, Icons[ { Id, Name, Group, IcoPath, PngPath,
+# Names, Exes, TilePath, TileNoNamePath } ], Dir, Files, PartFiles, State, Auto*, плюс BaseId, VariantId, Ops, CacheKey, Failed, Synced.
+#  * ops = [] (базовый вариант): файлы - сам скачанный пак; * иначе: файлы рисуются в variants\<id>\<ключ>\icons|tiles|tiles_noname и только для
+#    нужных id: -IconIds (по умолчанию все). -Parts: icons (png+ico) | png (только превью) | tiles | noname; по умолчанию @('icons'). -Parts @() ничего не рисует
+#    (только описание: сопоставление по именам). Параллельно (потоков до 8), -OnProgress { param($done, $total) }.
+#    Нет сети - работает из кэша пака (Sync-PackForApply); -NoSync - вообще без сети (пак уже на диске).
+function Resolve-VariantPack {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$VariantId, [string[]]$IconIds = $null, [string[]]$Parts = @('icons'), [scriptblock]$OnProgress = $null, [switch]$NoSync)
+    $variant = Get-Variant $VariantId
+    if (-not $variant) { throw "вариант '$VariantId' не найден в каталоге" }
+    $Parts = @($Parts | Where-Object { $_ })
+    $syncParts = @('icons')
+    if ($Parts -contains 'tiles') { $syncParts += 'tiles' }
+    if ($Parts -contains 'noname') { $syncParts += 'noname' }
+    $base = Get-VariantBasePack ([string]$variant.Base) $syncParts (-not $NoSync)
+    $catalog = Get-VariantCatalog
+    $all = @('icons', 'tiles', 'noname')
+    if ($variant.IsBase) {
+        $base.Id = [string]$variant.Id
+        if ($variant.Title -and -not $variant.Fallback) { $base.Name = [string]$variant.Title }
+        foreach ($kv in @(@('BaseId', [string]$variant.Base), @('VariantId', [string]$variant.Id), @('Ops', @()), @('CacheKey', ''), @('Variant', $variant), @('Failed', @()), @('Rendered', 0))) {
+            $base | Add-Member -NotePropertyName $kv[0] -NotePropertyValue $kv[1] -Force
+        }
+        $base | Add-Member -NotePropertyName Synced -NotePropertyValue $true -Force
+        $base | Add-Member -NotePropertyName SyncedParts -NotePropertyValue $all -Force
+        return $base
+    }
+    [void](Initialize-VariantsNative)
+    $key = Get-VariantCacheKey $variant $base $catalog
+    $dir = Join-Path (Join-Path $script:SI_VariantsDir ([string]$variant.Id)) $key
+    $opsN = ConvertTo-VariantOps $variant.Ops
+    $want = $null
+    if ($null -ne $IconIds) { $want = @{}; foreach ($i in @($IconIds)) { if ($i) { $want[[string]$i] = $true } } }
+    $icons = New-Object 'System.Collections.Generic.List[object]'
+    $jobs = New-Object 'System.Collections.Generic.List[GlyphixVariants.Job]'
+    $files = New-Object 'System.Collections.Generic.List[string]'
+    $pIcons = New-Object 'System.Collections.Generic.List[string]'; $pTiles = New-Object 'System.Collections.Generic.List[string]'; $pNoName = New-Object 'System.Collections.Generic.List[string]'
+    $missing = New-Object 'System.Collections.Generic.List[object]'
+    $doIcons = ($Parts -contains 'icons'); $doPng = ($doIcons -or ($Parts -contains 'png'))
+    foreach ($ic in @($base.Icons)) {
+        $id = [string]$ic.Id
+        $png = Join-Path (Join-Path $dir 'icons') ($id + '.png'); $ico = Join-Path (Join-Path $dir 'icons') ($id + '.ico')
+        $tile = $null; $tileNn = $null
+        if ($ic.TilePath) { $tile = Join-Path (Join-Path $dir 'tiles') ($id + [IO.Path]::GetExtension([string]$ic.TilePath)) }
+        if ($ic.TileNoNamePath -and ([string]$ic.TileNoNamePath -ne [string]$ic.TilePath)) { $tileNn = Join-Path (Join-Path $dir 'tiles_noname') ($id + [IO.Path]::GetExtension([string]$ic.TileNoNamePath)) }
+        $icons.Add([pscustomobject]@{ Id = $id; Name = [string]$ic.Name; Group = [string]$ic.Group; IcoPath = $ico; PngPath = $png; Names = @($ic.Names); Exes = @($ic.Exes); TilePath = $tile; TileNoNamePath = $tileNn })
+        $files.Add($ico); $files.Add($png); $pIcons.Add($ico); $pIcons.Add($png)
+        if ($tile) { $files.Add($tile); $pTiles.Add($tile) }
+        if ($tileNn) { $files.Add($tileNn); $pNoName.Add($tileNn) } elseif ($tile) { $pNoName.Add($tile) }
+        if ($want -and -not $want.ContainsKey($id)) { continue }
+        $brand = if ($variant.UsesBrand) { ConvertTo-BrandRgb (Get-VariantBrandColor $catalog $id $base) } else { -1 }
+        if ($doPng) {
+            $needPng = -not (Test-Path -LiteralPath $png -PathType Leaf)
+            $needIco = $doIcons -and -not (Test-Path -LiteralPath $ico -PathType Leaf)
+            if ($needPng -or $needIco) {
+                $src = [string]$ic.PngPath
+                if (-not $src -or -not (Test-Path -LiteralPath $src -PathType Leaf)) { $missing.Add([pscustomobject]@{ IconId = $id; Kind = 'icon'; Error = 'в паке нет файла иконки' }) }
+                else {
+                    $j = New-Object GlyphixVariants.Job; $j.Kind = 'icon'; $j.Src = $src; $j.Ops = $opsN; $j.Brand = $brand
+                    if ($needPng) { $j.OutPng = $png }
+                    if ($needIco) { $j.OutIco = $ico }
+                    $jobs.Add($j)
+                }
+            }
+        }
+        $needTiles = ($Parts -contains 'tiles') -or (($Parts -contains 'noname') -and -not $tileNn)          # нет отдельной плитки без имени - для noname нужна обычная
+        foreach ($tp in @(@('tiles', $ic.TilePath, $tile), @('noname', $ic.TileNoNamePath, $tileNn))) {
+            if (($tp[0] -eq 'tiles' -and -not $needTiles) -or ($tp[0] -eq 'noname' -and $Parts -notcontains 'noname') -or -not $tp[1] -or -not $tp[2]) { continue }
+            if (Test-Path -LiteralPath ([string]$tp[2]) -PathType Leaf) { continue }
+            if (-not (Test-Path -LiteralPath ([string]$tp[1]) -PathType Leaf)) { $missing.Add([pscustomobject]@{ IconId = $id; Kind = 'tile'; Error = 'в паке нет файла плитки' }); continue }
+            $j = New-Object GlyphixVariants.Job; $j.Kind = 'tile'; $j.Src = [string]$tp[1]; $j.OutTile = [string]$tp[2]; $j.Ops = $opsN; $j.Brand = $brand
+            $jobs.Add($j)
+        }
+    }
+    $failed = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($m in $missing) { $failed.Add($m) }
+    $rendered = 0
+    if ($jobs.Count -gt 0) {
+        $label = 'Рисую ' + [string]$variant.Title
+        Write-Log ("$label : файлов $($jobs.Count)")
+        $threads = [Math]::Max(1, [Math]::Min(8, [Environment]::ProcessorCount))
+        $batch = [GlyphixVariants.Batch]::new($jobs.ToArray(), $threads)
+        $batch.Start()
+        $last = [Diagnostics.Stopwatch]::StartNew()
+        while (-not $batch.Wait(100)) {
+            if ($OnProgress) { try { & $OnProgress ([int]$batch.Done) ([int]$batch.Total) } catch { } }
+            if ($last.ElapsedMilliseconds -ge 400) { $last.Restart(); Write-Log ("${label}: $($batch.Done)/$($batch.Total)") }
+        }
+        if ($OnProgress) { try { & $OnProgress ([int]$batch.Total) ([int]$batch.Total) } catch { } }
+        foreach ($j in $jobs) {
+            if ($j.Error) { $failed.Add([pscustomobject]@{ IconId = [IO.Path]::GetFileNameWithoutExtension([string]$(if ($j.OutPng) { $j.OutPng } elseif ($j.OutIco) { $j.OutIco } else { $j.OutTile })); Kind = [string]$j.Kind; Error = [string]$j.Error }) }
+            else { $rendered++ }
+        }
+        foreach ($f in $failed) { Write-Log ("  не нарисовано $($f.IconId) ($($f.Kind)): $($f.Error)") }
+    }
+    $pk = [pscustomobject]@{
+        Id = [string]$variant.Id; Name = [string]$variant.Title; Version = [string]$base.Version; Author = [string]$base.Author; License = [string]$base.License; Description = ''
+        IconCount = $icons.Count; Dir = $dir; Preview = $(if ($variant.PreviewPath) { [string]$variant.PreviewPath } else { $base.Preview }); Icons = $icons.ToArray()
+        Files = @($files | Select-Object -Unique); PartFiles = @{ icons = $pIcons.ToArray(); tiles = $pTiles.ToArray(); noname = $pNoName.ToArray(); auto = @() }
+        State = 'ready'; Ready = $true; ManifestSha = ([string]$base.ManifestSha + '-' + $key)
+        Auto = $base.Auto; AutoDeclared = $base.AutoDeclared; AutoPath = $base.AutoPath; AutoSha = $base.AutoSha
+        BaseId = [string]$variant.Base; VariantId = [string]$variant.Id; Ops = @($variant.Ops); CacheKey = $key; Variant = $variant; Failed = $failed.ToArray(); Rendered = $rendered
+        FromCache = [bool]($base.PSObject.Properties['FromCache'] -and $base.FromCache); Synced = $true; SyncedParts = $all
+    }
+    return $pk
+}
+
+# Удалить кэш отрисованных вариантов (variants\): без параметров - всё; -KeepKeys: у каждого варианта оставить только эти ключи (вариант -> ключ). Возвращает { Files; Bytes }.
+function Clear-VariantCache {
+    [CmdletBinding()]
+    param([hashtable]$KeepKeys = @{}, [string[]]$OnlyVariants = $null)
+    $res = [pscustomobject]@{ Files = 0; Bytes = [long]0 }
+    try {
+        if (-not (Test-Path -LiteralPath $script:SI_VariantsDir -PathType Container)) { return $res }
+        $root = Get-NormalPath $script:SI_VariantsDir
+        if (-not (Test-PathUnder $root (Get-NormalPath $script:SI_Home))) { return $res }
+        foreach ($vd in @(Get-ChildItem -LiteralPath $root -Directory -Force -ErrorAction SilentlyContinue)) {
+            if (Test-IsReparse $vd) { continue }
+            if ($vd.Name -notmatch $script:SI_IdRx) { continue }
+            if ($OnlyVariants -and ($OnlyVariants -notcontains $vd.Name)) { continue }
+            foreach ($kd in @(Get-ChildItem -LiteralPath $vd.FullName -Directory -Force -ErrorAction SilentlyContinue)) {
+                if (Test-IsReparse $kd) { continue }
+                if ($KeepKeys.ContainsKey($vd.Name) -and $KeepKeys[$vd.Name] -eq $kd.Name) { continue }
+                $t = Remove-TreeSafe $kd.FullName $root
+                $res.Files += $t.Files; $res.Bytes += $t.Bytes
+            }
+            try { if (-not (Get-ChildItem -LiteralPath $vd.FullName -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $vd.FullName -Force -Confirm:$false } } catch { }
+        }
+        if ($res.Files -gt 0) { Write-Log ('  variants\: удалено файлов ' + $res.Files + ' (' + (Format-DownloadSize $res.Bytes) + ')') }
+    } catch { Write-Log ('  кэш вариантов не очищен: ' + $_.Exception.Message) }
+    return $res
+}
+
+# ---------- Плитки Start11 из закреплённых элементов (GroupContents) ----------
+# Start11 хранит закреплённые плитки не в Get-StartApps, а в HKCU\...\Start8.ini\GroupContents\<группа> (группы $PINNEDDEF$, GRP2001...): значения "0", "1", ...
+# с данными вида «Telegram.TelegramDesktop|-1|3|1|4|...», «{6D809377-...}\obs-studio\bin\64bit\obs64.exe|...», «C:\Users\X\...\User Pinned\StartMenu\PulseSync.lnk|...»,
+# «Microsoft.AutoGenerated.{GUID}|...», «Chrome._crx_...|...». id = текст до первого '|'; имя значения CustomTiles = id с '\' -> '_'.
+$script:SI_S11Groups = $script:SI_S11Root + '\GroupContents'
+$script:SI_LauncherHosts = @('wscript', 'cscript', 'cmd', 'powershell', 'pwsh', 'mshta', 'rundll32', 'conhost', 'explorer')       # общие хосты: по ним приложение не определить
+$script:SI_KnownFolderIds = @{
+    '6D809377-6AF0-444B-8957-A3773F02200E' = 'ProgramFiles64'; '7C5A40EF-A0FB-4BFC-874A-C0F2E0B9FA8E' = 'ProgramFilesX86'; '905E63B6-C1BF-494E-B29C-65B732D3D21A' = 'ProgramFiles'
+    '1AC14E77-02E7-4E5D-B744-2EB1AE5198B7' = 'System'; 'F38BF404-1D43-42F2-9305-67DE0B28FC23' = 'Windows'; 'F1B32785-6FBA-4FCF-9D55-7B8E7F157091' = 'LocalAppData'
+    '3EB685DB-65F9-4CF6-A03A-E3EF65729F3D' = 'RoamingAppData'; '62AB5D82-FDC1-4DC3-A9DD-070D1D495D97' = 'CommonAppData'
+}
+
+# подключи (имена) одного ключа реестра HKCU; нет ключа / не Windows - пусто; в тестах подменяется
+function Get-S11SubKeyNames {
+    param([string]$Sub)
+    try {
+        $k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($Sub, $false)
+        if (-not $k) { return @() }
+        try { return @($k.GetSubKeyNames() | ForEach-Object { [string]$_ }) } finally { $k.Close() }
+    } catch { return @() }
+}
+
+# данные значения GroupContents -> id (текст до первого '|'; без '|' - вся строка); пусто - $null
+function ConvertFrom-PinnedData {
+    param([string]$Data)
+    if ($null -eq $Data) { return $null }
+    $s = $Data
+    $i = $s.IndexOf('|')
+    if ($i -ge 0) { $s = $s.Substring(0, $i) }
+    $s = $s.Trim()
+    if (-not $s) { return $null }
+    return $s
+}
+
+# id плитки (имя значения CustomTiles) по id закреплённого элемента
+function ConvertTo-PinnedTileName {
+    param([string]$Id)
+    return ($Id -replace '\\', '_')
+}
+
+# Все закреплённые id: { Id (как в GroupContents); TileName (имя в CustomTiles); Group; Index }. Пустые группы и значения не id (не REG_SZ, не число в имени) пропускаются.
+function Get-PinnedTileIds {
+    $out = New-Object 'System.Collections.Generic.List[object]'
+    $seen = @{}
+    foreach ($g in @(Get-S11SubKeyNames $script:SI_S11Groups)) {
+        if (-not $g) { continue }
+        $sub = $script:SI_S11Groups + '\' + $g
+        foreach ($n in @(Get-S11ValueNames $sub)) {
+            $idx = 0
+            if ([string]$n -notmatch '^\d+$' -or -not [int]::TryParse([string]$n, [ref]$idx)) { continue }
+            $data = $null
+            try { $data = Get-S11Value $sub ([string]$n) } catch { continue }
+            $id = ConvertFrom-PinnedData $data
+            if (-not $id) { continue }
+            $tn = ConvertTo-PinnedTileName $id
+            if ($seen.ContainsKey($tn)) { continue }
+            $seen[$tn] = $true
+            $out.Add([pscustomobject]@{ Id = $id; TileName = $tn; Group = [string]$g; Index = $idx })
+        }
+    }
+    return $out.ToArray()
+}
+
+# Путь из id закреплённого элемента: %VAR%, {KnownFolderId}\... -> обычный путь ('' - не путь)
+function Expand-PinnedPath {
+    param([string]$Id)
+    $s = [Environment]::ExpandEnvironmentVariables($Id.Trim())
+    if ($s -match '^\{([0-9A-Fa-f\-]{36})\}[\\/](.*)$') {
+        $guid = $Matches[1].ToUpperInvariant(); $rest = $Matches[2]
+        $dir = ''
+        switch ([string]$script:SI_KnownFolderIds[$guid]) {
+            'ProgramFiles64' { $dir = $(if ($env:ProgramW6432) { $env:ProgramW6432 } else { $env:ProgramFiles }) }
+            'ProgramFilesX86' { $dir = ${env:ProgramFiles(x86)} }
+            'ProgramFiles' { $dir = $env:ProgramFiles }
+            'System' { if ($env:SystemRoot) { $dir = Join-Path $env:SystemRoot 'System32' } }
+            'Windows' { $dir = $env:SystemRoot }
+            'LocalAppData' { $dir = $env:LOCALAPPDATA }
+            'RoamingAppData' { $dir = $env:APPDATA }
+            'CommonAppData' { $dir = $env:ALLUSERSPROFILE }
+        }
+        if ($dir) { return (Join-Path $dir ($rest -replace '/', '\')) }
+        return ''
+    }
+    if ($s -match '^[A-Za-z]:[\\/]') { return $s }
+    return ''
+}
+
+# содержимое .lnk закреплённого элемента: { Exists; Name; Target; Args; AppId }; в тестах подменяется
+function Get-LnkInfo {
+    param([string]$Path)
+    $r = [pscustomobject]@{ Exists = $false; Name = [IO.Path]::GetFileNameWithoutExtension(($Path -replace '\\', '/')); Target = ''; Args = ''; AppId = '' }
+    try {
+        if (-not $Path -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $r }
+        $r.Exists = $true
+        try { $sc = (Get-WshShell).CreateShortcut($Path); $r.Target = [string]$sc.TargetPath; $r.Args = [string]$sc.Arguments } catch { }
+        try {
+            if (-not ('GlyphixNative.ShortcutAppId' -as [type])) { Add-Type -TypeDefinition $script:SI_AumidCode -Language CSharp }
+            $r.AppId = [string][GlyphixNative.ShortcutAppId]::Get($Path)
+        } catch { }
+    } catch { }
+    return $r
+}
+
+function Test-LauncherHostName {
+    param([string]$PathOrName)
+    $k = Get-Key (Get-BaseNameSafe $PathOrName)
+    return ($k -and ($script:SI_LauncherHosts -contains $k))
+}
+
+# Закреплённый элемент -> кандидат плитки или $null (общий хост без других данных). Кандидат: Id (= имя в CustomTiles), RawId, Name, Source = 'pinned', AppId = RawId,
+# Pinned = $true, Aumid / Target / Args (из .lnk), Ambiguous (.lnk через wscript/cmd/powershell без AUMID: только по имени).
+function ConvertTo-PinnedCandidate {
+    param($Pin, [System.Collections.Generic.List[string]]$Skipped = $null)
+    $raw = [string]$Pin.Id
+    if (Test-UrlTileId $raw) { return $null }
+    $name = ''; $target = ''; $args2 = ''; $aumid = ''; $amb = $false
+    $isLnk = ($raw -match '(?i)\.lnk$')
+    if ($isLnk) {
+        $p = Expand-PinnedPath $raw
+        $li = Get-LnkInfo $(if ($p) { $p } else { $raw })
+        $name = [string]$li.Name; $target = [string]$li.Target; $args2 = [string]$li.Args; $aumid = [string]$li.AppId
+        if ($target -and (Test-LauncherHostName $target) -and -not $aumid) { $amb = $true }
+    } elseif ($raw -match '(?i)\.exe$' -and (Test-LauncherHostName $raw)) {
+        if ($null -ne $Skipped) { $Skipped.Add("$raw : общий хост (wscript/cmd/powershell) без других данных - пропущен") }
+        return $null
+    }
+    return [pscustomobject]@{ Id = [string]$Pin.TileName; Name = $name; Source = 'pinned'; AppId = $raw; RawId = $raw; Pinned = $true; Aumid = $aumid; Target = $target; Args = $args2; Ambiguous = $amb; PinGroup = [string]$Pin.Group }
+}
+
+# Кандидаты из закреплённых: уже известные по Get-StartApps / CustomTiles id дополняются (Pinned, RawId), новые добавляются в $List / $Map. Пропущенные - в $Skipped.
+function Add-PinnedCandidates {
+    param($List, $Map, [System.Collections.Generic.List[string]]$Skipped = $null)
+    $n = 0
+    foreach ($pin in @(Get-PinnedTileIds)) {
+        try {
+            $c = ConvertTo-PinnedCandidate $pin $Skipped
+            if (-not $c) { continue }
+            if ($Map.ContainsKey($c.Id)) {
+                $o = $Map[$c.Id]
+                $o | Add-Member -NotePropertyName Pinned -NotePropertyValue $true -Force
+                $o | Add-Member -NotePropertyName RawId -NotePropertyValue $c.RawId -Force
+                if (-not [string]$o.Name -and $c.Name) { $o.Name = $c.Name }
+                foreach ($pn in @('Aumid', 'Target', 'Args', 'Ambiguous')) { if (-not $o.PSObject.Properties[$pn]) { $o | Add-Member -NotePropertyName $pn -NotePropertyValue $c.$pn } }
+                continue
+            }
+            $Map[$c.Id] = $c; $List.Add($c); $n++
+        } catch { Write-Log ('  закреплённый элемент ' + [string]$pin.Id + ': ' + $_.Exception.Message) }
+    }
+    return $n
+}
+
+# Диагностика плитки Glyphix (журнал и тесты): закреплённые id с glyph/wscript, записи Get-StartApps про Glyphix, AUMID наших ярлыков, куда записана плитка.
+# $Written - id значений CustomTiles, записанных для иконки glyphix. Возвращает { Lines; Pinned; StartApps; Shortcuts; Written }.
+function Get-GlyphixTileDiagnostics {
+    param($Candidates = $null, [string[]]$Written = @())
+    $lines = New-Object 'System.Collections.Generic.List[string]'
+    $pins = @(); try { $pins = @(Get-PinnedTileIds | Where-Object { $_.Id -match '(?i)glyph|wscript' }) } catch { }
+    $apps = @(); try { if (Get-Command -Name Get-StartApps -ErrorAction SilentlyContinue) { $apps = @(Get-StartApps | Where-Object { $_ -and (([string]$_.Name -match '(?i)glyph') -or ([string]$_.AppID -match '(?i)glyph')) }) } } catch { }
+    $lnks = New-Object 'System.Collections.Generic.List[object]'
+    try {
+        foreach ($p in @(Get-AppShortcutPaths)) {
+            if (-not $p) { continue }
+            $li = Get-LnkInfo $p
+            $lnks.Add([pscustomobject]@{ Path = [string]$p; Exists = [bool]$li.Exists; AppId = [string]$li.AppId; Target = [string]$li.Target })
+        }
+    } catch { }
+    $lines.Add('Диагностика плитки Glyphix:')
+    if ($pins.Count -gt 0) { foreach ($p in $pins) { $lines.Add("  закреплённый id (группа $($p.Group)): $($p.Id)  -> имя в CustomTiles: $($p.TileName)") } } else { $lines.Add('  закреплённых элементов с glyph/wscript нет') }
+    if ($apps.Count -gt 0) { foreach ($a in $apps) { $lines.Add("  Get-StartApps: '$($a.Name)' AppID '$($a.AppID)'") } } else { $lines.Add('  Get-StartApps: записей Glyphix нет') }
+    foreach ($l in $lnks) { $lines.Add("  ярлык $($l.Path): " + $(if ($l.Exists) { "AUMID '" + $l.AppId + "', цель '" + $l.Target + "'" } else { 'нет файла' })) }
+    if (@($Written).Count -gt 0) { $lines.Add("  плитка записана под id: " + (@($Written) -join ', ')) } else { $lines.Add('  плитка Glyphix не записана (нет кандидата для иконки glyphix)') }
+    return [pscustomobject]@{ Lines = $lines.ToArray(); Pinned = $pins; StartApps = $apps; Shortcuts = $lnks.ToArray(); Written = @($Written) }
+}
+
+# ---------- Автоиконки варианта ----------
+# Автоиконка варианта = обычная автоиконка пака-основы (Stylize по auto.json), к которой применяются операции варианта: иконке - ops для icons (kind icon),
+# плитке - ops для tiles (kind tile; плитка рисуется с качеством 100, перекрашивается и сохраняется с качеством 92). Цвет {brand} для автоиконок - основной
+# цвет auto.json пака (mid): у неизвестного приложения своего бренда нет. Ключ кэша автоиконки включает хэш операций.
+function Get-AutoVariantOps {
+    param($Variant)
+    if ($null -eq $Variant) { return @() }
+    if ($Variant.PSObject.Properties['Ops'] -and @($Variant.Ops).Count -gt 0) { return @($Variant.Ops) }
+    return @()
+}
+
+function Get-AutoVariantKey {
+    param($Variant)
+    $ops = @(Get-AutoVariantOps $Variant)
+    if ($ops.Count -eq 0) { return '' }
+    return (Get-BytesSha256 ([System.Text.Encoding]::UTF8.GetBytes('r' + $script:SI_VariantRenderVersion + '|' + (ConvertTo-CanonicalJson $ops)))).Substring(0, 12)
+}
+
+function Get-AutoVariantBrand {
+    param($Auto)
+    if ($Auto -and $Auto.Mid) { return ([string]$Auto.Mid).ToUpperInvariant() }
+    return '#7C5CFF'
+}
+
+# BGRA-иконка автоиконки (результат Stylize) -> BGRA после операций варианта (без операций - как есть)
+function Invoke-AutoVariantOps {
+    param([byte[]]$Bgra, $Variant, $Auto, [string]$Kind = 'icon')
+    $ops = @(Get-AutoVariantOps $Variant)
+    if ($ops.Count -eq 0) { return , $Bgra }
+    [void](Initialize-VariantsNative)
+    $rgba = [GlyphixVariants.Recolor]::SwapRB($Bgra)
+    $o = [GlyphixVariants.Recolor]::Apply($rgba, (ConvertTo-VariantOps $ops), ($Kind -eq 'tile'), (ConvertTo-BrandRgb (Get-AutoVariantBrand $Auto)))
+    return , [GlyphixVariants.Recolor]::SwapRB($o)
+}
+
+# JPEG плитки (качество 100 из RenderTile) -> JPEG качества 92 после операций варианта для плиток
+function Invoke-AutoVariantTile {
+    param([byte[]]$Jpeg, $Variant, $Auto)
+    [void](Initialize-VariantsNative)
+    $w = 0; $h = 0
+    $rgba = [GlyphixVariants.Img]::Decode($Jpeg, [ref]$w, [ref]$h)
+    $o = [GlyphixVariants.Recolor]::Apply($rgba, (ConvertTo-VariantOps @(Get-AutoVariantOps $Variant)), $true, (ConvertTo-BrandRgb (Get-AutoVariantBrand $Auto)))
+    return , [GlyphixVariants.Codec]::EncodeJpeg($o, $w, $h, 92)
+}
+
+# ---------- Вспомогательное для плана ----------
+# AppKey приложения для элемента-ярлыка / элемента-плитки: id иконки пака; приложения без иконки в паке (автоиконки) - 'auto:<ключ имени>'
+function Get-ItemAppKey {
+    param($M)
+    if (-not $M) { return '' }
+    if ($M.PSObject.Properties['Auto'] -and $M.Auto -and $M.PSObject.Properties['AutoKey'] -and [string]$M.AutoKey) { return ('auto:' + [string]$M.AutoKey) }
+    if ($M.PSObject.Properties['IconId'] -and [string]$M.IconId) { return [string]$M.IconId }
+    return ''
+}
+
+# пак-источник элемента: PackId элемента (иконка из другого варианта), иначе id применяемого пака
+function Get-ItemPackId {
+    param($M, $Pack)
+    if ($M -and $M.PSObject.Properties['PackId'] -and [string]$M.PackId) { return [string]$M.PackId }
+    return [string]$Pack.Id
+}
+
+# ---------- Режимы приложений (state.json: AppOverrides) и избранное ----------
+# AppOverrides = { "<AppKey>": { "Icon": "skip|restore", "Tile": "skip|restore", "Source": "<id варианта>" } } - только отличия от умолчания (apply, без источника).
+# AppKey: id иконки пака ('discord') или 'auto:<ключ имени>' для приложений без иконки в паке. Режим отдельно для иконки (ярлыки) и плитки Start11:
+#   apply - применить вариант; skip - не трогать (как есть сейчас); restore - вернуть родную иконку из бэкапа.
+# Миграция 2.x: AutoOverrides { <ключ имени>: Native | Off } -> AppOverrides['auto:<ключ>']: Авто -> apply, Родная -> restore, Не трогать -> skip (один раз, флаг AppOverridesMigrated).
+$script:SI_AppModes = @('apply', 'skip', 'restore')
+$script:SI_AppKeyRx = '^(auto:)?[\p{L}\p{Nd}_\-]{1,80}$'
+
+function Get-AppModeName {
+    param([string]$Mode)
+    $m = ([string]$Mode).Trim().ToLowerInvariant()
+    switch ($m) { 'auto' { return 'apply' } 'native' { return 'restore' } 'off' { return 'skip' } }
+    if ($script:SI_AppModes -contains $m) { return $m }
+    return $null
+}
+
+function ConvertTo-LegacyAutoMode {
+    param([string]$Mode)
+    switch ($Mode) { 'restore' { return 'Native' } 'skip' { return 'Off' } default { return 'Auto' } }
+}
+
+function ConvertFrom-AppOverrideState {
+    param($Raw)
+    $h = @{}
+    if (-not $Raw) { return $h }
+    $pairs = if ($Raw -is [System.Collections.IDictionary]) { @($Raw.Keys | ForEach-Object { @{ N = [string]$_; V = $Raw[$_] } }) } else { @($Raw.PSObject.Properties | ForEach-Object { @{ N = $_.Name; V = $_.Value } }) }
+    foreach ($pr in $pairs) {
+        if ($pr.N -notmatch $script:SI_AppKeyRx) { continue }
+        $v = $pr.V
+        $get = { param($k) if ($v -is [System.Collections.IDictionary]) { if ($v.Contains($k)) { return $v[$k] } else { return $null } } elseif ($v -and $v.PSObject.Properties[$k]) { return $v.PSObject.Properties[$k].Value } else { return $null } }
+        $ic = Get-AppModeName ([string](& $get 'Icon')); $tl = Get-AppModeName ([string](& $get 'Tile'))
+        $src = [string](& $get 'Source'); if ($src -notmatch $script:SI_IdRx) { $src = '' }
+        if (-not $ic) { $ic = 'apply' }; if (-not $tl) { $tl = 'apply' }
+        if ($ic -eq 'apply' -and $tl -eq 'apply' -and -not $src) { continue }
+        $h[$pr.N] = [pscustomobject]@{ Icon = $ic; Tile = $tl; Source = $(if ($src) { $src } else { $null }) }
+    }
+    return $h
+}
+
+function ConvertTo-AppOverrideState {
+    param($Map)
+    $o = [ordered]@{}
+    foreach ($k in @($Map.Keys | Sort-Object)) {
+        $e = $Map[$k]
+        $d = [ordered]@{}
+        if ($e.Icon -ne 'apply') { $d['Icon'] = $e.Icon }
+        if ($e.Tile -ne 'apply') { $d['Tile'] = $e.Tile }
+        if ($e.Source) { $d['Source'] = $e.Source }
+        if ($d.Count -gt 0) { $o[$k] = $d }
+    }
+    return $o
+}
+
+# Режимы всех приложений, отличающиеся от умолчания: ключ -> { Icon; Tile; Source }. Первое чтение переносит прежние AutoOverrides.
+function Get-AppOverrides {
+    param($State = $null)
+    $persist = ($null -eq $State)
+    if ($null -eq $State) { $State = Read-State }
+    $h = ConvertFrom-AppOverrideState $(if ($State.ContainsKey('AppOverrides')) { $State['AppOverrides'] } else { $null })
+    if (-not ($State.ContainsKey('AppOverridesMigrated') -and $State['AppOverridesMigrated'])) {
+        $leg = Get-AutoOverrides $State
+        $changed = $false
+        foreach ($k in @($leg.Keys)) {
+            $ak = 'auto:' + $k
+            if ($ak -notmatch $script:SI_AppKeyRx -or $h.ContainsKey($ak)) { continue }
+            $m = if ($leg[$k] -eq 'Native') { 'restore' } elseif ($leg[$k] -eq 'Off') { 'skip' } else { 'apply' }
+            if ($m -eq 'apply') { continue }
+            $h[$ak] = [pscustomobject]@{ Icon = $m; Tile = $m; Source = $null }; $changed = $true
+        }
+        if ($persist) {
+            $st = Read-State
+            if ($changed -or $leg.Count -gt 0 -or $st.ContainsKey('AutoOverrides')) {
+                $o = ConvertTo-AppOverrideState $h
+                if ($o.Count -gt 0) { $st['AppOverrides'] = $o }
+                $st['AppOverridesMigrated'] = $true
+                Save-State $st
+                if ($changed) { Write-Log "Режимы приложений перенесены из AutoOverrides: $(@($leg.Keys).Count)" }
+            }
+        }
+    }
+    return $h
+}
+
+# Изменить режимы приложения. Заданные параметры меняются, остальные остаются. -Source '' снимает источник. Всё по умолчанию - запись удаляется.
+function Set-AppOverride {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$AppKey, [string]$Icon, [string]$Tile, [string]$Source)
+    if ($AppKey -notmatch $script:SI_AppKeyRx) { throw "неверный ключ приложения '$AppKey'" }
+    $st = Read-State
+    $h = Get-AppOverrides -State $st
+    $cur = if ($h.ContainsKey($AppKey)) { $h[$AppKey] } else { [pscustomobject]@{ Icon = 'apply'; Tile = 'apply'; Source = $null } }
+    $ic = $cur.Icon; $tl = $cur.Tile; $src = $cur.Source
+    if ($PSBoundParameters.ContainsKey('Icon')) { $ic = Get-AppModeName $Icon; if (-not $ic) { throw "неизвестный режим иконки '$Icon' (apply | skip | restore)" } }
+    if ($PSBoundParameters.ContainsKey('Tile')) { $tl = Get-AppModeName $Tile; if (-not $tl) { throw "неизвестный режим плитки '$Tile' (apply | skip | restore)" } }
+    if ($PSBoundParameters.ContainsKey('Source')) {
+        if ($Source -and $Source -notmatch $script:SI_IdRx) { throw "неверный id варианта '$Source'" }
+        $src = $(if ($Source) { $Source } else { $null })
+    }
+    if ($ic -eq 'apply' -and $tl -eq 'apply' -and -not $src) { [void]$h.Remove($AppKey) } else { $h[$AppKey] = [pscustomobject]@{ Icon = $ic; Tile = $tl; Source = $src } }
+    $o = ConvertTo-AppOverrideState $h
+    if ($o.Count -eq 0) { [void]$st.Remove('AppOverrides') } else { $st['AppOverrides'] = $o }
+    $st['AppOverridesMigrated'] = $true
+    if ($AppKey.StartsWith('auto:')) {                       # приложения без иконки в паке: то же видят и функции 2.x (Get-AutoOverrides)
+        $leg = Get-AutoOverrides $st
+        $lk = $AppKey.Substring(5)
+        $lm = if ($ic -ne 'apply') { ConvertTo-LegacyAutoMode $ic } elseif ($tl -ne 'apply') { ConvertTo-LegacyAutoMode $tl } else { 'Auto' }
+        if ($lm -eq 'Auto') { [void]$leg.Remove($lk) } else { $leg[$lk] = $lm }
+        if ($leg.Count -eq 0) { [void]$st.Remove('AutoOverrides') } else { $st['AutoOverrides'] = $leg }
+    }
+    Save-State $st
+}
+
+# Прежний Set-AutoOverride -> AppOverrides (иконка и плитка получают один режим)
+function Sync-AppOverrideFromLegacy {
+    param([string]$LegacyKey, [string]$CanonMode)
+    $ak = 'auto:' + $LegacyKey
+    if ($ak -notmatch $script:SI_AppKeyRx) { return }
+    $m = if ($CanonMode -eq 'Native') { 'restore' } elseif ($CanonMode -eq 'Off') { 'skip' } else { 'apply' }
+    $st = Read-State
+    $h = Get-AppOverrides -State $st
+    $src = if ($h.ContainsKey($ak)) { $h[$ak].Source } else { $null }
+    if ($m -eq 'apply' -and -not $src) { [void]$h.Remove($ak) } else { $h[$ak] = [pscustomobject]@{ Icon = $m; Tile = $m; Source = $src } }
+    $o = ConvertTo-AppOverrideState $h
+    if ($o.Count -eq 0) { [void]$st.Remove('AppOverrides') } else { $st['AppOverrides'] = $o }
+    $st['AppOverridesMigrated'] = $true
+    Save-State $st
+}
+
+# ---------- Избранные варианты (state.json: Favorites - упорядоченный список id) ----------
+function Get-Favorites {
+    $out = New-Object 'System.Collections.Generic.List[string]'
+    try {
+        $st = Read-State
+        if ($st.ContainsKey('Favorites') -and $st['Favorites']) {
+            foreach ($f in @($st['Favorites'])) { $id = [string]$f; if ($id -match $script:SI_IdRx -and -not $out.Contains($id)) { $out.Add($id) } }
+        }
+    } catch { }
+    return $out.ToArray()
+}
+
+# Set-Favorite <id> <bool>: добавить (в конец; -Position - на место, с 0) или убрать. Возвращает новый список.
+function Set-Favorite {
+    [CmdletBinding()]
+    param([Parameter(Mandatory, Position = 0)][string]$VariantId, [Parameter(Mandatory, Position = 1)][bool]$On, [int]$Position = -1)
+    if ($VariantId -notmatch $script:SI_IdRx) { throw "неверный id варианта '$VariantId'" }
+    $list = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($f in @(Get-Favorites)) { $list.Add($f) }
+    if ($On) {
+        if (-not $list.Contains($VariantId) -or $Position -ge 0) {
+            [void]$list.Remove($VariantId)
+            if ($Position -ge 0 -and $Position -lt $list.Count) { $list.Insert($Position, $VariantId) } else { $list.Add($VariantId) }
+        }
+    } else { [void]$list.Remove($VariantId) }
+    $st = Read-State
+    if ($list.Count -eq 0) { [void]$st.Remove('Favorites') } else { $st['Favorites'] = @($list.ToArray()) }
+    Save-State $st
+    return $list.ToArray()
+}
+
+# применённый сейчас вариант (state.json Applied): id варианта; у 2.x - id пака
+function Get-AppliedVariantId {
+    try {
+        $st = Read-State
+        if ($st.ContainsKey('Applied') -and $st['Applied']) {
+            $a = $st['Applied']
+            if ($a.PSObject.Properties['VariantId'] -and [string]$a.VariantId) { return [string]$a.VariantId }
+            return [string]$a.PackId
+        }
+    } catch { }
+    return ''
+}
+
+function Get-AppliedVariantKey {
+    param([string]$VariantId)
+    try {
+        $st = Read-State
+        if ($st.ContainsKey('Applied') -and $st['Applied']) {
+            $a = $st['Applied']
+            if ($a.PSObject.Properties['VariantId'] -and [string]$a.VariantId -eq $VariantId -and $a.PSObject.Properties['CacheKey']) { return [string]$a.CacheKey }
+        }
+    } catch { }
+    return ''
+}
+
+# ---------- План по приложениям ----------
+$script:SI_LocationCodes = @{ start = 'Start'; taskbar = 'Taskbar'; desktop = 'Desktop'; start_all = 'CommonStart'; desktop_all = 'CommonDesktop' }
+$script:SI_LocationLabels = @{ Start = 'Пуск'; Taskbar = 'Панель задач'; Desktop = 'Рабочий стол'; CommonStart = 'Пуск (все пользователи)'; CommonDesktop = 'Рабочий стол (все пользователи)'; Start11Tile = 'Плитка Start11' }
+$script:SI_LocationOrder = @('Start', 'Taskbar', 'Desktop', 'CommonStart', 'CommonDesktop', 'Start11Tile')
+
+function Get-PlanOptions {
+    param($O)
+    $r = @{ AllUsers = $false; Tiles = $null; NoName = $false; Auto = $null; Render = $true; Sync = $true }
+    if ($O) {
+        if ($O -is [System.Collections.IDictionary]) { foreach ($k in @($O.Keys)) { if ($r.ContainsKey([string]$k)) { $r[[string]$k] = $O[$k] } } }
+        else { foreach ($p in $O.PSObject.Properties) { if ($r.ContainsKey($p.Name)) { $r[$p.Name] = $p.Value } } }
+    }
+    if ($null -eq $r.Tiles) { $r.Tiles = [bool](Test-Start11) }
+    if ($null -eq $r.Auto) { $r.Auto = [bool](Get-AutoEnabled) }
+    foreach ($k in @('AllUsers', 'Tiles', 'NoName', 'Auto', 'Render', 'Sync')) { $r[$k] = [bool]$r[$k] }
+    return $r
+}
+
+# id варианта, чья папка содержит файл (applied\<id>\, auto\<id>\, start11\<id>\); '' - файл не наш
+function Get-OurPathVariant {
+    param([string]$Path)
+    try {
+        $full = Get-NormalPath $Path
+        if (-not $full) { return '' }
+        foreach ($d in @($script:SI_AppliedDir, $script:SI_AutoDir, $script:SI_S11Dir)) {
+            $root = Get-NormalPath $d
+            if ($root -and (Test-PathUnder $full $root)) {
+                $seg = ($full.Substring($root.Length).TrimStart($script:SI_Seps)).Split($script:SI_Seps)[0]
+                if ($seg -match $script:SI_IdRx) { return $seg }
+            }
+        }
+    } catch { }
+    return ''
+}
+
+# Состояние иконки ярлыка: 'ours:<вариант>' | 'native' | 'other' (своя иконка: .ico/.png вне папки приложения и не наша)
+function Get-LinkIconState {
+    param([string]$Icon, [string]$Target = '', [bool]$HasBackup = $false)
+    $loc = Split-IconLocation ([Environment]::ExpandEnvironmentVariables([string]$Icon))
+    $path = ([string]$loc.Path).Trim('"')
+    if ($path) {
+        $v = Get-OurPathVariant $path
+        if ($v) { return ('ours:' + $v) }
+    }
+    if ($HasBackup) { return 'other' }                        # мы меняли этот ярлык, но иконка теперь не наша: кто-то поменял после нас
+    if (-not $path) { return 'native' }
+    if ($path -match '(?i)\.(exe|dll|icl|mun|cpl|scr)$') { return 'native' }
+    if ($path -match '(?i)\.(ico|png|jpe?g|bmp)$') {
+        try {
+            $t = [Environment]::ExpandEnvironmentVariables([string]$Target)
+            if ($t) {
+                $pd = [IO.Path]::GetDirectoryName($path.Replace('\', '/')); $td = [IO.Path]::GetDirectoryName($t.Replace('\', '/'))
+                if ($pd -and $td -and ((($pd.TrimEnd('/') + '/').StartsWith($td.TrimEnd('/') + '/', [StringComparison]::OrdinalIgnoreCase)) -or (($td.TrimEnd('/') + '/').StartsWith($pd.TrimEnd('/') + '/', [StringComparison]::OrdinalIgnoreCase)))) { return 'native' }
+            }
+        } catch { }
+        return 'other'
+    }
+    return 'native'
+}
+
+function Get-TileState {
+    param([string]$TileId)
+    $v = $null
+    try { $v = Get-S11Value $script:SI_S11Tiles $TileId } catch { return 'other' }
+    if ($null -eq $v -or $v -eq '') { return 'native' }
+    $ov = Get-OurPathVariant $v
+    if ($ov) { return ('ours:' + $ov) }
+    return 'other'
+}
+
+function Merge-AppState {
+    param([string[]]$States)
+    foreach ($s in @($States)) { if ($s -like 'ours:*') { return $s } }
+    foreach ($s in @($States)) { if ($s -eq 'other') { return 'other' } }
+    return 'native'
+}
+
+# План применения варианта: по записи на приложение (ярлыки и плитки Start11, найденные по одной иконке пака / одному приложению, собраны вместе).
+#  AppKey, Name, IconId, Group, Rank, Auto (иконки нет в паке - автоиконка), Variant (откуда иконка: Source или $VariantId), Source (переопределение или $null),
+#  Before (IconLocation исходной иконки: из бэкапа, если мы её меняли), BeforeKind (native|other), BeforeTarget (цель ярлыка - для получения иконки оболочкой),
+#  After (PNG новой иконки), AfterReady, AfterTile (плитка), AfterTileReady,
+#  Locations [{Code, Label, Count}] (Start, Taskbar, Desktop, CommonStart, CommonDesktop, Start11Tile), Shortcuts[], Tiles[],
+#  IconState / TileState (native | ours:<вариант> | other), IsCurrent, IconMode / TileMode (apply | skip | restore).
+# -Options: AllUsers, Tiles (по умолчанию - есть Start11), NoName, Auto (по умолчанию - включены в настройках), Render (рисовать PNG превью нужных приложений, по умолчанию да),
+# Sync (докачать пак-основу, по умолчанию да). -Shortcuts / -Candidates - уже прочитанные списки (иначе читаются заново).
+function Get-AppPlan {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$VariantId, $Options = $null, $Shortcuts = $null, $Candidates = $null, [scriptblock]$OnProgress = $null)
+    $o = Get-PlanOptions $Options
+    $vp = Resolve-VariantPack -VariantId $VariantId -Parts @() -NoSync:(-not $o.Sync)
+    $links = @(Get-Matches -Pack $vp -Shortcuts $Shortcuts -AllUsers:$o.AllUsers -Auto:$o.Auto -Overrides @{})
+    $tiles = @()
+    if ($o.Tiles) { $tiles = @(Get-Start11Matches -Pack $vp -Candidates $Candidates -NoName:$o.NoName -Auto:$o.Auto -Overrides @{}) }
+    $by = @{}
+    $order = New-Object 'System.Collections.Generic.List[string]'
+    $touch = {
+        param($M, [bool]$IsTile)
+        $k = Get-ItemAppKey $M
+        if (-not $k) { return }
+        if (-not $by.ContainsKey($k)) {
+            $auto = [bool]($M.PSObject.Properties['Auto'] -and $M.Auto)
+            $by[$k] = [pscustomobject]@{ AppKey = $k; Name = $(if ($auto) { [string]$M.Name } else { [string]$M.IconName }); IconId = $(if ($auto) { '' } else { [string]$M.IconId }); Group = [string]$M.Group; Auto = $auto
+                Sh = (New-Object 'System.Collections.Generic.List[object]'); Ti = (New-Object 'System.Collections.Generic.List[object]') }
+            $order.Add($k)
+        }
+        if ($IsTile) { $by[$k].Ti.Add($M) } else { $by[$k].Sh.Add($M) }
+    }
+    foreach ($m in $links) { & $touch $m $false }
+    foreach ($m in $tiles) { & $touch $m $true }
+    $ov = Get-AppOverrides
+    # приложения с источником - другим вариантом: его иконки (пак-основа качается при необходимости)
+    $srcIds = @{}
+    foreach ($k in $order) {
+        $e = $by[$k]
+        if ($e.Auto -or -not $ov.ContainsKey($k) -or -not $ov[$k].Source -or $ov[$k].Source -eq $VariantId) { continue }
+        if (-not $srcIds.ContainsKey($ov[$k].Source)) { $srcIds[$ov[$k].Source] = New-Object 'System.Collections.Generic.List[string]' }
+        $srcIds[$ov[$k].Source].Add($e.IconId)
+    }
+    $partsR = if ($o.Render) { @('png') } else { @() }
+    $srcIcons = @{}; $srcPackId = @{}
+    foreach ($sv in @($srcIds.Keys)) {
+        try {
+            $sp = Resolve-VariantPack -VariantId $sv -IconIds $srcIds[$sv].ToArray() -Parts $partsR -NoSync:(-not $o.Sync)
+            $srcIcons[$sv] = @{}; foreach ($ic in @($sp.Icons)) { $srcIcons[$sv][[string]$ic.Id] = $ic }
+            $srcPackId[$sv] = [string]$sp.Id
+        } catch { Write-Log ("  источник '$sv' недоступен: " + $_.Exception.Message) }
+    }
+    $mainIcons = @{}
+    $ids = @($order | ForEach-Object { $by[$_] } | Where-Object { -not $_.Auto -and $_.IconId } | ForEach-Object { $_.IconId } | Select-Object -Unique)
+    $rp = if ($o.Render -and $ids.Count -gt 0) { Resolve-VariantPack -VariantId $VariantId -IconIds $ids -Parts @('png') -NoSync -OnProgress $OnProgress } else { $vp }
+    foreach ($ic in @($rp.Icons)) { $mainIcons[[string]$ic.Id] = $ic }
+    $backup = @{}; try { $backup = Load-Backup } catch { }
+    $s11bk = @{}; try { $s11bk = Load-S11Backup } catch { }
+    $out = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($k in $order) {
+        $e = $by[$k]
+        $ovE = if ($ov.ContainsKey($k)) { $ov[$k] } else { $null }
+        $src = if ($ovE -and $ovE.Source) { [string]$ovE.Source } else { $null }
+        $eff = $VariantId; $effPack = [string]$vp.Id; $ico = $null; $srcMissing = $false
+        if (-not $e.Auto) {
+            $ico = $mainIcons[$e.IconId]
+            if ($src -and $src -ne $VariantId) {
+                if ($srcIcons.ContainsKey($src) -and $srcIcons[$src].ContainsKey($e.IconId)) { $ico = $srcIcons[$src][$e.IconId]; $eff = $src; $effPack = $srcPackId[$src] }
+                else { $srcMissing = $true }
+            }
+        }
+        foreach ($m in $e.Sh) {
+            $m | Add-Member -NotePropertyName ModeSet -NotePropertyValue $true -Force
+            if ($ico) {
+                $m.IcoPath = [string]$ico.IcoPath; $m.PngPath = [string]$ico.PngPath
+                $m | Add-Member -NotePropertyName PackId -NotePropertyValue $effPack -Force
+                $m.AppliedPath = Get-AppliedIconDest $effPack $e.IconId ([string]$ico.IcoPath)
+                $m.Already = [bool]($m.AppliedPath -and (Test-IconIsSet ([string]$m.Icon) $m.AppliedPath))
+            }
+        }
+        foreach ($m in $e.Ti) {
+            $m | Add-Member -NotePropertyName ModeSet -NotePropertyValue $true -Force
+            if ($ico) {
+                $ts = if ($o.NoName -and $ico.TileNoNamePath) { [string]$ico.TileNoNamePath } else { [string]$ico.TilePath }
+                if ($ts) {
+                    $m.TilePath = $ts
+                    $m | Add-Member -NotePropertyName PackId -NotePropertyValue $effPack -Force
+                    $m.Already = [bool](Test-Start11TileSet ([string]$m.TileId) (Get-Start11TileDest $effPack $e.IconId $ts) $ts)
+                }
+            }
+        }
+        # где лежат
+        $locCount = @{}
+        foreach ($m in $e.Sh) { $c = $script:SI_LocationCodes[[string]$m.Location]; if (-not $c) { $c = 'Start' }; $locCount[$c] = 1 + [int]$locCount[$c] }
+        if ($e.Ti.Count -gt 0) { $locCount['Start11Tile'] = $e.Ti.Count }
+        $locs = @($script:SI_LocationOrder | Where-Object { $locCount.ContainsKey($_) } | ForEach-Object { [pscustomobject]@{ Code = $_; Label = [string]$script:SI_LocationLabels[$_]; Count = [int]$locCount[$_] } })
+        # было / станет
+        $first = $e.Sh.ToArray() | Select-Object -First 1
+        $before = ''; $bkind = 'native'; $btarget = ''
+        if ($first) {
+            $bk = $backup[[string]$first.Path]
+            $before = if ($bk -and $null -ne $bk.Icon) { [string]$bk.Icon } else { [string]$first.Icon }
+            $btarget = [string]$first.Target
+            $bkind = (Get-LinkIconState $before $btarget $false)
+            if ($bkind -like 'ours:*') { $bkind = 'native' }
+        } elseif ($e.Ti.Count -gt 0) {
+            $t0 = $e.Ti[0]; $tb = $s11bk[[string]$t0.TileId]
+            if ($tb) { $before = $(if ($tb.Absent) { '' } else { [string]$tb.Data }) } else { try { $before = [string](Get-S11Value $script:SI_S11Tiles ([string]$t0.TileId)) } catch { } }
+            $bkind = $(if ($before) { 'other' } else { 'native' })
+        }
+        $after = $null; $afterTile = $null
+        if ($e.Auto) { $a0 = $e.Sh.ToArray() | Select-Object -First 1; if ($a0) { $after = [string]$a0.PngPath }; $a1 = $e.Ti.ToArray() | Select-Object -First 1; if ($a1) { $afterTile = [string]$a1.TilePath } }
+        elseif ($ico) { $after = [string]$ico.PngPath; $afterTile = $(if ($o.NoName -and $ico.TileNoNamePath) { [string]$ico.TileNoNamePath } else { [string]$ico.TilePath }) }
+        $iState = Merge-AppState @($e.Sh | ForEach-Object { Get-LinkIconState ([string]$_.Icon) ([string]$_.Target) ([bool]$backup.ContainsKey([string]$_.Path)) })
+        $tState = Merge-AppState @($e.Ti | ForEach-Object { Get-TileState ([string]$_.TileId) })
+        $want = 'ours:' + $eff
+        $cur = ((($e.Sh.Count -eq 0) -or $iState -eq $want) -and (($e.Ti.Count -eq 0) -or $tState -eq $want))
+        $out.Add([pscustomobject]@{
+            AppKey = $k; Name = $e.Name; IconId = $e.IconId; Group = $e.Group; Rank = (Get-GroupRank (Get-GroupKey $e.Group)); Auto = $e.Auto
+            Variant = $eff; Source = $src; SourceMissing = $srcMissing
+            Before = $before; BeforeKind = $bkind; BeforeTarget = $btarget
+            After = $after; AfterReady = [bool]($after -and (Test-Path -LiteralPath $after -PathType Leaf)); AfterTile = $afterTile; AfterTileReady = [bool]($afterTile -and (Test-Path -LiteralPath $afterTile -PathType Leaf))
+            Locations = $locs; ShortcutCount = $e.Sh.Count; TileCount = $e.Ti.Count; Shortcuts = $e.Sh.ToArray(); Tiles = $e.Ti.ToArray()
+            IconState = $iState; TileState = $tState; IsCurrent = [bool]$cur
+            IconMode = $(if ($ovE) { [string]$ovE.Icon } else { 'apply' }); TileMode = $(if ($ovE) { [string]$ovE.Tile } else { 'apply' })
+        })
+    }
+    $res = @($out | Sort-Object @{ Expression = { $_.Rank } }, @{ Expression = { $_.Name } })
+    Write-Log ("План '$VariantId': приложений $($res.Count), ярлыков $($links.Count), плиток $($tiles.Count)")
+    return $res
+}
+
+# ---------- Применение плана ----------
+# Применить план (Get-AppPlan) с учётом режимов: apply - иконка / плитка варианта (или источника, если задан), restore - вернуть родную из бэкапа, skip - не трогать.
+# Рисуются только нужные иконки нужных вариантов. -Plan не задан - строится заново. Возвращает { Variant; Icons (Apply-Pack); Tiles (Apply-Start11Tiles);
+# RestoredShortcuts; RestoredTiles; Skipped; Changed; Same; Failed }.
+function Apply-Plan {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$VariantId, $Plan = $null, $Options = $null, [switch]$RestartExplorer, [switch]$NoReload, [scriptblock]$OnProgress = $null)
+    Assert-ElevationSafe
+    Assert-LegacyMigrationComplete
+    $o = Get-PlanOptions $Options
+    if ($null -eq $Plan) { $Plan = @(Get-AppPlan -VariantId $VariantId -Options $o -OnProgress $OnProgress) }
+    $Plan = @($Plan)
+    $iconApply = New-Object 'System.Collections.Generic.List[object]'; $tileApply = New-Object 'System.Collections.Generic.List[object]'
+    $restoreLinks = New-Object 'System.Collections.Generic.List[string]'; $restoreTiles = New-Object 'System.Collections.Generic.List[string]'
+    $skipped = 0
+    $need = @{}
+    $needOf = { param([string]$v) if (-not $need.ContainsKey($v)) { $need[$v] = @{ Ids = @{}; Icons = $false; Tiles = $false } }; return $need[$v] }
+    foreach ($e in $Plan) {
+        $eff = if ($e.Variant) { [string]$e.Variant } else { $VariantId }
+        if (@($e.Shortcuts).Count -gt 0) {
+            switch ([string]$e.IconMode) {
+                'apply' { foreach ($m in @($e.Shortcuts)) { $iconApply.Add($m) }; if (-not $e.Auto) { $n = & $needOf $eff; $n.Ids[[string]$e.IconId] = $true; $n.Icons = $true } }
+                'restore' { foreach ($m in @($e.Shortcuts)) { $restoreLinks.Add([string]$m.Path) } }
+                default { $skipped++ }
+            }
+        }
+        if ($o.Tiles -and @($e.Tiles).Count -gt 0) {
+            switch ([string]$e.TileMode) {
+                'apply' { foreach ($m in @($e.Tiles)) { $tileApply.Add($m) }; if (-not $e.Auto) { $n = & $needOf $eff; $n.Ids[[string]$e.IconId] = $true; $n.Tiles = $true } }
+                'restore' { foreach ($m in @($e.Tiles)) { $restoreTiles.Add([string]$m.TileId) } }
+                default { $skipped++ }
+            }
+        }
+    }
+    $res = [pscustomobject]@{ Variant = $VariantId; Icons = $null; Tiles = $null; RestoredShortcuts = 0; RestoredTiles = 0; Skipped = $skipped; Changed = 0; Same = 0; Failed = 0; Rendered = 0; RenderFailed = @() }
+    # нужные иконки / плитки нужных вариантов (по умолчанию - ничего лишнего)
+    [void](& $needOf $VariantId)
+    $packs = @{}; $renderFailed = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($v in @($need.Keys)) {
+        $n = $need[$v]
+        $parts = @(); if ($n.Icons) { $parts += 'icons' }; if ($n.Tiles) { $parts += $(if ($o.NoName) { 'noname' } else { 'tiles' }) }
+        $pk = Resolve-VariantPack -VariantId $v -IconIds @($n.Ids.Keys) -Parts $parts -OnProgress $OnProgress -NoSync:(-not $o.Sync)
+        $packs[$v] = $pk
+        $res.Rendered += [int]$pk.Rendered
+        foreach ($f in @($pk.Failed)) { $renderFailed.Add($f) }
+    }
+    $res.RenderFailed = $renderFailed.ToArray()
+    $main = $packs[$VariantId]
+    $repoint = {
+        param($Items)
+        $keep = New-Object 'System.Collections.Generic.List[object]'
+        foreach ($m in @($Items)) {
+            if (Test-AutoItem $m) { $keep.Add($m); continue }
+            $v = if ($m.PSObject.Properties['PackId'] -and [string]$m.PackId) { [string]$m.PackId } else { $VariantId }
+            $pk = $packs[$v]; if (-not $pk) { foreach ($k in @($packs.Keys)) { if ([string]$packs[$k].Id -eq $v) { $pk = $packs[$k] } } }
+            $ic = if ($pk) { @($pk.Icons | Where-Object { [string]$_.Id -eq [string]$m.IconId }) | Select-Object -First 1 } else { $null }
+            if ($ic) {
+                if ($m.PSObject.Properties['IcoPath']) { $m.IcoPath = [string]$ic.IcoPath; $m.PngPath = [string]$ic.PngPath }
+                if ($m.PSObject.Properties['TileId']) { $m.TilePath = $(if ($o.NoName -and $ic.TileNoNamePath) { [string]$ic.TileNoNamePath } else { [string]$ic.TilePath }) }
+            }
+            $keep.Add($m)
+        }
+        return $keep.ToArray()
+    }
+    $failedPre = 0
+    # 1) вернуть родное
+    if ($restoreLinks.Count -gt 0) {
+        $rr = Restore-AppShortcuts -Paths $restoreLinks.ToArray()
+        $res.RestoredShortcuts = [int]$rr.Restored; $failedPre += [int]$rr.Failed
+    }
+    # 2) применить иконки
+    $iconItems = @(& $repoint $iconApply.ToArray() | Where-Object { $_ })
+    if ($iconItems.Count -gt 0) {
+        $ar = Apply-Pack -Pack $main -Items $iconItems -RestartExplorer:$RestartExplorer -NoAuto:(-not $o.Auto)
+        $res.Icons = $ar; $res.Changed += [int]$ar.Changed; $res.Same += [int]$ar.Same; $res.Failed += [int]$ar.Failed
+    } elseif ($res.RestoredShortcuts -gt 0) { Update-IconView -RestartExplorer ([bool]$RestartExplorer) -ClearCache $true }
+    # 3) плитки Start11
+    $tileItems = @(& $repoint $tileApply.ToArray() | Where-Object { $_ })
+    if ($tileItems.Count -gt 0) {
+        $tr = Apply-Start11Tiles -Pack $main -Items $tileItems -NoName:$o.NoName -NoReload:$NoReload -NoAuto:(-not $o.Auto)
+        $res.Tiles = $tr; $res.Changed += [int]$tr.Changed; $res.Same += [int]$tr.Same; $res.Failed += [int]$tr.Failed
+    }
+    if ($restoreTiles.Count -gt 0) {
+        $ut = Undo-Start11Tiles -NoReload:$NoReload -Ids $restoreTiles.ToArray()
+        $res.RestoredTiles = [int]$ut.Restored; $failedPre += [int]$ut.Failed
+    }
+    $res.Failed += $failedPre + @($renderFailed | Where-Object { $_.Kind -eq 'icon' -or $_.Kind -eq 'tile' }).Count
+    Write-Log ("План применён ($VariantId): изменено $($res.Changed), уже стояли $($res.Same), возвращено родных: $($res.RestoredShortcuts + $res.RestoredTiles), пропущено приложений: $skipped, ошибок: $($res.Failed)")
+    return $res
+}
+
+# ---------- Частичный откат ----------
+# Вернуть исходную иконку только указанных ярлыков (записи бэкапа удаляются; остальное в бэкапе остаётся для общего отката). Общие ярлыки без прав
+# администратора не трогаем (CommonPending). Возвращает { Restored; NoBackup; Failed; CommonPending }.
+function Restore-AppShortcuts {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string[]]$Paths, [string[]]$AppKeys = @())
+    Assert-ElevationSafe
+    $r = [pscustomobject]@{ Restored = 0; NoBackup = 0; Failed = 0; CommonPending = 0 }
+    $backup = Load-Backup
+    $commonRoots = @(Get-CommonRootPaths)
+    $origIco = @{}
+    $keys = @{}; foreach ($k in @($AppKeys)) { $keys[[string]$k] = $true }
+    foreach ($path in @($Paths | Where-Object { $_ } | Select-Object -Unique)) {
+        if (-not $backup.ContainsKey($path)) { $r.NoBackup++; continue }
+        if ((Test-CommonPath $path $commonRoots) -and -not (Test-Admin)) { $r.CommonPending++; continue }
+        $e = $backup[$path]; $copy = [string]$e.Copy
+        $bad = Test-BackupEntry $path $copy
+        if ($bad) { Write-Log "  запись бэкапа отклонена ($bad): $path"; $backup.Remove($path); continue }
+        try {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { Write-Log "  ярлык удалён, не воскрешаю: $(Get-BaseNameSafe $path)"; Remove-CopyQuiet $copy; $backup.Remove($path); continue }
+            $loc = $e.Icon
+            if ($null -eq $loc) {
+                if (-not (Test-Path -LiteralPath $copy)) { Write-Log "  нет копии для $path - пропускаю"; $backup.Remove($path); continue }
+                $loc = [string](Get-WshShell).CreateShortcut($copy).IconLocation
+            }
+            $sp = Split-IconLocation $loc
+            [void](Set-LinkIcon $path $sp.Path $sp.Index)
+            if ($sp.Path) { try { $origIco[[IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($sp.Path.Trim('"'))).ToLowerInvariant()] = $true } catch { } }
+            if ($e.AppKey) { $keys[[string]$e.AppKey] = $true }
+            Remove-CopyQuiet $copy
+            Send-ItemNotify $path
+            $backup.Remove($path); $r.Restored++
+            Write-Log "  возвращён: $(Get-BaseNameSafe $path)"
+        } catch { $r.Failed++; Write-Log "  ошибка с $path : $($_.Exception.Message)" }
+    }
+    # подменённые .ico самого приложения (Apply-Pack подменяет файл иконки, на который смотрел ярлык): возвращаем те, что относятся к этим приложениям
+    foreach ($path in @($backup.Keys)) {
+        if ([IO.Path]::GetExtension($path) -ine '.ico') { continue }
+        $e = $backup[$path]
+        $mine = ($e.AppKey -and $keys.ContainsKey([string]$e.AppKey))
+        if (-not $mine) { try { $mine = $origIco.ContainsKey([IO.Path]::GetFullPath($path).ToLowerInvariant()) } catch { } }
+        if (-not $mine) { continue }
+        $copy = [string]$e.Copy
+        $bad = Test-BackupEntry $path $copy
+        if ($bad) { $backup.Remove($path); continue }
+        try {
+            if ((Test-Path -LiteralPath $copy) -and (Test-Path -LiteralPath ([IO.Path]::GetDirectoryName($path)))) { Copy-Item -LiteralPath $copy -Destination $path -Force; Send-ItemNotify $path; Write-Log "  возвращён файл иконки: $(Split-Path $path -Leaf)" }
+            Remove-CopyQuiet $copy; $backup.Remove($path)
+        } catch { $r.Failed++; Write-Log "  ошибка с $path : $($_.Exception.Message)" }
+    }
+    Save-Backup $backup
+    return $r
+}
+
+# Откат выбранных приложений (по AppKey плана): ярлыки (-Icon) и/или плитки Start11 (-Tile); без обоих флагов - и то, и другое. Остальное в бэкапе остаётся:
+# полный Undo-All потом возвращает его же. Записи бэкапа, сделанные до 3.0 (без AppKey), находятся по плану (-VariantId; по умолчанию применённый вариант).
+# Возвращает { Restored (ярлыков); TilesRestored; Failed; CommonPending; Nothing; Hint }.
+function Undo-Apps {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string[]]$AppKeys, [switch]$Icon, [switch]$Tile, [string]$VariantId = '', $Plan = $null, [switch]$NoReload, [switch]$RestartExplorer)
+    Assert-ElevationSafe
+    $doIcon = ($Icon -or -not $Tile); $doTile = ($Tile -or -not $Icon)
+    $keys = @{}; foreach ($k in @($AppKeys)) { if ($k) { $keys[[string]$k] = $true } }
+    $res = [pscustomobject]@{ Restored = 0; TilesRestored = 0; Failed = 0; CommonPending = 0; Nothing = $true; Hint = ''; Keys = @($keys.Keys) }
+    $backup = Load-Backup
+    $s11 = Load-S11Backup
+    $paths = New-Object 'System.Collections.Generic.List[string]'
+    $tileIds = New-Object 'System.Collections.Generic.List[string]'
+    $legacy = $false
+    foreach ($p in @($backup.Keys)) { $ak = [string]$backup[$p].AppKey; if ($ak -and $keys.ContainsKey($ak)) { $paths.Add($p) } elseif (-not $ak) { $legacy = $true } }
+    foreach ($i in @($s11.Keys)) { $ak = [string]$s11[$i].AppKey; if ($ak -and $keys.ContainsKey($ak)) { $tileIds.Add($i) } elseif (-not $ak) { $legacy = $true } }
+    if ($legacy -and $null -eq $Plan) {
+        try {
+            $vid = $VariantId; if (-not $vid) { $vid = Get-AppliedVariantId }
+            $wantAuto = (@($keys.Keys | Where-Object { ([string]$_).StartsWith('auto:') }).Count -gt 0)       # записи 2.x автоиконок находятся только планом с автоиконками
+            if ($vid) { $Plan = @(Get-AppPlan -VariantId $vid -Options @{ AllUsers = $true; Render = $false; Sync = $false; Auto = $wantAuto }) }
+        } catch { Write-Log ('  частичный откат: записи без AppKey не сопоставлены (' + $_.Exception.Message + ')') }
+    }
+    foreach ($e in @($Plan)) {
+        if (-not $keys.ContainsKey([string]$e.AppKey)) { continue }
+        foreach ($m in @($e.Shortcuts)) { if ($backup.ContainsKey([string]$m.Path) -and -not $paths.Contains([string]$m.Path)) { $paths.Add([string]$m.Path) } }
+        foreach ($m in @($e.Tiles)) { if ($s11.ContainsKey([string]$m.TileId) -and -not $tileIds.Contains([string]$m.TileId)) { $tileIds.Add([string]$m.TileId) } }
+    }
+    if ($doIcon -and $paths.Count -gt 0) {
+        $rr = Restore-AppShortcuts -Paths $paths.ToArray() -AppKeys @($keys.Keys)
+        $res.Restored = [int]$rr.Restored; $res.Failed += [int]$rr.Failed; $res.CommonPending = [int]$rr.CommonPending
+        if ($rr.Restored -gt 0) { $res.Nothing = $false; Update-IconView -RestartExplorer ([bool]$RestartExplorer) -ClearCache $true }
+    }
+    if ($doTile -and $tileIds.Count -gt 0) {
+        $ut = Undo-Start11Tiles -NoReload:$NoReload -Ids $tileIds.ToArray()
+        $res.TilesRestored = [int]$ut.Restored; $res.Failed += [int]$ut.Failed; $res.Hint = [string]$ut.Hint
+        if ($ut.Restored -gt 0) { $res.Nothing = $false }
+    }
+    Write-Log ("Откат приложений ($((@($keys.Keys)) -join ', ')): ярлыков $($res.Restored), плиток $($res.TilesRestored), ошибок $($res.Failed)")
+    return $res
 }
